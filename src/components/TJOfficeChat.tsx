@@ -17,20 +17,22 @@ export const TJOfficeChat: React.FC = () => {
   const [inputText, setInputText] = useState('');
   const [isAutoActive, setIsAutoActive] = useState(false);
   const [editingAgente, setEditingAgente] = useState<Agente | null>(null);
+  const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchData();
     
-    // Escuchar mensajes en tiempo real
     const msgSub = supabase
       .channel('tj-realtime-messages')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tj_mensajes' }, (payload) => {
-        setMensajes(prev => [...prev, payload.new as Mensaje]);
+        setMensajes(prev => {
+          if (prev.find(m => m.id === payload.new.id)) return prev;
+          return [...prev, payload.new as Mensaje];
+        });
       })
       .subscribe();
 
-    // Escuchar cambios en agentes (por si los editas desde otra pestaña)
     const agentSub = supabase
       .channel('tj-realtime-agents')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tj_agentes' }, fetchData)
@@ -42,43 +44,63 @@ export const TJOfficeChat: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [mensajes]);
+
   const fetchData = async () => {
-    const { data: a } = await supabase.from('tj_agentes').select('*').order('creado_en', { ascending: true });
-    if (a?.length) setAgentes(a);
-    
-    const { data: m } = await supabase.from('tj_mensajes').select('*').order('creado_en', { ascending: true });
-    if (m) setMensajes(m);
+    try {
+      const { data: a } = await supabase.from('tj_agentes').select('*').order('creado_en', { ascending: true });
+      if (a?.length) setAgentes(a);
+      
+      const { data: m } = await supabase.from('tj_mensajes').select('*').order('creado_en', { ascending: true });
+      if (m) setMensajes(m);
+    } catch (err) {
+      console.error("Error fetching data:", err);
+    }
   };
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || isSending) return;
 
-    const { error } = await supabase.from('tj_mensajes').insert([{
-      remitente_tipo: 'usuario',
-      remitente_id: '00000000-0000-0000-0000-000000000000',
-      texto: inputText,
-      canal: '#general'
-    }]);
+    setIsSending(true);
+    try {
+      const { error } = await supabase.from('tj_mensajes').insert([{
+        remitente_tipo: 'usuario',
+        remitente_id: '00000000-0000-0000-0000-000000000000',
+        texto: inputText,
+        canal: '#general'
+      }]);
 
-    if (!error) setInputText('');
-    else console.error("Error al enviar:", error);
+      if (error) throw error;
+      setInputText('');
+    } catch (error: any) {
+      console.error("Error al enviar:", error);
+      alert("Error al enviar el mensaje. Verifica la conexión con Supabase.");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const saveAgentChanges = async () => {
     if (!editingAgente) return;
-    const { error } = await supabase
-      .from('tj_agentes')
-      .update({
-        nombre: editingAgente.nombre,
-        rol: editingAgente.rol,
-        skills: editingAgente.skills
-      })
-      .eq('id', editingAgente.id);
-    
-    if (!error) {
+    try {
+      const { error } = await supabase
+        .from('tj_agentes')
+        .update({
+          nombre: editingAgente.nombre,
+          rol: editingAgente.rol
+        })
+        .eq('id', editingAgente.id);
+      
+      if (error) throw error;
       setEditingAgente(null);
       fetchData();
+    } catch (err) {
+      alert("Error al guardar cambios del agente.");
     }
   };
 
@@ -88,13 +110,13 @@ export const TJOfficeChat: React.FC = () => {
       {/* 1. SIDEBAR IZQUIERDA: AGENTES (Ancho Fijo) */}
       <aside className="w-60 flex-shrink-0 bg-[#0A0A0A] border-r border-white/10 flex flex-col h-full">
         <div className="h-14 flex items-center px-5 border-b border-white/10">
-          <span className="font-black tracking-tighter text-sm italic">TJ<span className="text-[#CCFF00]">OFFICE</span></span>
+          <span className="font-black tracking-tighter text-sm italic uppercase">TJ<span className="text-[#CCFF00]">OFFICE</span></span>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-3 space-y-4">
+        <div className="flex-1 overflow-y-auto p-3 space-y-4 scrollbar-hide">
           <div className="flex items-center justify-between px-1 mb-2">
-            <span className="text-[9px] font-bold text-white/40 tracking-[0.2em] uppercase">Specialists</span>
-            <div className="w-1.5 h-1.5 rounded-full bg-[#CCFF00] animate-pulse" />
+            <span className="text-[9px] font-bold text-white/40 tracking-[0.2em] uppercase">Especialistas</span>
+            <div className={`w-1.5 h-1.5 rounded-full ${isAutoActive ? 'bg-[#CCFF00] animate-pulse' : 'bg-white/20'}`} />
           </div>
           
           <div className="space-y-2">
@@ -109,7 +131,7 @@ export const TJOfficeChat: React.FC = () => {
                     <p className="font-bold text-[10px] truncate">@{a.nickname}</p>
                     <p className="text-[8px] text-white/40 truncate uppercase font-medium">{a.rol}</p>
                   </div>
-                  <button onClick={() => setEditingAgente(a)} className="text-white/20 hover:text-[#CCFF00]">
+                  <button onClick={() => setEditingAgente(a)} className="text-white/20 hover:text-[#CCFF00] transition-colors">
                     <Edit3 size={12} />
                   </button>
                 </div>
@@ -132,75 +154,118 @@ export const TJOfficeChat: React.FC = () => {
         </div>
       </aside>
 
-      {/* 2. AREA CENTRAL: WORKSPACE (Flexible) */}
-      <main className="flex-1 flex flex-col bg-black overflow-hidden">
-        <header className="h-14 flex items-center px-6 border-b border-white/10">
-          <div className="flex items-center gap-2">
-            <Cpu size={14} className="text-white/20" />
-            <span className="text-[9px] font-bold tracking-[0.2em] text-white/40 uppercase">System / Primary_Monitor</span>
-          </div>
-        </header>
-        
-        <div className="flex-1 flex flex-col items-center justify-center p-10 relative">
-          <div className="absolute inset-0 opacity-[0.02] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#CCFF00 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
-          <Terminal size={40} className="text-white/10 mb-4" />
-          <h2 className="text-sm font-bold tracking-[0.5em] text-white/20 uppercase">Awaiting instruction...</h2>
-          <div className="mt-8 grid grid-cols-2 gap-4 w-full max-w-lg opacity-40">
-            <div className="h-24 border border-white/10 rounded flex flex-col items-center justify-center gap-2">
-              <Activity size={16} />
-              <span className="text-[8px] tracking-widest font-bold">CORE_LOAD: 2%</span>
-            </div>
-            <div className="h-24 border border-white/10 rounded flex flex-col items-center justify-center gap-2">
-              <Activity size={16} />
-              <span className="text-[8px] tracking-widest font-bold">LATENCY: 12ms</span>
-            </div>
-          </div>
-        </div>
-      </main>
-
-      {/* 3. SIDEBAR DERECHA: CHAT INSTRUCCIONES (Ancho Fijo 360px) */}
-      <aside className="w-96 flex-shrink-0 bg-[#0A0A0A] border-l border-white/10 flex flex-col h-full">
-        <header className="h-14 flex items-center px-5 border-b border-white/10">
-          <div className="flex items-center gap-2">
+      {/* 2. AREA CENTRAL: CHAT / INSTRUCCIONES (Flexible) */}
+      <main className="flex-1 flex flex-col bg-[#050505] overflow-hidden border-r border-white/10">
+        <header className="h-14 flex items-center px-6 border-b border-white/10 bg-black">
+          <div className="flex items-center gap-3">
             <MessageSquare size={14} className="text-[#CCFF00]" />
-            <span className="text-[9px] font-bold tracking-[0.2em] uppercase">Control_Interface</span>
+            <span className="text-[10px] font-bold tracking-[0.2em] uppercase">Panel Central de Instrucciones</span>
           </div>
         </header>
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-white/5">
           {mensajes.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center opacity-10">
-              <Terminal size={24} />
-              <p className="mt-2 text-[10px] tracking-widest">NO_LOGS_DETECTED</p>
+              <Terminal size={32} />
+              <p className="mt-4 text-[10px] tracking-[0.5em] font-bold uppercase">System idle: awaiting first command</p>
             </div>
           ) : (
             mensajes.map(m => (
-              <div key={m.id} className={`flex gap-3 ${m.remitente_tipo === 'agente' ? 'flex-row-reverse' : ''}`}>
-                <div className={`flex-shrink-0 w-6 h-6 rounded flex items-center justify-center text-[8px] font-bold ${m.remitente_tipo === 'agente' ? 'bg-[#CCFF00] text-black' : 'bg-white/10 text-white'}`}>
+              <div key={m.id} className={`flex gap-4 max-w-3xl mx-auto group animate-in ${m.remitente_tipo === 'agente' ? 'bg-white/5 border border-white/5 p-4 rounded-lg' : ''}`}>
+                <div className={`flex-shrink-0 w-8 h-8 rounded flex items-center justify-center text-[9px] font-bold ${m.remitente_tipo === 'agente' ? 'bg-[#CCFF00] text-black shadow-[0_0_10px_rgba(204,255,0,0.2)]' : 'bg-white/10 text-white'}`}>
                   {m.remitente_tipo === 'agente' ? 'AI' : 'OP'}
                 </div>
-                <div className={`max-w-[85%] p-3 rounded bg-white/5 border border-white/5 text-[11px] leading-relaxed ${m.remitente_tipo === 'agente' ? 'text-[#CCFF00]/80' : 'text-white/90'}`}>
-                  {m.texto}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-bold text-white/60 uppercase tracking-tighter">
+                      {m.remitente_tipo === 'agente' ? agentes.find(a => a.id === m.remitente_id)?.nombre : 'Operador Sistema'}
+                    </span>
+                    <span className="text-[8px] text-white/20">
+                      {new Date(m.creado_en).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <p className={`text-[12px] leading-relaxed ${m.remitente_tipo === 'agente' ? 'text-[#CCFF00]/90 font-medium' : 'text-white/80'}`}>
+                    {m.texto}
+                  </p>
                 </div>
               </div>
             ))
           )}
         </div>
 
-        <div className="p-4 bg-black border-t border-white/10">
-          <form onSubmit={handleSend} className="relative">
+        <div className="p-6 bg-black border-t border-white/10">
+          <form onSubmit={handleSend} className="max-w-3xl mx-auto relative">
             <input 
               type="text" 
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="System command..."
-              className="w-full bg-[#111] border border-white/10 rounded py-3 pl-4 pr-10 text-[11px] text-white focus:outline-none focus:border-[#CCFF00]/50 transition-all placeholder:text-white/10"
+              placeholder="Escribe una instrucción para los agentes..."
+              disabled={isSending}
+              className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-5 pr-14 text-[12px] text-white focus:outline-none focus:border-[#CCFF00]/50 transition-all placeholder:text-white/20"
             />
-            <button className="absolute right-2 top-1/2 -translate-y-1/2 text-white/30 hover:text-[#CCFF00]">
-              <Send size={14} />
+            <button 
+              type="submit"
+              disabled={!inputText.trim() || isSending}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-lg bg-[#CCFF00] text-black flex items-center justify-center hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100 transition-all shadow-[0_0_15px_rgba(204,255,0,0.2)]"
+            >
+              <Send size={16} />
             </button>
           </form>
-          <p className="mt-2 text-[7px] text-white/20 font-bold uppercase tracking-widest text-center">Sync status: Connected to Supabase Mainframe</p>
+          <div className="mt-3 flex items-center justify-center gap-3">
+            <span className="text-[8px] text-white/20 font-bold tracking-widest uppercase">Encryption: AES-256</span>
+            <span className="text-[8px] text-white/20 font-bold tracking-widest uppercase">|</span>
+            <span className="text-[8px] text-[#CCFF00]/40 font-bold tracking-widest uppercase animate-pulse">Supabase Link: Active</span>
+          </div>
+        </div>
+      </main>
+
+      {/* 3. SIDEBAR DERECHA: WORKSPACE / MONITOR (320px) */}
+      <aside className="w-80 flex-shrink-0 bg-[#0A0A0A] flex flex-col h-full">
+        <header className="h-14 flex items-center px-6 border-b border-white/10 bg-black">
+          <div className="flex items-center gap-2">
+            <Cpu size={14} className="text-white/20" />
+            <span className="text-[9px] font-bold tracking-[0.2em] text-white/40 uppercase">System_Monitor</span>
+          </div>
+        </header>
+        
+        <div className="flex-1 p-6 space-y-6">
+          <div className="p-6 border border-white/5 rounded-lg bg-white/[0.02] flex flex-col items-center justify-center gap-4">
+            <div className="w-12 h-12 rounded-full border-2 border-white/5 flex items-center justify-center">
+              <Terminal size={20} className="text-white/20" />
+            </div>
+            <div className="text-center">
+              <h3 className="text-[10px] font-bold tracking-widest uppercase text-white/60 mb-1">Status_Ready</h3>
+              <p className="text-[8px] text-white/30 uppercase tracking-tighter">Waiting for agent activity...</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            <div className="p-4 border border-white/5 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest">Network Traffic</span>
+                <Activity size={10} className="text-[#CCFF00]" />
+              </div>
+              <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                <div className="h-full bg-[#CCFF00]/50 w-[15%]" />
+              </div>
+            </div>
+            <div className="p-4 border border-white/5 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest">Core Load</span>
+                <Activity size={10} className="text-[#CCFF00]" />
+              </div>
+              <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                <div className="h-full bg-white/20 w-[4%]" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 border-t border-white/10">
+           <div className="bg-[#CCFF00]/5 border border-[#CCFF00]/20 p-4 rounded text-center">
+              <p className="text-[8px] font-black text-[#CCFF00] tracking-widest uppercase mb-1">TJ FITLAB MAINFRAME</p>
+              <p className="text-[7px] text-white/40 uppercase tracking-tighter">Access Level: Administrator</p>
+           </div>
         </div>
       </aside>
 
@@ -213,12 +278,12 @@ export const TJOfficeChat: React.FC = () => {
             </button>
             <div className="flex items-center gap-3 mb-8">
               <Settings2 size={16} className="text-[#CCFF00]" />
-              <h2 className="text-xs font-bold tracking-[0.2em] uppercase">Configure Agent</h2>
+              <h2 className="text-xs font-bold tracking-[0.2em] uppercase">Configurar Agente</h2>
             </div>
             
             <div className="space-y-6">
               <div>
-                <label className="text-[8px] text-white/30 font-bold block mb-2 tracking-widest uppercase">Agent Name</label>
+                <label className="text-[8px] text-white/30 font-bold block mb-2 tracking-widest uppercase">Nombre</label>
                 <input 
                   type="text" 
                   value={editingAgente.nombre} 
@@ -227,7 +292,7 @@ export const TJOfficeChat: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="text-[8px] text-white/30 font-bold block mb-2 tracking-widest uppercase">System Role</label>
+                <label className="text-[8px] text-white/30 font-bold block mb-2 tracking-widest uppercase">Rol en el Sistema</label>
                 <input 
                   type="text" 
                   value={editingAgente.rol} 
@@ -239,7 +304,7 @@ export const TJOfficeChat: React.FC = () => {
                 onClick={saveAgentChanges}
                 className="w-full bg-[#CCFF00] text-black font-black py-4 rounded text-[10px] tracking-widest hover:bg-white transition-all"
               >
-                APPLY CHANGES
+                APLICAR CAMBIOS
               </button>
             </div>
           </div>
