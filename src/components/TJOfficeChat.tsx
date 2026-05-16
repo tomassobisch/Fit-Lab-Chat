@@ -20,10 +20,30 @@ export const TJOfficeChat: React.FC = () => {
   const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
+
+  const speakMessage = (text: string, nickname: string) => {
+    if (!isVoiceEnabled || !window.speechSynthesis) return;
+
+    // Limpiar etiquetas de mención si existen
+    const cleanText = text.replace(/@\w+/g, '').trim();
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    
+    // Configuración básica de voz
+    utterance.lang = 'es-ES';
+    utterance.rate = 1.0;
+    
+    // Personalización sutil por agente
+    if (nickname === 'Programador') { utterance.pitch = 0.8; utterance.rate = 1.1; }
+    if (nickname === 'CommunityManager') { utterance.pitch = 1.2; }
+    if (nickname === 'Legal') { utterance.pitch = 0.9; utterance.rate = 0.9; }
+
+    window.speechSynthesis.speak(utterance);
+  };
+
   useEffect(() => {
     fetchData();
     
-    // SUSCRIPCIÓN ROBUSTA
     const channel = supabase
       .channel('schema-db-changes')
       .on('postgres_changes', { 
@@ -31,12 +51,18 @@ export const TJOfficeChat: React.FC = () => {
         schema: 'public', 
         table: 'tj_mensajes' 
       }, (payload) => {
-        console.log('¡Nuevo mensaje recibido por Realtime!', payload.new);
+        const newMessage = payload.new as Mensaje;
+        
         setMensajes(prev => {
-          // Evitar duplicados si el fetch manual y el realtime coinciden
-          if (prev.some(m => m.id === payload.new.id)) return prev;
-          return [...prev, payload.new as Mensaje];
+          if (prev.some(m => m.id === newMessage.id)) return prev;
+          return [...prev, newMessage];
         });
+
+        // HACER QUE EL AGENTE HABLE
+        if (newMessage.remitente_tipo === 'agente') {
+          const agente = agentes.find(a => a.id === newMessage.remitente_id);
+          speakMessage(newMessage.texto, agente?.nickname || '');
+        }
       })
       .on('postgres_changes', { 
         event: 'UPDATE', 
