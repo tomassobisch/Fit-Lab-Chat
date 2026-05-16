@@ -131,6 +131,20 @@ export const TJOfficeChat: React.FC = () => {
   const [showMentions, setShowMentions] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const fetchAgentes = async () => {
+    const { data } = await supabase.from('agentes').select('*');
+    if (data) setAgentes(data);
+  };
+
+  const fetchMensajes = async () => {
+    const { data } = await supabase
+      .from('mensajes_oficina')
+      .select('*')
+      .eq('canal', canal)
+      .order('creado_en', { ascending: true });
+    if (data) setMensajes(data);
+  };
+
   useEffect(() => {
     console.log('TJOfficeChat: Initializing...');
 
@@ -153,7 +167,7 @@ export const TJOfficeChat: React.FC = () => {
     };
 
     init();
-  ...
+
     const subscription = supabase
       .channel('tj-office-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensajes_oficina' }, (payload) => {
@@ -165,26 +179,6 @@ export const TJOfficeChat: React.FC = () => {
       supabase.removeChannel(subscription);
     };
   }, [canal]);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [mensajes]);
-
-  const fetchAgentes = async () => {
-    const { data } = await supabase.from('agentes').select('*');
-    if (data) setAgentes(data);
-  };
-
-  const fetchMensajes = async () => {
-    const { data } = await supabase
-      .from('mensajes_oficina')
-      .select('*')
-      .eq('canal', canal)
-      .order('creado_en', { ascending: true });
-    if (data) setMensajes(data);
-  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
