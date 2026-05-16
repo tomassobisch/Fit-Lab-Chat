@@ -200,7 +200,7 @@ export const TJOfficeChat: React.FC = () => {
                 onChange={(e) => setInputText(e.target.value)}
                 placeholder={isSending ? "Enviando..." : "Instrucción de sistema..."}
                 disabled={isSending}
-                className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-4 pr-12 text-[12px] text-white focus:outline-none focus:border-[#CCFF00]/50 transition-all"
+                className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-4 pr-12 text-base md:text-[12px] text-white focus:outline-none focus:border-[#CCFF00]/50 transition-all"
               />
               <button 
                 type="submit"
@@ -248,11 +248,11 @@ export const TJOfficeChat: React.FC = () => {
             <div className="space-y-5">
               <div>
                 <label className="text-[8px] text-white/30 font-bold block mb-2 uppercase tracking-widest">Identificador</label>
-                <input type="text" value={editingAgente.nombre} onChange={(e) => setEditingAgente({...editingAgente, nombre: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded p-3 text-xs text-white outline-none focus:border-[#CCFF00]/40" />
+                <input type="text" value={editingAgente.nombre} onChange={(e) => setEditingAgente({...editingAgente, nombre: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded p-3 text-base md:text-xs text-white outline-none focus:border-[#CCFF00]/40" />
               </div>
               <div>
                 <label className="text-[8px] text-white/30 font-bold block mb-2 uppercase tracking-widest">Rol Sistema</label>
-                <input type="text" value={editingAgente.rol} onChange={(e) => setEditingAgente({...editingAgente, rol: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded p-3 text-xs text-white outline-none focus:border-[#CCFF00]/40" />
+                <input type="text" value={editingAgente.rol} onChange={(e) => setEditingAgente({...editingAgente, rol: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded p-3 text-base md:text-xs text-white outline-none focus:border-[#CCFF00]/40" />
               </div>
               <button onClick={async () => {
                 await supabase.from('tj_agentes').update({ nombre: editingAgente.nombre, rol: editingAgente.rol }).eq('id', editingAgente.id);
