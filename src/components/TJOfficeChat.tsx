@@ -23,30 +23,43 @@ export const TJOfficeChat: React.FC = () => {
   useEffect(() => {
     fetchData();
     
-    const msgSub = supabase
-      .channel('tj-realtime-messages')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tj_mensajes' }, (payload) => {
+    // SUSCRIPCIÓN ROBUSTA
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'tj_mensajes' 
+      }, (payload) => {
+        console.log('¡Nuevo mensaje recibido por Realtime!', payload.new);
         setMensajes(prev => {
-          if (prev.find(m => m.id === payload.new.id)) return prev;
+          // Evitar duplicados si el fetch manual y el realtime coinciden
+          if (prev.some(m => m.id === payload.new.id)) return prev;
           return [...prev, payload.new as Mensaje];
         });
       })
-      .subscribe();
-
-    const agentSub = supabase
-      .channel('tj-realtime-agents')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tj_agentes' }, fetchData)
-      .subscribe();
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'tj_agentes' 
+      }, () => {
+        fetchData();
+      })
+      .subscribe((status) => {
+        console.log('Estado de la conexión Realtime:', status);
+      });
 
     return () => { 
-      supabase.removeChannel(msgSub); 
-      supabase.removeChannel(agentSub);
+      supabase.removeChannel(channel);
     };
   }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
     }
   }, [mensajes]);
 
@@ -67,19 +80,30 @@ export const TJOfficeChat: React.FC = () => {
     if (!inputText.trim() || isSending) return;
 
     setIsSending(true);
+    const tempText = inputText;
+    
     try {
-      const { error } = await supabase.from('tj_mensajes').insert([{
+      const { data, error } = await supabase.from('tj_mensajes').insert([{
         remitente_tipo: 'usuario',
         remitente_id: '00000000-0000-0000-0000-000000000000',
-        texto: inputText,
+        texto: tempText,
         canal: '#general'
-      }]);
+      }]).select(); // Usamos .select() para obtener el ID inmediatamente
 
       if (error) throw error;
+      
+      // FALLBACK: Si Realtime tarda, lo añadimos manualmente al estado
+      if (data && data[0]) {
+        setMensajes(prev => {
+          if (prev.some(m => m.id === data[0].id)) return prev;
+          return [...prev, data[0] as Mensaje];
+        });
+      }
+
       setInputText('');
     } catch (error: any) {
       console.error("Error al enviar:", error);
-      alert("Error al enviar el mensaje. Verifica la conexión con Supabase.");
+      alert("Error al enviar: " + error.message);
     } finally {
       setIsSending(false);
     }
@@ -110,13 +134,13 @@ export const TJOfficeChat: React.FC = () => {
       {/* 1. SIDEBAR IZQUIERDA: AGENTES (Ancho Fijo) */}
       <aside className="w-60 flex-shrink-0 bg-[#0A0A0A] border-r border-white/10 flex flex-col h-full">
         <div className="h-14 flex items-center px-5 border-b border-white/10">
-          <span className="font-black tracking-tighter text-sm italic uppercase">TJ<span className="text-[#CCFF00]">OFFICE</span></span>
+          <span className="font-black tracking-tighter text-sm italic uppercase italic">TJ<span className="text-[#CCFF00]">OFFICE</span></span>
         </div>
         
         <div className="flex-1 overflow-y-auto p-3 space-y-4 scrollbar-hide">
           <div className="flex items-center justify-between px-1 mb-2">
             <span className="text-[9px] font-bold text-white/40 tracking-[0.2em] uppercase">Especialistas</span>
-            <div className={`w-1.5 h-1.5 rounded-full ${isAutoActive ? 'bg-[#CCFF00] animate-pulse' : 'bg-white/20'}`} />
+            <div className={`w-1.5 h-1.5 rounded-full ${isAutoActive ? 'bg-[#CCFF00] animate-pulse shadow-[0_0_8px_#CCFF00]' : 'bg-white/20'}`} />
           </div>
           
           <div className="space-y-2">
@@ -154,12 +178,12 @@ export const TJOfficeChat: React.FC = () => {
         </div>
       </aside>
 
-      {/* 2. AREA CENTRAL: CHAT / INSTRUCCIONES (Flexible) */}
+      {/* 2. AREA CENTRAL: CHAT / INSTRUCCIONES (Principal) */}
       <main className="flex-1 flex flex-col bg-[#050505] overflow-hidden border-r border-white/10">
         <header className="h-14 flex items-center px-6 border-b border-white/10 bg-black">
           <div className="flex items-center gap-3">
             <MessageSquare size={14} className="text-[#CCFF00]" />
-            <span className="text-[10px] font-bold tracking-[0.2em] uppercase">Panel Central de Instrucciones</span>
+            <span className="text-[10px] font-bold tracking-[0.2em] uppercase">Control Central de Instrucciones</span>
           </div>
         </header>
 
@@ -167,11 +191,11 @@ export const TJOfficeChat: React.FC = () => {
           {mensajes.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center opacity-10">
               <Terminal size={32} />
-              <p className="mt-4 text-[10px] tracking-[0.5em] font-bold uppercase">System idle: awaiting first command</p>
+              <p className="mt-4 text-[10px] tracking-[0.5em] font-bold uppercase">System idle: awaiting commands</p>
             </div>
           ) : (
             mensajes.map(m => (
-              <div key={m.id} className={`flex gap-4 max-w-3xl mx-auto group animate-in ${m.remitente_tipo === 'agente' ? 'bg-white/5 border border-white/5 p-4 rounded-lg' : ''}`}>
+              <div key={m.id} className={`flex gap-4 max-w-2xl mx-auto group animate-in ${m.remitente_tipo === 'agente' ? 'bg-white/5 border border-white/5 p-4 rounded-lg' : ''}`}>
                 <div className={`flex-shrink-0 w-8 h-8 rounded flex items-center justify-center text-[9px] font-bold ${m.remitente_tipo === 'agente' ? 'bg-[#CCFF00] text-black shadow-[0_0_10px_rgba(204,255,0,0.2)]' : 'bg-white/10 text-white'}`}>
                   {m.remitente_tipo === 'agente' ? 'AI' : 'OP'}
                 </div>
@@ -194,84 +218,76 @@ export const TJOfficeChat: React.FC = () => {
         </div>
 
         <div className="p-6 bg-black border-t border-white/10">
-          <form onSubmit={handleSend} className="max-w-3xl mx-auto relative">
+          <form onSubmit={handleSend} className="max-w-2xl mx-auto relative">
             <input 
               type="text" 
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="Escribe una instrucción para los agentes..."
+              placeholder="Escribir comando de sistema..."
               disabled={isSending}
               className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-5 pr-14 text-[12px] text-white focus:outline-none focus:border-[#CCFF00]/50 transition-all placeholder:text-white/20"
             />
             <button 
               type="submit"
               disabled={!inputText.trim() || isSending}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-lg bg-[#CCFF00] text-black flex items-center justify-center hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100 transition-all shadow-[0_0_15px_rgba(204,255,0,0.2)]"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-lg bg-[#CCFF00] text-black flex items-center justify-center hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100 transition-all"
             >
               <Send size={16} />
             </button>
           </form>
           <div className="mt-3 flex items-center justify-center gap-3">
-            <span className="text-[8px] text-white/20 font-bold tracking-widest uppercase">Encryption: AES-256</span>
-            <span className="text-[8px] text-white/20 font-bold tracking-widest uppercase">|</span>
-            <span className="text-[8px] text-[#CCFF00]/40 font-bold tracking-widest uppercase animate-pulse">Supabase Link: Active</span>
+            <span className="text-[8px] text-white/20 font-bold tracking-widest uppercase">Connection: Persistent</span>
+            <span className="text-[8px] text-[#CCFF00]/40 font-bold tracking-widest uppercase animate-pulse">| Supabase Live</span>
           </div>
         </div>
       </main>
 
-      {/* 3. SIDEBAR DERECHA: WORKSPACE / MONITOR (320px) */}
+      {/* 3. SIDEBAR DERECHA: MONITOR (320px) */}
       <aside className="w-80 flex-shrink-0 bg-[#0A0A0A] flex flex-col h-full">
         <header className="h-14 flex items-center px-6 border-b border-white/10 bg-black">
           <div className="flex items-center gap-2">
             <Cpu size={14} className="text-white/20" />
-            <span className="text-[9px] font-bold tracking-[0.2em] text-white/40 uppercase">System_Monitor</span>
+            <span className="text-[9px] font-bold tracking-[0.2em] text-white/40 uppercase">Monitorización</span>
           </div>
         </header>
         
         <div className="flex-1 p-6 space-y-6">
-          <div className="p-6 border border-white/5 rounded-lg bg-white/[0.02] flex flex-col items-center justify-center gap-4">
-            <div className="w-12 h-12 rounded-full border-2 border-white/5 flex items-center justify-center">
-              <Terminal size={20} className="text-white/20" />
-            </div>
+          <div className="p-6 border border-white/5 rounded-lg bg-white/[0.01] flex flex-col items-center justify-center gap-4">
+            <Terminal size={24} className="text-white/10" />
             <div className="text-center">
-              <h3 className="text-[10px] font-bold tracking-widest uppercase text-white/60 mb-1">Status_Ready</h3>
-              <p className="text-[8px] text-white/30 uppercase tracking-tighter">Waiting for agent activity...</p>
+              <h3 className="text-[10px] font-bold tracking-widest uppercase text-white/60">Servidores Activos</h3>
+              <p className="text-[8px] text-[#CCFF00] uppercase tracking-tighter mt-1">TJ_OFFICE_NODE_01</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3">
+          <div className="space-y-4">
             <div className="p-4 border border-white/5 rounded-lg">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest">Network Traffic</span>
+                <span className="text-[8px] font-bold text-white/40 uppercase">Red</span>
                 <Activity size={10} className="text-[#CCFF00]" />
               </div>
-              <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                <div className="h-full bg-[#CCFF00]/50 w-[15%]" />
-              </div>
+              <div className="h-1 bg-white/5 w-full rounded-full"><div className="bg-[#CCFF00] h-full w-[15%] shadow-[0_0_5px_#CCFF00]" /></div>
             </div>
             <div className="p-4 border border-white/5 rounded-lg">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest">Core Load</span>
+                <span className="text-[8px] font-bold text-white/40 uppercase">Procesador</span>
                 <Activity size={10} className="text-[#CCFF00]" />
               </div>
-              <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                <div className="h-full bg-white/20 w-[4%]" />
-              </div>
+              <div className="h-1 bg-white/5 w-full rounded-full"><div className="bg-white/20 h-full w-[8%]" /></div>
             </div>
           </div>
         </div>
 
         <div className="p-6 border-t border-white/10">
            <div className="bg-[#CCFF00]/5 border border-[#CCFF00]/20 p-4 rounded text-center">
-              <p className="text-[8px] font-black text-[#CCFF00] tracking-widest uppercase mb-1">TJ FITLAB MAINFRAME</p>
-              <p className="text-[7px] text-white/40 uppercase tracking-tighter">Access Level: Administrator</p>
+              <p className="text-[8px] font-black text-[#CCFF00] tracking-widest uppercase">Admin_Access_Only</p>
            </div>
         </div>
       </aside>
 
       {/* MODAL CONFIGURACIÓN AGENTE */}
       {editingAgente && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4">
           <div className="w-full max-w-sm bg-[#0A0A0A] border border-white/10 rounded p-8 shadow-2xl relative">
             <button onClick={() => setEditingAgente(null)} className="absolute top-4 right-4 text-white/20 hover:text-white">
               <X size={16} />
@@ -283,7 +299,7 @@ export const TJOfficeChat: React.FC = () => {
             
             <div className="space-y-6">
               <div>
-                <label className="text-[8px] text-white/30 font-bold block mb-2 tracking-widest uppercase">Nombre</label>
+                <label className="text-[8px] text-white/30 font-bold block mb-2 uppercase">Nombre</label>
                 <input 
                   type="text" 
                   value={editingAgente.nombre} 
@@ -292,7 +308,7 @@ export const TJOfficeChat: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="text-[8px] text-white/30 font-bold block mb-2 tracking-widest uppercase">Rol en el Sistema</label>
+                <label className="text-[8px] text-white/30 font-bold block mb-2 uppercase">Rol</label>
                 <input 
                   type="text" 
                   value={editingAgente.rol} 
