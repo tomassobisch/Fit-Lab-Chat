@@ -3,6 +3,7 @@ export interface Agente {
   nombre: string;
   nickname: string;
   rol: string;
+  skills: string;
   avatar_url: string;
   estado_online: boolean;
   creado_en: string;
