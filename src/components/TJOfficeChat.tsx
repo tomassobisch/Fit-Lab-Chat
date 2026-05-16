@@ -21,27 +21,65 @@ export const TJOfficeChat: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-    const sub = supabase.channel('tj-office').on('postgres_changes', { event: '*', schema: 'public', table: 'mensajes_oficina' }, fetchData).subscribe();
-    return () => { supabase.removeChannel(sub); };
+    
+    // Escuchar mensajes en tiempo real
+    const msgSub = supabase
+      .channel('tj-realtime-messages')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tj_mensajes' }, (payload) => {
+        setMensajes(prev => [...prev, payload.new as Mensaje]);
+      })
+      .subscribe();
+
+    // Escuchar cambios en agentes (por si los editas desde otra pestaña)
+    const agentSub = supabase
+      .channel('tj-realtime-agents')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tj_agentes' }, fetchData)
+      .subscribe();
+
+    return () => { 
+      supabase.removeChannel(msgSub); 
+      supabase.removeChannel(agentSub);
+    };
   }, []);
 
   const fetchData = async () => {
-    const { data: a } = await supabase.from('agentes').select('*');
+    const { data: a } = await supabase.from('tj_agentes').select('*').order('creado_en', { ascending: true });
     if (a?.length) setAgentes(a);
-    const { data: m } = await supabase.from('mensajes_oficina').select('*').order('creado_en', { ascending: true });
+    
+    const { data: m } = await supabase.from('tj_mensajes').select('*').order('creado_en', { ascending: true });
     if (m) setMensajes(m);
   };
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
-    await supabase.from('mensajes_oficina').insert([{
+
+    const { error } = await supabase.from('tj_mensajes').insert([{
       remitente_tipo: 'usuario',
       remitente_id: '00000000-0000-0000-0000-000000000000',
       texto: inputText,
       canal: '#general'
     }]);
-    setInputText('');
+
+    if (!error) setInputText('');
+    else console.error("Error al enviar:", error);
+  };
+
+  const saveAgentChanges = async () => {
+    if (!editingAgente) return;
+    const { error } = await supabase
+      .from('tj_agentes')
+      .update({
+        nombre: editingAgente.nombre,
+        rol: editingAgente.rol,
+        skills: editingAgente.skills
+      })
+      .eq('id', editingAgente.id);
+    
+    if (!error) {
+      setEditingAgente(null);
+      fetchData();
+    }
   };
 
   return (
@@ -198,11 +236,7 @@ export const TJOfficeChat: React.FC = () => {
                 />
               </div>
               <button 
-                onClick={async () => {
-                  await supabase.from('agentes').update({ nombre: editingAgente.nombre, rol: editingAgente.rol }).eq('id', editingAgente.id);
-                  setEditingAgente(null);
-                  fetchData();
-                }}
+                onClick={saveAgentChanges}
                 className="w-full bg-[#CCFF00] text-black font-black py-4 rounded text-[10px] tracking-widest hover:bg-white transition-all"
               >
                 APPLY CHANGES
