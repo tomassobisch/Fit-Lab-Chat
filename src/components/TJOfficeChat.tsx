@@ -109,22 +109,19 @@ export const TJOfficeChat: React.FC = () => {
     }
   };
 
-  const saveAgentChanges = async () => {
-    if (!editingAgente) return;
-    try {
-      const { error } = await supabase
-        .from('tj_agentes')
-        .update({
-          nombre: editingAgente.nombre,
-          rol: editingAgente.rol
-        })
-        .eq('id', editingAgente.id);
-      
-      if (error) throw error;
-      setEditingAgente(null);
-      fetchData();
-    } catch (err) {
-      alert("Error al guardar cambios del agente.");
+  const toggleAutoAgents = async () => {
+    const newState = !isAutoActive;
+    setIsAutoActive(newState);
+
+    if (newState) {
+      // Al activar, enviamos un mensaje de sistema oculto que n8n escuchará
+      // para disparar los saludos de todos los agentes
+      await supabase.from('tj_mensajes').insert([{
+        remitente_tipo: 'usuario',
+        remitente_id: '00000000-0000-0000-0000-000000000000',
+        texto: '/SYSTEM_ACTIVATE_PROACTIVE_GREETINGS',
+        canal: '#general'
+      }]);
     }
   };
 
@@ -166,7 +163,7 @@ export const TJOfficeChat: React.FC = () => {
 
         <div className="p-3 bg-black border-t border-white/10">
           <button 
-            onClick={() => setIsAutoActive(!isAutoActive)}
+            onClick={toggleAutoAgents}
             className={`w-full py-3 rounded text-[9px] font-bold tracking-widest transition-all border ${
               isAutoActive 
                 ? 'bg-[#CCFF00] text-black border-[#CCFF00] shadow-[0_0_15px_rgba(204,255,0,0.3)]' 
