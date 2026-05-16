@@ -130,7 +130,8 @@ export const TJOfficeChat: React.FC = () => {
       
       {/* 1. SIDEBAR IZQUIERDA: AGENTES (Ancho Fijo) */}
       <aside className="w-60 flex-shrink-0 bg-[#0A0A0A] border-r border-white/10 flex flex-col h-full">
-        <div className="h-14 flex items-center px-5 border-b border-white/10">
+        <div className="h-16 flex items-center gap-3 px-5 border-b border-white/10 bg-black">
+          <img src="/logo-tjo.jpg" className="w-8 h-8 rounded border border-[#CCFF00]/30 shadow-[0_0_10px_#CCFF0044]" alt="TJO" />
           <span className="font-black tracking-tighter text-sm italic uppercase italic">TJ<span className="text-[#CCFF00]">OFFICE</span></span>
         </div>
         
