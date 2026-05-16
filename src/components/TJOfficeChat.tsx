@@ -132,9 +132,28 @@ export const TJOfficeChat: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchAgentes();
-    fetchMensajes();
+    console.log('TJOfficeChat: Initializing...');
 
+    const init = async () => {
+      try {
+        console.log('Fetching initial data...');
+        const agentsPromise = fetchAgentes();
+        const messagesPromise = fetchMensajes();
+
+        // Timeout after 5 seconds to prevent hanging forever
+        await Promise.race([
+          Promise.all([agentsPromise, messagesPromise]),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Fetch Timeout')), 5000))
+        ]);
+
+        console.log('Data fetched successfully');
+      } catch (err) {
+        console.error('Initialization error or timeout:', err);
+      }
+    };
+
+    init();
+  ...
     const subscription = supabase
       .channel('tj-office-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensajes_oficina' }, (payload) => {
