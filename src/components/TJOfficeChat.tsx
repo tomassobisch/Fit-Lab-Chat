@@ -48,6 +48,16 @@ export const TJOfficeChat: React.FC = () => {
   const [editingAgente, setEditingAgente] = useState<Agente | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const fetchAgentes = async () => {
+    const { data } = await supabase.from('agentes').select('*').order('creado_en', { ascending: true });
+    if (data) setAgentes(data);
+  };
+
+  const fetchMensajes = async () => {
+    const { data } = await supabase.from('mensajes_oficina').select('*').eq('canal', canal).order('creado_en', { ascending: true });
+    if (data) setMensajes(data);
+  };
+
   useEffect(() => {
     fetchAgentes();
     fetchMensajes();
@@ -71,22 +81,6 @@ export const TJOfficeChat: React.FC = () => {
       supabase.removeChannel(agentSub);
     };
   }, [canal]);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [mensajes]);
-
-  const fetchAgentes = async () => {
-    const { data } = await supabase.from('agentes').select('*').order('creado_en', { ascending: true });
-    if (data) setAgentes(data);
-  };
-
-  const fetchMensajes = async () => {
-    const { data } = await supabase.from('mensajes_oficina').select('*').eq('canal', canal).order('creado_en', { ascending: true });
-    if (data) setMensajes(data);
-  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
