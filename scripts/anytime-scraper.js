@@ -45,36 +45,21 @@ async function checkAnytimeDashboard() {
       console.log('Login exitoso.');
     }
 
-    // 2. NAVEGAR DIRECTO A LISTA DE SOCIOS
-    console.log('Navegando a la lista de alumnos...');
-    await page.goto('https://coach-v2.anytimefitness.com/clients', { waitUntil: 'load', timeout: 60000 });
-    await page.waitForTimeout(10000); 
-    await page.screenshot({ path: 'debug-clients-page.png', fullPage: true });
+    console.log('Dashboard cargado. Iniciando barrido desde la sidebar...');
+    await page.waitForTimeout(8000); // Esperar a que la lista de alumnos cargue
 
-    // Debug: Listar elementos que contienen nombres conocidos o palabras clave
-    const debugInfo = await page.evaluate(() => {
-      const allText = document.body.innerText;
-      const sampleElements = Array.from(document.querySelectorAll('div, li, span'))
-        .filter(el => el.innerText && el.innerText.length > 5 && el.innerText.length < 100)
-        .slice(0, 20)
-        .map(el => ({ tag: el.tagName, class: el.className, text: el.innerText }));
-      return { length: allText.length, samples: sampleElements };
-    });
-    console.log('Debug /clients:', JSON.stringify(debugInfo, null, 2));
-
-    // 3. BARRIDO COMPLETO (SCROLL)
-    console.log('Iniciando barrido de 148 alumnos...');
+    // 2. BARRIDO COMPLETO DESDE LA SIDEBAR (SCROLL ACUMULATIVO)
     const auditoriaAcumulada = { escaneados: new Set(), pendientes: new Set(), nombresVistos: new Set() };
     
     let scrollAttempts = 0;
-    while (scrollAttempts < 50) {
+    while (scrollAttempts < 60) {
       const data = await page.evaluate(() => {
-        // Buscamos elementos que parezcan tarjetas de alumnos (avatar + texto)
-        const cards = Array.from(document.querySelectorAll('div, li')).filter(el => {
-          return el.querySelector('img') && el.innerText.length > 10 && el.innerText.length < 300;
+        // En el home v2, los alumnos están en una lista a la izquierda con scroll infinito
+        const items = Array.from(document.querySelectorAll('.infinite-scroll-component > div, [class*="athlete-list-item"]')).filter(el => {
+          return el.innerText && el.innerText.length > 10 && el.innerText.length < 300;
         });
         
-        return cards.map(el => {
+        return items.map(el => {
           const text = el.innerText;
           const name = text.split('\n')[0].trim();
           const hasScan = text.toLowerCase().includes('scan') && (text.toLowerCase().includes('may') || text.toLowerCase().includes('05/'));
@@ -82,29 +67,56 @@ async function checkAnytimeDashboard() {
         }).filter(d => d.name.length > 4 && !d.name.includes('Envía') && !d.name.includes('Mostrando'));
       });
 
+      let nuevosEnEsteScroll = 0;
       data.forEach(d => {
         if (!auditoriaAcumulada.nombresVistos.has(d.name)) {
           auditoriaAcumulada.nombresVistos.add(d.name);
           if (d.hasScan) auditoriaAcumulada.escaneados.add(d.name);
           else auditoriaAcumulada.pendientes.add(d.name);
+          nuevosEnEsteScroll++;
         }
       });
 
-      console.log(`Analizados: ${auditoriaAcumulada.nombresVistos.size} alumnos...`);
+      if (nuevosEnEsteScroll > 0) {
+        console.log(`Progreso: ${auditoriaAcumulada.nombresVistos.size} alumnos identificados...`);
+      }
+
       if (auditoriaAcumulada.nombresVistos.size >= 148) break;
 
-      // Scroll en el contenedor de la lista o general
+      // Scroll solo en el panel de la izquierda
       await page.evaluate(() => {
-        const list = document.querySelector('.infinite-scroll-component') || window;
-        list.scrollBy(0, 1000);
+        const sidebar = document.querySelector('.infinite-scroll-component') || 
+                        Array.from(document.querySelectorAll('div')).find(el => el.innerText?.includes('alumnos') && el.scrollHeight > el.clientHeight);
+        if (sidebar) {
+          sidebar.scrollBy(0, 800);
+        } else {
+          window.scrollBy(0, 500);
+        }
       });
-      await page.waitForTimeout(1000);
+
+      await page.waitForTimeout(600);
       scrollAttempts++;
+      
+      // Si llevamos muchos intentos sin ver nuevos, paramos (evitar bucle infinito si hay menos de 148)
+      if (scrollAttempts > 20 && nuevosEnEsteScroll === 0 && auditoriaAcumulada.nombresVistos.size > 0) {
+         console.log('No se detectan más alumnos nuevos. Finalizando barrido...');
+         break;
+      }
     }
 
-    // 4. CONSOLIDAR Y ENVIAR
+    // 3. LEER MENSAJES Y SUGERENCIAS (FALLBACK)
+    const datosExtra = await page.evaluate(() => {
+       const sugerencias = Array.from(document.querySelectorAll('div')).filter(div => {
+         return div.innerText.includes('Envía al socio') || div.innerText.includes('programar un escáner');
+       }).map(el => el.innerText.split('\n')[0]).slice(0, 5);
+       
+       const badge = document.querySelector('.sidebar__item .badge, .sidebar__link .badge')?.innerText?.trim();
+       return { sugerencias, badge };
+    });
+
+    // 4. CONSOLIDAR REPORTE
     const alertas = [];
-    alertas.push(`📊 TOTAL AF: Tienes ${auditoriaAcumulada.nombresVistos.size} alumnos identificados.`);
+    alertas.push(`📊 TOTAL AF: ${auditoriaAcumulada.nombresVistos.size} alumnos procesados.`);
     
     const listaEscaneados = Array.from(auditoriaAcumulada.escaneados);
     const listaPendientes = Array.from(auditoriaAcumulada.pendientes);
@@ -114,6 +126,9 @@ async function checkAnytimeDashboard() {
     }
     if (listaPendientes.length > 0) {
       alertas.push(`❌ PENDIENTES DE ESCANEO (${listaPendientes.length}): ${listaPendientes.slice(0, 10).join(', ')}...`);
+    }
+    if (datosExtra.badge && parseInt(datosExtra.badge) > 0) {
+      alertas.push(`💬 CHATS: Tienes ${datosExtra.badge} notificaciones pendientes.`);
     }
 
     // Asegurar agente y enviar
@@ -127,7 +142,7 @@ async function checkAnytimeDashboard() {
       }]);
     }
 
-    console.log('Reporte enviado con éxito.');
+    console.log(`Barrido finalizado con ${auditoriaAcumulada.nombresVistos.size} alumnos.`);
 
   } catch (error) {
     console.error('Error:', error);
