@@ -83,13 +83,6 @@ export const TJOfficeChat: React.FC = () => {
   useEffect(() => {
     fetchData();
     
-    // PRUEBA MAESTRA: Forzar un saludo inicial del Dev
-    setTimeout(() => {
-      console.log(">>> SISTEMA: Forzando saludo inicial de diagnóstico...");
-      const devAgent = agentes.find(a => a.nickname === 'Programador') || INITIAL_AGENTS[0];
-      generateAgentResponse(devAgent, "Saluda al equipo y confirma que estás conectado al sistema de TJ Office");
-    }, 3000);
-
     const channel = supabase
       .channel('schema-db-changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tj_mensajes' }, (payload) => {
@@ -99,40 +92,25 @@ export const TJOfficeChat: React.FC = () => {
           return [...prev, newMessage];
         });
         if (newMessage.remitente_tipo === 'agente') {
-          const agente = agentes.find(a => a.id === newMessage.remitente_id);
+          // Buscamos el agente en INITIAL_AGENTS o agentes actuales
+          const agente = [...INITIAL_AGENTS, ...agentes].find(a => a.id === newMessage.remitente_id);
           speakMessage(newMessage.texto, agente?.nickname || '');
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tj_agentes' }, fetchData)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [agentes]);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-    }
-  }, [mensajes]);
-
-  const fetchData = async () => {
-    try {
-      const { data: a } = await supabase.from('tj_agentes').select('*').order('creado_en', { ascending: true });
-      if (a?.length) setAgentes(a);
-      const { data: m } = await supabase.from('tj_mensajes').select('*').order('creado_en', { ascending: true });
-      if (m) setMensajes(m);
-    } catch (err) { console.error("Error fetching data:", err); }
-  };
+  }, []); // Sin dependencias para evitar bucle
 
   const generateAgentResponse = async (agent: Agente, userText: string) => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     const lowerText = userText.toLowerCase();
     
-    // 1. INTENTAR RESPUESTA PREDETERMINADA (Keyword match)
+    // 1. RESPUESTA PREDETERMINADA
     const agentKeywords = PREDETERMINED_RESPONSES[agent.nickname];
     if (agentKeywords) {
       for (const [key, response] of Object.entries(agentKeywords)) {
         if (lowerText.includes(key)) {
-          console.log(`>>> SISTEMA: Respuesta predeterminada encontrada para "${key}"`);
           await supabase.from('tj_mensajes').insert([{
             remitente_tipo: 'agente',
             remitente_id: agent.id,
@@ -144,43 +122,28 @@ export const TJOfficeChat: React.FC = () => {
       }
     }
 
-    // 2. INTENTAR GEMINI AI
-    if (apiKey) {
-      const prompt = `Actúa como ${agent.nombre} (@${agent.nickname}), un experto en ${agent.rol} con estas habilidades: ${agent.skills}. 
-      Estamos en el canal #general de TJ Office.
-      Instrucción del usuario: "${userText}".
-      REGLAS: Responde brevemente, máximo 2 párrafos, mantén tu rol.`;
-
+    // 2. GEMINI AI
+    if (apiKey && apiKey.startsWith('AIza')) {
       try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+          body: JSON.stringify({ contents: [{ parts: [{ text: `Actúa como ${agent.rol}. Usuario: ${userText}` }] }] })
         });
-        
         const data = await response.json();
         const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        
         if (aiText) {
-          await supabase.from('tj_mensajes').insert([{
-            remitente_tipo: 'agente',
-            remitente_id: agent.id,
-            texto: aiText,
-            canal: '#general'
-          }]);
+          await supabase.from('tj_mensajes').insert([{ remitente_tipo: 'agente', remitente_id: agent.id, texto: aiText, canal: '#general' }]);
           return;
         }
-      } catch (err) {
-        console.error(`Error en Gemini para ${agent.nickname}:`, err);
-      }
+      } catch (err) { console.error("Error Gemini:", err); }
     }
 
-    // 3. FALLBACK (Si todo lo anterior falla)
-    console.warn(`>>> SISTEMA: Usando fallback para ${agent.nickname}`);
+    // 3. FALLBACK
     await supabase.from('tj_mensajes').insert([{
       remitente_tipo: 'agente',
       remitente_id: agent.id,
-      texto: FALLBACK_RESPONSES[agent.nickname] || "Recibido. Estoy trabajando en ello.",
+      texto: FALLBACK_RESPONSES[agent.nickname] || "Estoy analizando la información...",
       canal: '#general'
     }]);
   };
@@ -193,7 +156,6 @@ export const TJOfficeChat: React.FC = () => {
     const tempText = inputText;
     
     try {
-      // 1. Guardar mensaje del usuario en Supabase
       const { data, error } = await supabase.from('tj_mensajes').insert([{
         remitente_tipo: 'usuario',
         remitente_id: '00000000-0000-0000-0000-000000000000',
@@ -202,21 +164,15 @@ export const TJOfficeChat: React.FC = () => {
       }]).select();
 
       if (error) throw error;
-      
-      const savedMessage = data?.[0];
-      if (savedMessage) {
-        setMensajes(prev => prev.some(m => m.id === savedMessage.id) ? prev : [...prev, savedMessage as Mensaje]);
-      }
+      if (data?.[0]) setMensajes(prev => [...prev, data[0] as Mensaje]);
 
       setInputText('');
 
-      // PRUEBA DE FUERZA: Forzamos respuesta inmediata para ver qué pasa
-      console.log("DEBUG: Iniciando secuencia forzada de respuesta...");
-      const devAgent = agentes.find(a => a.nickname === 'Programador') || agentes[0];
-      setTimeout(() => {
-        console.log("DEBUG: Ejecutando generateAgentResponse ahora...");
-        generateAgentResponse(devAgent, tempText);
-      }, 500);
+      if (isAutoActive) {
+        const mentioned = agentes.find(a => tempText.toLowerCase().includes(`@${a.nickname.toLowerCase()}`));
+        const responder = mentioned || agentes.find(a => a.nickname === 'Programador') || agentes[0];
+        setTimeout(() => generateAgentResponse(responder, tempText), 1000);
+      }
 
     } catch (error: any) { 
       alert("Error: " + error.message); 
