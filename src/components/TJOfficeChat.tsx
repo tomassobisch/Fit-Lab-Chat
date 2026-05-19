@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Power, Edit3, Terminal, Cpu, Activity, MessageSquare, Settings2, X, Check, Menu } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { Agente, Mensaje, Canal } from '../types';
+import { Agente, Mensaje, Canal, ReporteGym } from '../types';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const INITIAL_AGENTS: Agente[] = [
   { id: '11111111-1111-1111-1111-111111111111', nombre: 'Senior Dev', nickname: 'Programador', rol: 'Ingeniero de Software', skills: 'React, Python, Supabase', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=code', estado_online: true, creado_en: '' },
@@ -124,11 +125,10 @@ export const TJOfficeChat: React.FC = () => {
 
   const generateAgentResponse = async (agent: Agente, userText: string) => {
     setIsTyping(agent.id);
-    // DIAGNÓSTICO: Usamos la clave directamente si la variable de entorno falla
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyAn6pT_Rca1XgvOR1R7KKwS93DW2dh29dU';
     const lowerText = userText.toLowerCase();
     
-    // 1. RESPUESTA PREDETERMINADA (Keyword match)
+    // 1. RESPUESTA PREDETERMINADA
     const agentKeywords = PREDETERMINED_RESPONSES[agent.nickname];
     if (agentKeywords) {
       const match = Object.keys(agentKeywords).find(key => lowerText.includes(key));
@@ -144,48 +144,38 @@ export const TJOfficeChat: React.FC = () => {
       }
     }
 
-    // 2. INTENTO CON GEMINI AI
-    if (apiKey && apiKey.startsWith('AIza')) {
+    // 2. INTENTO CON SDK DE GEMINI
+    if (apiKey) {
       try {
-        // Obtener el último reporte para contexto si es el Auditor o se pregunta por alumnos
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
         let contextText = "";
         if (agent.nickname === 'AuditorAnytime' || lowerText.includes('alumno') || lowerText.includes('reporte') || lowerText.includes('escaneo')) {
           contextText = ultimoReporte 
-            ? `\n\nESTADO ACTUAL DEL GIMNASIO (REPORTE ESTRUCTURADO):\n` +
+            ? `\n\nESTADO ACTUAL DEL GIMNASIO:\n` +
               `- Total Alumnos: ${ultimoReporte.total_alumnos}\n` +
               `- Mensajes Pendientes: ${ultimoReporte.mensajes_pendientes}\n` +
               `- Faltan Escaneo (${ultimoReporte.pendientes_escaneo.length}): ${ultimoReporte.pendientes_escaneo.slice(0, 10).join(', ')}...\n` +
-              `- Sin Respuesta (${ultimoReporte.sin_respuesta.length}): ${ultimoReporte.sin_respuesta.slice(0, 10).join(', ')}...\n` +
-              `Responde basándote en estos números exactos.`
+              `- Sin Respuesta (${ultimoReporte.sin_respuesta.length}): ${ultimoReporte.sin_respuesta.slice(0, 10).join(', ')}...\n`
             : "\n\nNo hay reportes recientes disponibles.";
         }
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: `Responde como ${agent.rol} (@${agent.nickname}): ${userText}${contextText}` }] }]
-          })
-        });
+        const prompt = `Responde como ${agent.rol} (@${agent.nickname}): ${userText}${contextText}`;
+        const result = await model.generateContent(prompt);
+        const aiText = result.response.text();
 
-        if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error?.message || 'Error en API de Gemini');
-        }
-
-        const data = await response.json();
-        const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (aiText) {
           await supabase.from('tj_mensajes').insert([{ remitente_tipo: 'agente', remitente_id: agent.id, texto: aiText, canal: '#general' }]);
           setIsTyping(null);
           return;
         }
       } catch (e: any) {
-        console.error("Gemini Error:", e);
+        console.error("Gemini SDK Error:", e);
         await supabase.from('tj_mensajes').insert([{
           remitente_tipo: 'agente',
           remitente_id: agent.id,
-          texto: `⚠️ Error de IA: ${e.message}. Por favor, revisa la configuración técnica.`,
+          texto: `⚠️ Error de IA: ${e.message}. Revisa la consola.`,
           canal: '#general'
         }]);
         setIsTyping(null);
@@ -193,11 +183,11 @@ export const TJOfficeChat: React.FC = () => {
       }
     }
 
-    // 3. FALLBACK (Garantiza que siempre haya una respuesta si no hay API Key o falló todo)
+    // 3. FALLBACK
     await supabase.from('tj_mensajes').insert([{
       remitente_tipo: 'agente',
       remitente_id: agent.id,
-      texto: apiKey ? (FALLBACK_RESPONSES[agent.nickname] || "Recibido. Estoy analizando la información.") : "⚠️ IA_CONFIG_ERROR: No se detecta una VITE_GEMINI_API_KEY válida. Por favor, añádela a tu archivo .env.",
+      texto: apiKey ? (FALLBACK_RESPONSES[agent.nickname] || "Recibido. Estoy analizando la información.") : "⚠️ IA_CONFIG_ERROR: No se detecta una API Key válida.",
       canal: '#general'
     }]);
     setIsTyping(null);
