@@ -72,7 +72,19 @@ async function checkAnytimeDashboard() {
       console.log('Login exitoso y verificado.');
     }
 
-    console.log('Dentro del Dashboard de Anytime. Iniciando auditoría completa...');
+    console.log('Dentro del Dashboard de Anytime. Esperando carga de datos...');
+    await page.waitForTimeout(10000); // Esperar 10 segundos para que cargue el dashboard
+    await page.screenshot({ path: 'debug-dashboard-loaded.png', fullPage: true });
+
+    // Intentar hacer clic en "Socios" si estamos en el home y no vemos la lista
+    const sociosButton = page.locator('a[href="/clients"]').first();
+    if (await sociosButton.isVisible()) {
+      console.log('Haciendo clic en "Socios"...');
+      await sociosButton.click();
+      await page.waitForTimeout(5000);
+      await page.screenshot({ path: 'debug-socios-page.png', fullPage: true });
+    }
+
 
     // --- 1. LEER SUGERENCIAS Y TOTAL DE ALUMNOS ---
     console.log('Leyendo datos del dashboard...');
@@ -119,15 +131,8 @@ async function checkAnytimeDashboard() {
     });
 
     // --- 2. AUDITORÍA DETALLADA DE SOCIOS (ESCANEOS Y ENTRENOS) ---
-    console.log('Iniciando barrido completo de alumnos (Referencia Emanuel)...');
+    console.log('Iniciando barrido completo de alumnos (Estrategia Agresiva)...');
     
-    // Esperamos a que un alumno conocido de la captura aparezca para confirmar carga
-    try {
-      await page.waitForSelector('text=Emanuel Andrade cervantes', { timeout: 15000 });
-    } catch (e) {
-      console.log('No se encontró a Emanuel. Buscando cualquier alumno...');
-    }
-
     const auditoriaAcumulada = {
       escaneados: new Set(),
       pendientes: new Set(),
@@ -135,59 +140,64 @@ async function checkAnytimeDashboard() {
     };
 
     let scrollAttempts = 0;
-    const maxScrollAttempts = 60; 
+    const maxScrollAttempts = 80; // Más intentos para asegurar los 148
 
     while (scrollAttempts < maxScrollAttempts) {
       const datosPagina = await page.evaluate(() => {
-        // Buscamos el contenedor de Emanuel o similar
-        const ref = Array.from(document.querySelectorAll('*')).find(el => el.innerText?.includes('Emanuel Andrade'));
-        const container = ref ? ref.closest('[class*="infinite-scroll"], [class*="list"], ul') : document.querySelector('.infinite-scroll-component');
-        
-        if (!container) return [];
-
-        // Extraemos todos los items dentro de ese contenedor
-        const items = Array.from(container.children);
-        
-        return items.map(el => {
+        // Buscamos cualquier elemento que parezca una "tarjeta" de alumno
+        // Criterio: Tiene un nombre y subtexto de actividad (Completed, Scan, etc.)
+        const todos = Array.from(document.querySelectorAll('div, li'));
+        const tarjetas = todos.filter(el => {
           const text = el.innerText || '';
-          const lineas = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
-          const nombre = lineas[0] || '';
-          const textoLow = text.toLowerCase();
-          const tieneEscaneoEsteMes = textoLow.includes('scan') && (textoLow.includes('may') || textoLow.includes('05/'));
-          
-          return { nombre, tieneEscaneoEsteMes };
-        }).filter(d => d.nombre.length > 5 && !d.nombre.includes('Mostrando'));
+          return text.length > 5 && text.length < 300 && 
+                 (text.includes('Completed') || text.includes('Scan') || text.includes('ayer') || text.includes('hoy') || text.includes('mañana'));
+        });
+
+        return tarjetas.map(el => {
+          const lines = el.innerText.split('\n').map(l => l.trim()).filter(l => l.length > 1);
+          const nombre = lines[0] || '';
+          const fullText = el.innerText.toLowerCase();
+          const tieneEscaneo = fullText.includes('scan') && (fullText.includes('may') || fullText.includes('05/'));
+          return { nombre, tieneEscaneo };
+        }).filter(d => d.nombre.length > 3 && !d.nombre.includes('Envía') && !d.nombre.includes('programar'));
       });
 
+      let nuevos = 0;
       datosPagina.forEach(d => {
-        if (d.nombre && !auditoriaAcumulada.nombresVistos.has(d.nombre)) {
+        if (!auditoriaAcumulada.nombresVistos.has(d.nombre)) {
           auditoriaAcumulada.nombresVistos.add(d.nombre);
-          if (d.tieneEscaneoEsteMes) {
-            auditoriaAcumulada.escaneados.add(d.nombre);
-          } else {
-            auditoriaAcumulada.pendientes.add(d.nombre);
-          }
+          if (d.tieneEscaneo) auditoriaAcumulada.escaneados.add(d.nombre);
+          else auditoriaAcumulada.pendientes.add(d.nombre);
+          nuevos++;
         }
       });
 
-      console.log(`Progreso: ${auditoriaAcumulada.nombresVistos.size} alumnos identificados...`);
+      console.log(`Progreso: ${auditoriaAcumulada.nombresVistos.size} / 148 alumnos. (+${nuevos} nuevos)`);
 
       if (auditoriaAcumulada.nombresVistos.size >= 148) break;
 
-      // Hacemos scroll en el contenedor de la lista
+      // Scroll inteligente: Buscamos el contenedor que tiene el texto de alumnos
       await page.evaluate(() => {
-        const ref = Array.from(document.querySelectorAll('*')).find(el => el.innerText?.includes('Emanuel Andrade'));
-        const list = ref ? ref.closest('[class*="infinite-scroll"], [class*="list"], ul, div[style*="overflow"]') : document.querySelector('.infinite-scroll-component');
-        if (list) {
-           list.scrollBy(0, 1000);
+        const containers = Array.from(document.querySelectorAll('div')).filter(el => el.scrollHeight > el.clientHeight);
+        // El de la lista suele ser el que tiene el texto "Mostrando" cerca o dentro
+        const listContainer = containers.find(el => el.innerText.includes('alumnos')) || document.querySelector('.infinite-scroll-component');
+        
+        if (listContainer) {
+          listContainer.scrollBy(0, 600);
         } else {
-           window.scrollBy(0, 500);
+          window.scrollBy(0, 600);
         }
       });
-      
-      await page.waitForTimeout(1000);
+
+      await page.waitForTimeout(600);
       scrollAttempts++;
-      if (scrollAttempts > 10 && datosPagina.length === 0) break;
+      
+      // Si llevamos 15 intentos sin ver a nadie, intentamos un scroll más brusco
+      if (scrollAttempts % 15 === 0 && nuevos === 0) {
+        console.log('Scroll estancado, intentando scroll de ratón...');
+        await page.mouse.wheel(0, 1000);
+        await page.waitForTimeout(1000);
+      }
     }
 
     const auditoriaEscaneos = {
