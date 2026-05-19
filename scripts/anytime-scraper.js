@@ -48,7 +48,19 @@ async function checkAnytimeDashboard() {
     // 2. NAVEGAR DIRECTO A LISTA DE SOCIOS
     console.log('Navegando a la lista de alumnos...');
     await page.goto('https://coach-v2.anytimefitness.com/clients', { waitUntil: 'load', timeout: 60000 });
-    await page.waitForTimeout(10000); // Dar tiempo generoso a que cargue la lista virtualizada
+    await page.waitForTimeout(10000); 
+    await page.screenshot({ path: 'debug-clients-page.png', fullPage: true });
+
+    // Debug: Listar elementos que contienen nombres conocidos o palabras clave
+    const debugInfo = await page.evaluate(() => {
+      const allText = document.body.innerText;
+      const sampleElements = Array.from(document.querySelectorAll('div, li, span'))
+        .filter(el => el.innerText && el.innerText.length > 5 && el.innerText.length < 100)
+        .slice(0, 20)
+        .map(el => ({ tag: el.tagName, class: el.className, text: el.innerText }));
+      return { length: allText.length, samples: sampleElements };
+    });
+    console.log('Debug /clients:', JSON.stringify(debugInfo, null, 2));
 
     // 3. BARRIDO COMPLETO (SCROLL)
     console.log('Iniciando barrido de 148 alumnos...');
