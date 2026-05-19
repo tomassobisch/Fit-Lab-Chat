@@ -166,6 +166,17 @@ async function checkAnytimeDashboard() {
       return { escaneados, pendientes };
     });
 
+    // --- 2. LEER MENSAJES PENDIENTES ---
+    console.log('Verificando mensajes de alumnos...');
+    const alertasMensajes = await page.evaluate(() => {
+      const badgeTotal = document.querySelector('.sidebar__item .badge, .sidebar__link .badge')?.innerText?.trim();
+      const resultados = [];
+      if (badgeTotal && parseInt(badgeTotal) > 0) {
+        resultados.push({ texto: `Tienes ${badgeTotal} mensajes pendientes en el chat.` });
+      }
+      return resultados;
+    });
+
     // --- 3. CONSOLIDAR ALERTAS ---
     const todasLasAlertas = [];
     
