@@ -119,22 +119,11 @@ async function checkAnytimeDashboard() {
     });
 
     // --- 2. AUDITORÍA DETALLADA DE SOCIOS (ESCANEOS Y ENTRENOS) ---
-    console.log('Buscando estructura de alumnos para el barrido...');
+    console.log('Buscando la lista de alumnos en el panel lateral...');
     
-    // Debug: Imprimir un resumen de lo que ve el bot en la lista
-    await page.evaluate(() => {
-      const allDivs = Array.from(document.querySelectorAll('div, li, p, span'));
-      console.log(`Total elementos inspeccionables: ${allDivs.length}`);
-      
-      // Buscamos un nombre conocido de la captura
-      const emanuel = allDivs.find(el => el.innerText?.includes('Emanuel Andrade'));
-      if (emanuel) {
-        console.log('¡Emanuel encontrado!');
-        console.log('Clases de Emanuel:', emanuel.className);
-        console.log('HTML de Emanuel:', emanuel.outerHTML);
-        console.log('Padre de Emanuel:', emanuel.parentElement?.className);
-      }
-    });
+    // El texto "Mostrando X de Y alumnos" es nuestro ancla
+    const listAnchor = page.locator('text=/Mostrando/i');
+    const scrollContainer = page.locator('.infinite-scroll-component, [class*="sidebar"], [class*="list"]').filter({ has: listAnchor }).first();
 
     const auditoriaAcumulada = {
       escaneados: new Set(),
@@ -143,29 +132,26 @@ async function checkAnytimeDashboard() {
     };
 
     let scrollAttempts = 0;
-    const maxScrollAttempts = 40; 
+    const maxScrollAttempts = 60; 
 
     while (scrollAttempts < maxScrollAttempts) {
       const datosPagina = await page.evaluate(() => {
-        // Buscamos elementos que parezcan nombres de alumnos. 
-        // Suelen estar en elementos con clases como .name, .title, o simplemente negrita.
-        // Basándonos en la captura, están en una lista a la izquierda.
+        // Buscamos el contenedor de la lista de alumnos
+        // Suele ser un div con scroll que contiene los nombres
         const items = Array.from(document.querySelectorAll('div, li')).filter(el => {
+          // Buscamos elementos que tengan una imagen (avatar) y texto (nombre)
+          const hasImg = el.querySelector('img');
           const text = el.innerText || '';
-          return text.length > 2 && text.length < 100 && 
-                 !text.includes('Mostrando') && !text.includes('Buscar') &&
-                 !text.includes('Envía') && !text.includes('programar') &&
-                 (el.querySelector('img') || el.className.includes('name') || el.className.includes('athlete'));
+          return hasImg && text.length > 5 && text.length < 200 && 
+                 !text.includes('Mostrando') && !text.includes('Tomas Sobisch');
         });
         
         return items.map(el => {
           const text = el.innerText || '';
-          const nombre = text.split('\n')[0].trim();
-          
-          // Buscamos info de escaneo en el elemento padre o hermanos si no está aquí
-          const container = el.closest('div[class*="item"], li, [class*="card"]');
-          const textoCompleto = container ? container.innerText.toLowerCase() : text.toLowerCase();
-          const tieneEscaneoEsteMes = textoCompleto.includes('scan') && (textoCompleto.includes('may') || textoCompleto.includes('05/'));
+          const lineas = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+          const nombre = lineas[0] || '';
+          const textoLow = text.toLowerCase();
+          const tieneEscaneoEsteMes = textoLow.includes('scan') && (textoLow.includes('may') || textoLow.includes('05/'));
           
           return { nombre, tieneEscaneoEsteMes };
         }).filter(d => d.nombre.length > 5);
@@ -186,10 +172,23 @@ async function checkAnytimeDashboard() {
 
       if (auditoriaAcumulada.nombresVistos.size >= 148) break;
 
-      // Scroll general si el específico no es claro
-      await page.mouse.wheel(0, 1000);
+      // Intentamos hacer scroll en el contenedor detectado o en el panel de la izquierda
+      await page.evaluate(() => {
+        const list = document.querySelector('.infinite-scroll-component') || 
+                     Array.from(document.querySelectorAll('div')).find(el => el.innerText?.includes('Mostrando') && el.scrollHeight > el.clientHeight);
+        if (list) {
+           list.scrollBy(0, 800);
+        } else {
+           // Fallback: scroll en la posición de la lista
+           window.scrollBy(0, 500);
+        }
+      });
+      
       await page.waitForTimeout(1000);
       scrollAttempts++;
+      
+      // Si llevamos muchos intentos sin éxito, paramos
+      if (scrollAttempts > 15 && auditoriaAcumulada.nombresVistos.size === 0) break;
     }
 
     const auditoriaEscaneos = {
