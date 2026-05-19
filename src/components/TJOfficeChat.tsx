@@ -136,11 +136,22 @@ export const TJOfficeChat: React.FC = () => {
     // 2. INTENTO CON GEMINI AI
     if (apiKey && apiKey.startsWith('AIza')) {
       try {
+        // Obtener el último reporte para contexto si es el Auditor o se pregunta por alumnos
+        let contextText = "";
+        if (agent.nickname === 'AuditorAnytime' || lowerText.includes('alumno') || lowerText.includes('reporte') || lowerText.includes('escaneo')) {
+          const latestAlerts = mensajes
+            .filter(m => m.canal === '#alertas')
+            .slice(-10)
+            .map(m => m.texto)
+            .join('\n');
+          contextText = `\n\nDATOS DEL ÚLTIMO REPORTE DE ANYTIME FITNESS:\n${latestAlerts}\n\nResponde basándote en estos datos si es relevante.`;
+        }
+
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: `Responde como ${agent.rol}: ${userText}` }] }]
+            contents: [{ parts: [{ text: `Responde como ${agent.rol} (@${agent.nickname}): ${userText}${contextText}` }] }]
           })
         });
         const data = await response.json();
@@ -326,32 +337,95 @@ export const TJOfficeChat: React.FC = () => {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
-          <div className="flex flex-col items-center justify-center py-6 text-center border-b border-purple-500/10 mb-4">
-             <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=anytime" className="w-12 h-12 rounded-full bg-purple-900 border-2 border-purple-500 shadow-lg mb-2" alt="Auditor" />
+        <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide">
+          <div className="flex flex-col items-center justify-center py-6 text-center border-b border-purple-500/10 mb-2">
+             <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=auditor" className="w-12 h-12 rounded-full bg-purple-900 border-2 border-purple-500 shadow-lg mb-2" alt="Auditor" />
              <p className="text-[10px] font-bold text-purple-200">@AuditorAnytime</p>
              <p className="text-[8px] text-purple-400/60 uppercase font-bold tracking-widest mt-1">Auditando Sede SP-0085</p>
           </div>
 
-          <div className="space-y-3">
-            {mensajes.filter(m => m.canal === '#alertas').length === 0 ? (
-              <div className="text-center p-10 opacity-30">
-                <Activity size={24} className="mx-auto text-purple-400 mb-2" />
-                <p className="text-[8px] font-bold uppercase tracking-widest">Esperando reporte nocturno...</p>
-              </div>
-            ) : (
-              mensajes.filter(m => m.canal === '#alertas').map(m => (
-                <div key={m.id} className="p-3.5 rounded-xl bg-purple-950/40 border border-purple-500/20 shadow-sm animate-in fade-in slide-in-from-right-2">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-[7px] font-black text-purple-400 uppercase tracking-tighter">Sugerencia Directa</span>
-                    <span className="text-[7px] text-purple-300/40">{new Date(m.creado_en).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
-                  <p className="text-[11px] leading-relaxed text-purple-100/90 font-medium">
-                    {m.texto.replace('📌 REPORTE NOCTURNO: ', '').replace('⚠️ Sugerencia: ', '')}
-                  </p>
+          {/* DASHBOARD DE REPORTES */}
+          <div className="space-y-4">
+            {(() => {
+              const alerts = mensajes.filter(m => m.canal === '#alertas');
+              if (alerts.length === 0) return (
+                <div className="text-center p-10 opacity-30">
+                  <Activity size={24} className="mx-auto text-purple-400 mb-2" />
+                  <p className="text-[8px] font-bold uppercase tracking-widest">Esperando reporte...</p>
                 </div>
-              ))
-            )}
+              );
+
+              // Agrupar por el último bloque de reporte (basado en el timestamp cercano)
+              const lastAlert = alerts[alerts.length - 1];
+              const lastReportTime = new Date(lastAlert.creado_en);
+              
+              const reportData = {
+                total: alerts.find(m => m.texto.includes('TOTAL AF'))?.texto.split('TOTAL AF: ')[1] || '---',
+                pendientes: alerts.find(m => m.texto.includes('PENDIENTES DE ESCANEO'))?.texto.split('PENDIENTES DE ESCANEO: ')[1]?.split(',') || [],
+                sinRespuesta: alerts.find(m => m.texto.includes('SIN RESPUESTA'))?.texto.split('SIN RESPUESTA / SEGUIMIENTO: ')[1]?.split(',') || [],
+                mensajes: alerts.find(m => m.texto.includes('💬 MENSAJES'))?.texto.split('MENSAJES: ')[1] || '0 mensajes'
+              };
+
+              return (
+                <>
+                  <div className="flex justify-between items-center px-2">
+                    <span className="text-[8px] font-bold text-purple-400 uppercase tracking-widest">Último Reporte</span>
+                    <span className="text-[7px] text-white/30">{lastReportTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+
+                  {/* CARD TOTAL */}
+                  <div className="p-4 rounded-xl bg-purple-950/40 border border-purple-500/20 shadow-lg">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[9px] font-bold text-purple-200 uppercase">Total Alumnos</span>
+                      <Activity size={12} className="text-purple-400" />
+                    </div>
+                    <p className="text-2xl font-black text-white">{reportData.total.split(' ')[0]}</p>
+                    <p className="text-[8px] text-purple-400 font-bold uppercase mt-1">Sincronizados con AF</p>
+                  </div>
+
+                  {/* SECCIONES DETALLADAS */}
+                  <div className="space-y-2">
+                    {/* MENSAJES PENDIENTES */}
+                    <div className="p-3 rounded-lg bg-blue-900/20 border border-blue-500/20">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                        <span className="text-[8px] font-bold text-blue-200 uppercase tracking-widest">Mensajes</span>
+                      </div>
+                      <p className="text-[11px] text-blue-100 font-medium">{reportData.mensajes}</p>
+                    </div>
+
+                    {/* SIN RESPUESTA */}
+                    <div className="p-3 rounded-lg bg-orange-900/20 border border-orange-500/20">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+                        <span className="text-[8px] font-bold text-orange-200 uppercase tracking-widest">Sin Respuesta / Seguimiento</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {reportData.sinRespuesta.length > 0 ? reportData.sinRespuesta.map((n, i) => (
+                          <span key={i} className="px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-200 text-[9px] border border-orange-500/10">{n.trim()}</span>
+                        )) : <span className="text-[9px] text-orange-200/40 italic">Al día</span>}
+                      </div>
+                    </div>
+
+                    {/* FALTAN ESCANEO */}
+                    <div className="p-3 rounded-lg bg-red-900/20 border border-red-500/20">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                        <span className="text-[8px] font-bold text-red-200 uppercase tracking-widest">Faltan Escaneo Evolt</span>
+                      </div>
+                      <div className="max-h-32 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                        {reportData.pendientes.length > 0 ? reportData.pendientes.map((n, i) => (
+                          <div key={i} className="flex items-center justify-between text-[10px] text-red-100/80 p-1.5 rounded bg-red-500/5">
+                            <span>{n.trim()}</span>
+                            <span className="text-[7px] font-bold text-red-500/60">PENDIENTE</span>
+                          </div>
+                        )) : <span className="text-[9px] text-red-200/40 italic">Todos escaneados</span>}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
 

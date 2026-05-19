@@ -54,7 +54,27 @@ async function checkAnytimeDashboard() {
     console.log('Esperando carga completa del Dashboard...');
     await page.waitForTimeout(10000); 
 
-    // 2. BARRIDO DE ALUMNOS (SCROLL)
+    // --- 1. LEER SUGERENCIAS Y MENSAJES ---
+    console.log('Extrayendo sugerencias y alertas de mensajes...');
+    const extraData = await page.evaluate(() => {
+      // 1. Mensajes pendientes (Badge en el sidebar)
+      const badge = document.querySelector('.sidebar__item .badge, .sidebar__link .badge')?.innerText?.trim();
+      const numMensajes = badge ? parseInt(badge) : 0;
+
+      // 2. Sugerencias de coaching (Alumnos que no responden o necesitan seguimiento)
+      const sugerencias = Array.from(document.querySelectorAll('div')).filter(div => {
+        return div.innerText.includes('Envía al socio') || div.innerText.includes('programar un escáner');
+      }).map(cont => {
+        const lines = cont.innerText.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+        // Intentar extraer el nombre (suele ser la primera línea que no es un verbo)
+        const palabrasAccion = ['envía', 'programar', 'socio', 'seguimiento', 'hace', 'hora'];
+        return lines.find(l => !palabrasAccion.some(p => l.toLowerCase().includes(p)) && l.length < 30) || 'Socio desconocido';
+      });
+
+      return { numMensajes, sugerencias: [...new Set(sugerencias)] };
+    });
+
+    // --- 2. BARRIDO DE ALUMNOS (SCROLL) ---
     console.log('Iniciando barrido de 148 alumnos...');
     const auditoria = { escaneados: new Set(), pendientes: new Set(), nombresVistos: new Set() };
     
@@ -96,22 +116,28 @@ async function checkAnytimeDashboard() {
       if (scrollAttempts > 15 && data.length === 0) break;
     }
 
-    // 3. ENVIAR REPORTE
-    const reportes = [
-      `📊 TOTAL AF: ${auditoria.nombresVistos.size} alumnos procesados.`,
-      `✅ ESCANEADOS: ${auditoria.escaneados.size}`,
-      `❌ PENDIENTES: ${auditoria.pendientes.size}`
-    ];
+    // --- 3. CONSOLIDAR Y ENVIAR REPORTE ---
+    const reportes = [];
+    reportes.push(`📊 TOTAL AF: ${auditoria.nombresVistos.size} alumnos procesados.`);
     
     if (auditoria.pendientes.size > 0) {
-       const muestra = Array.from(auditoria.pendientes).slice(0, 15).join(', ');
-       reportes.push(`Lista parcial pendientes: ${muestra}...`);
+      reportes.push(`❌ PENDIENTES DE ESCANEO: ${Array.from(auditoria.pendientes).join(', ')}`);
+    }
+
+    if (extraData.sugerencias.length > 0) {
+      reportes.push(`⚠️ SIN RESPUESTA / SEGUIMIENTO: ${extraData.sugerencias.join(', ')}`);
+    }
+
+    if (extraData.numMensajes > 0) {
+      reportes.push(`💬 MENSAJES: Tienes ${extraData.numMensajes} mensajes pendientes.`);
     }
 
     const { data: agente } = await supabase.from('tj_agentes').upsert({ 
-      nombre: 'Auditor Anytime', nickname: 'AuditorAnytime', rol: 'Analista'
+      nombre: 'Auditor Anytime', nickname: 'AuditorAnytime', rol: 'Analista de Rendimiento', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=auditor'
     }, { onConflict: 'nickname' }).select().single();
 
+    // Limpiar alertas antiguas para que la UI tome el reporte más fresco (opcional, pero ayuda a la limpieza)
+    // Para este caso, solo insertamos los nuevos
     for (const texto of reportes) {
       await supabase.from('tj_mensajes').insert([{
         remitente_tipo: 'agente', remitente_id: agente.id, texto: `📌 REPORTE: ${texto}`, canal: '#alertas', estado_procesado: false
