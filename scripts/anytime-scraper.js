@@ -106,15 +106,48 @@ async function checkAnytimeDashboard() {
       return { totalAlumnos, sugerenciasSugeridas: sugerenciasResult };
     });
 
-    // --- 2. LEER MENSAJES PENDIENTES ---
-    console.log('Verificando mensajes de alumnos...');
-    const alertasMensajes = await page.evaluate(() => {
-      const badgeTotal = document.querySelector('.sidebar__item .badge, .sidebar__link .badge')?.innerText?.trim();
-      const resultados = [];
-      if (badgeTotal && parseInt(badgeTotal) > 0) {
-        resultados.push({ texto: `Tienes ${badgeTotal} mensajes pendientes en el chat.` });
-      }
-      return resultados;
+    // --- 2. AUDITORÍA DETALLADA DE SOCIOS (ESCANEOS Y ENTRENOS) ---
+    console.log('Navegando a la lista de socios para auditoría detallada...');
+    
+    const sociosLink = page.locator('a:has(.sidebar__text:text("Socios")), a:has-text("Socios")').first();
+    if (await sociosLink.isVisible()) {
+      await sociosLink.click();
+    }
+    await page.waitForLoadState('networkidle');
+    await page.waitForSelector('.infinite-scroll-component', { timeout: 20000 });
+
+    // Hacemos un poco de scroll para cargar más alumnos (opcional, ajustamos según necesidad)
+    console.log('Cargando lista de alumnos...');
+    for(let i=0; i<3; i++) {
+        await page.mouse.wheel(0, 2000);
+        await page.waitForTimeout(1000);
+    }
+
+    const auditoriaEscaneos = await page.evaluate(() => {
+      const filas = Array.from(document.querySelectorAll('.infinite-scroll-component > div')).filter(el => el.innerText.length > 20);
+      const hoy = new Date();
+      const mesActual = hoy.getMonth();
+      const añoActual = hoy.getFullYear();
+
+      const escaneados = [];
+      const pendientes = [];
+
+      filas.forEach(fila => {
+        const nombre = fila.querySelector('p, span, .name, [class*="name"]')?.innerText?.trim() || 'Socio';
+        const infoExtra = fila.innerText;
+        
+        // Buscamos patrones de fecha o menciones a Evolt/Scan
+        // Nota: Ajustamos esto según el formato real que veamos en la pantalla
+        const tieneEscaneoEsteMes = infoExtra.includes('Scan') && (infoExtra.includes('May') || infoExtra.includes('mayo') || infoExtra.includes('/05/'));
+
+        if (tieneEscaneoEsteMes) {
+          escaneados.push(nombre);
+        } else {
+          pendientes.push(nombre);
+        }
+      });
+
+      return { escaneados, pendientes };
     });
 
     // --- 3. CONSOLIDAR ALERTAS ---
@@ -122,6 +155,16 @@ async function checkAnytimeDashboard() {
     
     if (datosDashboard.totalAlumnos) {
       todasLasAlertas.push(`📊 TOTAL AF: Tienes ${datosDashboard.totalAlumnos} alumnos registrados.`);
+    }
+
+    // Reporte de Escaneos
+    if (auditoriaEscaneos.escaneados.length > 0) {
+      todasLasAlertas.push(`✅ ESCANEADOS ESTE MES (${auditoriaEscaneos.escaneados.length}): ${auditoriaEscaneos.escaneados.slice(0, 10).join(', ')}${auditoriaEscaneos.escaneados.length > 10 ? '...' : ''}`);
+    }
+    
+    if (auditoriaEscaneos.pendientes.length > 0) {
+      // Priorizamos mostrar quiénes faltan
+      todasLasAlertas.push(`❌ PENDIENTES DE ESCANEO (${auditoriaEscaneos.pendientes.length}): ${auditoriaEscaneos.pendientes.slice(0, 15).join(', ')}...`);
     }
 
     datosDashboard.sugerenciasSugeridas.forEach(a => {
