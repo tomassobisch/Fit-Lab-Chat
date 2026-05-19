@@ -68,7 +68,7 @@ async function checkAnytimeDashboard() {
       await page.keyboard.press('Enter');
       
       // 4. Esperar a que la URL cambie al home confirmando el éxito
-      await page.waitForURL('**/home**', { waitUntil: 'networkidle', timeout: 45000 });
+      await page.waitForURL('**/home**', { waitUntil: 'load', timeout: 60000 });
       console.log('Login exitoso y verificado.');
     }
 
