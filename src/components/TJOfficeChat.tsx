@@ -154,22 +154,35 @@ export const TJOfficeChat: React.FC = () => {
             contents: [{ parts: [{ text: `Responde como ${agent.rol} (@${agent.nickname}): ${userText}${contextText}` }] }]
           })
         });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error?.message || 'Error en API de Gemini');
+        }
+
         const data = await response.json();
         const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (aiText) {
           await supabase.from('tj_mensajes').insert([{ remitente_tipo: 'agente', remitente_id: agent.id, texto: aiText, canal: '#general' }]);
           return;
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error("Gemini Error:", e);
+        await supabase.from('tj_mensajes').insert([{
+          remitente_tipo: 'agente',
+          remitente_id: agent.id,
+          texto: `⚠️ Error de IA: ${e.message}. Por favor, revisa la configuración técnica.`,
+          canal: '#general'
+        }]);
+        return;
       }
     }
 
-    // 3. FALLBACK (Garantiza que siempre haya una respuesta)
+    // 3. FALLBACK (Garantiza que siempre haya una respuesta si no hay API Key o falló todo)
     await supabase.from('tj_mensajes').insert([{
       remitente_tipo: 'agente',
       remitente_id: agent.id,
-      texto: FALLBACK_RESPONSES[agent.nickname] || "Recibido, estoy analizando la información.",
+      texto: apiKey ? (FALLBACK_RESPONSES[agent.nickname] || "Recibido. Estoy analizando la información.") : "⚠️ IA_CONFIG_ERROR: No se detecta una VITE_GEMINI_API_KEY válida. Por favor, añádela a tu archivo .env.",
       canal: '#general'
     }]);
   };
