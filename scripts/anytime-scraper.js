@@ -119,12 +119,22 @@ async function checkAnytimeDashboard() {
     });
 
     // --- 2. AUDITORÍA DETALLADA DE SOCIOS (ESCANEOS Y ENTRENOS) ---
-    console.log('Iniciando barrido completo de alumnos (Infinite Scroll)...');
+    console.log('Buscando estructura de alumnos para el barrido...');
     
-    // El contenedor de la lista de alumnos está en el panel izquierdo
-    // Buscamos el elemento que contiene el texto "alumnos" y su lista hermana
-    const listHeader = page.locator('text=/alumnos/i').first();
-    const athleteSidebar = page.locator('.infinite-scroll-component, [class*="sidebar"], nav').filter({ has: page.locator('text=/alumnos/i') }).first();
+    // Debug: Imprimir un resumen de lo que ve el bot en la lista
+    await page.evaluate(() => {
+      const allDivs = Array.from(document.querySelectorAll('div, li, p, span'));
+      console.log(`Total elementos inspeccionables: ${allDivs.length}`);
+      
+      // Buscamos un nombre conocido de la captura
+      const emanuel = allDivs.find(el => el.innerText?.includes('Emanuel Andrade'));
+      if (emanuel) {
+        console.log('¡Emanuel encontrado!');
+        console.log('Clases de Emanuel:', emanuel.className);
+        console.log('HTML de Emanuel:', emanuel.outerHTML);
+        console.log('Padre de Emanuel:', emanuel.parentElement?.className);
+      }
+    });
 
     const auditoriaAcumulada = {
       escaneados: new Set(),
@@ -133,34 +143,32 @@ async function checkAnytimeDashboard() {
     };
 
     let scrollAttempts = 0;
-    const maxScrollAttempts = 50; 
+    const maxScrollAttempts = 40; 
 
     while (scrollAttempts < maxScrollAttempts) {
       const datosPagina = await page.evaluate(() => {
-        // Buscamos solo en la parte de la lista (sidebar izquierda)
-        // Intentamos identificar el contenedor de la lista de socios
-        const sidebar = document.querySelector('.infinite-scroll-component') || 
-                        Array.from(document.querySelectorAll('div')).find(el => el.innerText?.includes('alumnos') && el.querySelector('ul, [class*="list"]'));
-        
-        if (!sidebar) return [];
-
-        // Buscamos elementos que parezcan filas de alumnos (suelen tener avatar y nombre)
-        const items = Array.from(sidebar.querySelectorAll('div, li')).filter(el => {
+        // Buscamos elementos que parezcan nombres de alumnos. 
+        // Suelen estar en elementos con clases como .name, .title, o simplemente negrita.
+        // Basándonos en la captura, están en una lista a la izquierda.
+        const items = Array.from(document.querySelectorAll('div, li')).filter(el => {
           const text = el.innerText || '';
-          return text.length > 5 && text.length < 200 && !text.includes('Mostrando') && !text.includes('Buscar');
+          return text.length > 2 && text.length < 100 && 
+                 !text.includes('Mostrando') && !text.includes('Buscar') &&
+                 !text.includes('Envía') && !text.includes('programar') &&
+                 (el.querySelector('img') || el.className.includes('name') || el.className.includes('athlete'));
         });
         
         return items.map(el => {
           const text = el.innerText || '';
-          const lineas = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
-          const nombre = lineas[0] || '';
-          const textoLow = text.toLowerCase();
+          const nombre = text.split('\n')[0].trim();
           
-          // El escaneo suele aparecer como "Last scan: Date" o similar
-          const tieneEscaneoEsteMes = textoLow.includes('scan') && (textoLow.includes('may') || textoLow.includes('05/'));
+          // Buscamos info de escaneo en el elemento padre o hermanos si no está aquí
+          const container = el.closest('div[class*="item"], li, [class*="card"]');
+          const textoCompleto = container ? container.innerText.toLowerCase() : text.toLowerCase();
+          const tieneEscaneoEsteMes = textoCompleto.includes('scan') && (textoCompleto.includes('may') || textoCompleto.includes('05/'));
           
-          return { nombre, tieneEscaneoEsteMes, esAlumno: lineas.length >= 1 };
-        }).filter(d => d.nombre.length > 5 && !d.nombre.includes('Envía') && !d.nombre.includes('programar'));
+          return { nombre, tieneEscaneoEsteMes };
+        }).filter(d => d.nombre.length > 5);
       });
 
       datosPagina.forEach(d => {
@@ -178,18 +186,10 @@ async function checkAnytimeDashboard() {
 
       if (auditoriaAcumulada.nombresVistos.size >= 148) break;
 
-      // Scroll solo en la sidebar
-      if (await athleteSidebar.isVisible()) {
-         await athleteSidebar.evaluate(el => el.scrollBy(0, 1000));
-      } else {
-         await page.mouse.wheel(0, 1000);
-      }
-      
-      await page.waitForTimeout(800);
+      // Scroll general si el específico no es claro
+      await page.mouse.wheel(0, 1000);
+      await page.waitForTimeout(1000);
       scrollAttempts++;
-      
-      // Si llevamos 5 intentos sin ver alumnos nuevos, paramos
-      if (scrollAttempts > 10 && datosPagina.length === 0) break;
     }
 
     const auditoriaEscaneos = {
