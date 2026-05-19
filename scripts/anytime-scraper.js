@@ -45,8 +45,28 @@ async function checkAnytimeDashboard() {
       console.log('Login exitoso.');
     }
 
-    console.log('Dashboard cargado. Iniciando barrido desde la sidebar...');
-    await page.waitForTimeout(8000); // Esperar a que la lista de alumnos cargue
+    console.log('Dashboard cargado. Realizando autopsia del DOM...');
+    await page.waitForTimeout(10000); 
+    await page.screenshot({ path: 'autopsia-dashboard.png', fullPage: true });
+
+    const domDebug = await page.evaluate(() => {
+       const findName = (name) => {
+         const elements = Array.from(document.querySelectorAll('*')).filter(el => el.innerText?.includes(name));
+         return elements.map(el => ({
+           tag: el.tagName,
+           class: el.className,
+           text: el.innerText.substring(0, 50),
+           parent: el.parentElement?.className
+         }));
+       };
+       return { 
+         emanuel: findName('Emanuel'),
+         anyName: findName('Andrade'),
+         allDivs: document.querySelectorAll('div').length,
+         allImgs: document.querySelectorAll('img').length
+       };
+    });
+    console.log('DOM Debug Result:', JSON.stringify(domDebug, null, 2));
 
     // 2. BARRIDO COMPLETO DESDE LA SIDEBAR (SCROLL ACUMULATIVO)
     const auditoriaAcumulada = { escaneados: new Set(), pendientes: new Set(), nombresVistos: new Set() };
@@ -54,17 +74,20 @@ async function checkAnytimeDashboard() {
     let scrollAttempts = 0;
     while (scrollAttempts < 60) {
       const data = await page.evaluate(() => {
-        // En el home v2, los alumnos están en una lista a la izquierda con scroll infinito
-        const items = Array.from(document.querySelectorAll('.infinite-scroll-component > div, [class*="athlete-list-item"]')).filter(el => {
-          return el.innerText && el.innerText.length > 10 && el.innerText.length < 300;
+        // Selector súper-genérico: Cualquier elemento que tenga un avatar y texto corto (nombre)
+        const items = Array.from(document.querySelectorAll('div, li')).filter(el => {
+          const hasImg = el.querySelector('img');
+          const text = el.innerText || '';
+          return hasImg && text.length > 3 && text.length < 200 && !text.includes('Mostrando');
         });
         
         return items.map(el => {
           const text = el.innerText;
-          const name = text.split('\n')[0].trim();
+          const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 1);
+          const name = lines[0] || '';
           const hasScan = text.toLowerCase().includes('scan') && (text.toLowerCase().includes('may') || text.toLowerCase().includes('05/'));
           return { name, hasScan };
-        }).filter(d => d.name.length > 4 && !d.name.includes('Envía') && !d.name.includes('Mostrando'));
+        }).filter(d => d.name.length > 4 && !d.name.includes('Envía') && !d.name.includes('programar'));
       });
 
       let nuevosEnEsteScroll = 0;
