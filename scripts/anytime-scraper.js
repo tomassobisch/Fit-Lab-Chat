@@ -119,52 +119,62 @@ async function checkAnytimeDashboard() {
     });
 
     // --- 2. AUDITORÍA DETALLADA DE SOCIOS (ESCANEOS Y ENTRENOS) ---
-    console.log('Buscando lista de alumnos...');
+    console.log('Iniciando barrido completo de alumnos (Infinite Scroll)...');
     
-    // Intentamos varios selectores para encontrar la lista de alumnos
-    const listSelectors = [
-      '.infinite-scroll-component',
-      '[class*="infinite-scroll"]',
-      '.athlete-list',
-      '.students-list',
-      'ul',
-      'table'
-    ];
-
-    let listFound = false;
-    for (const selector of listSelectors) {
-      if (await page.locator(selector).first().isVisible()) {
-        console.log(`Lista encontrada con selector: ${selector}`);
-        listFound = true;
-        break;
-      }
+    // Navegamos a la sección de socios si no estamos ya allí
+    const sociosLink = page.locator('a:has(.sidebar__text:text("Socios")), a:has-text("Socios")').first();
+    if (await sociosLink.isVisible()) {
+      await sociosLink.click();
+      await page.waitForLoadState('networkidle');
     }
 
-    if (!listFound) {
-       console.log('No se encontró un contenedor de lista estándar. Procediendo con búsqueda general de elementos...');
+    // Sistema de scroll para cargar los 148 alumnos
+    let alumnosCapturados = new Set();
+    let scrollAttempts = 0;
+    const maxScrollAttempts = 20; // Aprox 10-15 alumnos por carga, necesitamos unos 10-15 scrolls
+
+    while (scrollAttempts < maxScrollAttempts) {
+      const nuevosNombres = await page.evaluate(() => {
+        const items = Array.from(document.querySelectorAll('.infinite-scroll-component > div, ul > li, [class*="athlete"]')).filter(el => el.innerText.length > 10);
+        return items.map(el => {
+          const lineas = el.innerText.split('\n').map(l => l.trim());
+          return lineas[0];
+        }).filter(n => n && n.length > 3);
+      });
+
+      nuevosNombres.forEach(n => alumnosCapturados.add(n));
+      console.log(`Progreso: ${alumnosCapturados.size} alumnos identificados...`);
+
+      if (alumnosCapturados.size >= 140) break; // Ya tenemos casi todos
+
+      // Scroll hacia abajo
+      await page.mouse.wheel(0, 3000);
+      await page.waitForTimeout(1500); // Esperar a que cargue el siguiente bloque
+      scrollAttempts++;
     }
+
+    console.log(`Barrido finalizado. Total alumnos detectados: ${alumnosCapturados.size}`);
 
     const auditoriaEscaneos = await page.evaluate(() => {
-      // Buscamos cualquier elemento que parezca una tarjeta de alumno
-      // En la captura vemos que cada alumno tiene un nombre y una descripción
+      // Realizamos el análisis sobre todos los elementos cargados en el DOM
       const items = Array.from(document.querySelectorAll('*')).filter(el => {
          const text = el.innerText;
-         return text.length > 5 && text.length < 500 && (text.includes('Completed') || text.includes('Scan') || text.includes('mañana') || text.includes('ayer'));
+         // Filtro para detectar tarjetas de alumnos con su info de actividad
+         return text.length > 5 && text.length < 500 && (text.includes('Completed') || text.includes('Scan') || text.includes('ayer') || text.includes('hoy'));
       });
       
-      const hoy = new Date();
       const escaneados = [];
       const pendientes = [];
       const nombresVistos = new Set();
 
       items.forEach(el => {
-        // Intentamos extraer el nombre (suele ser el primer párrafo o elemento en negrita)
         const textoFull = el.innerText;
         const lineas = textoFull.split('\n').map(l => l.trim()).filter(l => l.length > 2);
         const nombre = lineas[0] || 'Socio';
         
         if (nombre && !nombresVistos.has(nombre) && nombre.length > 3) {
            nombresVistos.add(nombre);
+           // Detección de escaneo en el mes de Mayo (05)
            const tieneEscaneoEsteMes = textoFull.toLowerCase().includes('scan') && (textoFull.toLowerCase().includes('may') || textoFull.toLowerCase().includes('05/'));
            
            if (tieneEscaneoEsteMes) {
