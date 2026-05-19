@@ -118,27 +118,30 @@ export const TJOfficeChat: React.FC = () => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     const lowerText = userText.toLowerCase();
     
+    // 1. RESPUESTA PREDETERMINADA (Keyword match)
     const agentKeywords = PREDETERMINED_RESPONSES[agent.nickname];
     if (agentKeywords) {
-      for (const [key, response] of Object.entries(agentKeywords)) {
-        if (lowerText.includes(key)) {
-          await supabase.from('tj_mensajes').insert([{
-            remitente_tipo: 'agente',
-            remitente_id: agent.id,
-            texto: response,
-            canal: '#general'
-          }]);
-          return;
-        }
+      const match = Object.keys(agentKeywords).find(key => lowerText.includes(key));
+      if (match) {
+        await supabase.from('tj_mensajes').insert([{
+          remitente_tipo: 'agente',
+          remitente_id: agent.id,
+          texto: agentKeywords[match],
+          canal: '#general'
+        }]);
+        return;
       }
     }
 
+    // 2. INTENTO CON GEMINI AI
     if (apiKey && apiKey.startsWith('AIza')) {
       try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts: [{ text: `Actúa como ${agent.rol}. Usuario: ${userText}` }] }] })
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: `Responde como ${agent.rol}: ${userText}` }] }]
+          })
         });
         const data = await response.json();
         const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -146,13 +149,16 @@ export const TJOfficeChat: React.FC = () => {
           await supabase.from('tj_mensajes').insert([{ remitente_tipo: 'agente', remitente_id: agent.id, texto: aiText, canal: '#general' }]);
           return;
         }
-      } catch (err) { console.error("Error Gemini:", err); }
+      } catch (e) {
+        console.error("Gemini Error:", e);
+      }
     }
 
+    // 3. FALLBACK (Garantiza que siempre haya una respuesta)
     await supabase.from('tj_mensajes').insert([{
       remitente_tipo: 'agente',
       remitente_id: agent.id,
-      texto: FALLBACK_RESPONSES[agent.nickname] || "Estoy analizando la información...",
+      texto: FALLBACK_RESPONSES[agent.nickname] || "Recibido, estoy analizando la información.",
       canal: '#general'
     }]);
   };
