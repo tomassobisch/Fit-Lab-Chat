@@ -93,7 +93,12 @@ export const TJOfficeChat: React.FC = () => {
 
   const generateAgentResponse = async (agent: Agente, userText: string) => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) return;
+    console.log(`Intentando respuesta de ${agent.nickname}...`);
+    
+    if (!apiKey) {
+      console.error("ERROR: VITE_GEMINI_API_KEY no encontrada en el entorno.");
+      return;
+    }
 
     const prompt = `Actúa como ${agent.nombre} (@${agent.nickname}), un experto en ${agent.rol} con estas habilidades: ${agent.skills}. 
     Estamos en el canal #general de TJ Office.
@@ -107,6 +112,7 @@ export const TJOfficeChat: React.FC = () => {
     5. Usa un tono profesional pero moderno.`;
 
     try {
+      console.log(`Llamando a Gemini API para ${agent.nickname}...`);
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -116,18 +122,33 @@ export const TJOfficeChat: React.FC = () => {
       });
       
       const data = await response.json();
+      
+      if (data.error) {
+        console.error("Error de la API de Gemini:", data.error);
+        return;
+      }
+
       const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
       
       if (aiText) {
-        await supabase.from('tj_mensajes').insert([{
+        console.log(`Respuesta de Gemini recibida, guardando en Supabase...`);
+        const { error: insertError } = await supabase.from('tj_mensajes').insert([{
           remitente_tipo: 'agente',
           remitente_id: agent.id,
           texto: aiText,
           canal: '#general'
         }]);
+
+        if (insertError) {
+          console.error("Error al insertar mensaje de agente en Supabase:", insertError);
+        } else {
+          console.log(`Mensaje de ${agent.nickname} guardado con éxito.`);
+        }
+      } else {
+        console.warn("Gemini no devolvió texto. Data:", data);
       }
     } catch (err) {
-      console.error(`Error en respuesta de ${agent.nickname}:`, err);
+      console.error(`Error fatal en respuesta de ${agent.nickname}:`, err);
     }
   };
 
