@@ -67,8 +67,8 @@ async function checkAnytimeDashboard() {
       // 3. Enviar sin hacer clic físico (truco del Enter para máxima compatibilidad)
       await page.keyboard.press('Enter');
       
-      // 4. Esperar a que la URL cambie al home de tu sede confirmando el éxito
-      await page.waitForURL('**/home/SP-0085', { waitUntil: 'networkidle', timeout: 45000 });
+      // 4. Esperar a que la URL cambie al home confirmando el éxito
+      await page.waitForURL('**/home**', { waitUntil: 'networkidle', timeout: 45000 });
       console.log('Login exitoso y verificado.');
     }
 
