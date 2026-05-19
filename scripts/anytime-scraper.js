@@ -121,8 +121,10 @@ async function checkAnytimeDashboard() {
     // --- 2. AUDITORÍA DETALLADA DE SOCIOS (ESCANEOS Y ENTRENOS) ---
     console.log('Iniciando barrido completo de alumnos (Infinite Scroll)...');
     
-    const scrollContainerSelector = '.infinite-scroll-component, [class*="infinite-scroll"], .sidebar-list';
-    const scrollContainer = page.locator(scrollContainerSelector).first();
+    // Identificamos el contenedor que realmente tiene el scroll (el de la izquierda)
+    // Según la captura, es el panel lateral donde están los alumnos
+    const scrollContainerSelector = '.infinite-scroll-component, [class*="sidebar"], [class*="list"], nav';
+    const scrollContainer = page.locator(scrollContainerSelector).filter({ hasText: /alumnos/i }).first();
 
     const auditoriaAcumulada = {
       escaneados: new Set(),
@@ -135,7 +137,11 @@ async function checkAnytimeDashboard() {
 
     while (scrollAttempts < maxScrollAttempts) {
       const datosPagina = await page.evaluate(() => {
-        const items = Array.from(document.querySelectorAll('.infinite-scroll-component > div, [class*="athlete-list-item"]')).filter(el => el.innerText && el.innerText.length > 5);
+        // Buscamos elementos que contengan actividad (Completed, Scan, etc.)
+        const items = Array.from(document.querySelectorAll('div, li')).filter(el => {
+          const text = el.innerText || '';
+          return text.length > 10 && text.length < 300 && (text.includes('Completed') || text.includes('Scan') || text.includes('hace') || text.includes('ayer'));
+        });
         
         return items.map(el => {
           const textoFull = el.innerText || '';
@@ -159,18 +165,23 @@ async function checkAnytimeDashboard() {
         }
       });
 
-      console.log(`Progreso: ${auditoriaAcumulada.nombresVistos.size} de 148 alumnos analizados...`);
+      console.log(`Progreso: ${auditoriaAcumulada.nombresVistos.size} alumnos identificados...`);
 
       if (auditoriaAcumulada.nombresVistos.size >= 148) break;
 
-      // Scroll dentro del contenedor específico
-      if (await scrollContainer.isVisible()) {
-         await scrollContainer.evaluate(el => el.scrollBy(0, 1500));
-      } else {
-         await page.mouse.wheel(0, 1500);
+      // Scroll para cargar más
+      try {
+        if (await scrollContainer.isVisible()) {
+           await scrollContainer.evaluate(el => el.scrollBy(0, 1200));
+        } else {
+           // Si no encontramos el contenedor específico, probamos scroll general
+           await page.mouse.wheel(0, 1200);
+        }
+      } catch (e) {
+        await page.mouse.wheel(0, 1200);
       }
       
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(1000);
       scrollAttempts++;
     }
 
