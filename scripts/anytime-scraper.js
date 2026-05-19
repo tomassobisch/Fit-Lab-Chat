@@ -107,43 +107,59 @@ async function checkAnytimeDashboard() {
     });
 
     // --- 2. AUDITORÍA DETALLADA DE SOCIOS (ESCANEOS Y ENTRENOS) ---
-    console.log('Navegando a la lista de socios para auditoría detallada...');
+    console.log('Buscando lista de alumnos...');
     
-    const sociosLink = page.locator('a:has(.sidebar__text:text("Socios")), a:has-text("Socios")').first();
-    if (await sociosLink.isVisible()) {
-      await sociosLink.click();
-    }
-    await page.waitForLoadState('networkidle');
-    await page.waitForSelector('.infinite-scroll-component', { timeout: 20000 });
+    // Intentamos varios selectores para encontrar la lista de alumnos
+    const listSelectors = [
+      '.infinite-scroll-component',
+      '[class*="infinite-scroll"]',
+      '.athlete-list',
+      '.students-list',
+      'ul',
+      'table'
+    ];
 
-    // Hacemos un poco de scroll para cargar más alumnos (opcional, ajustamos según necesidad)
-    console.log('Cargando lista de alumnos...');
-    for(let i=0; i<3; i++) {
-        await page.mouse.wheel(0, 2000);
-        await page.waitForTimeout(1000);
+    let listFound = false;
+    for (const selector of listSelectors) {
+      if (await page.locator(selector).first().isVisible()) {
+        console.log(`Lista encontrada con selector: ${selector}`);
+        listFound = true;
+        break;
+      }
+    }
+
+    if (!listFound) {
+       console.log('No se encontró un contenedor de lista estándar. Procediendo con búsqueda general de elementos...');
     }
 
     const auditoriaEscaneos = await page.evaluate(() => {
-      const filas = Array.from(document.querySelectorAll('.infinite-scroll-component > div')).filter(el => el.innerText.length > 20);
+      // Buscamos cualquier elemento que parezca una tarjeta de alumno
+      // En la captura vemos que cada alumno tiene un nombre y una descripción
+      const items = Array.from(document.querySelectorAll('*')).filter(el => {
+         const text = el.innerText;
+         return text.length > 5 && text.length < 500 && (text.includes('Completed') || text.includes('Scan') || text.includes('mañana') || text.includes('ayer'));
+      });
+      
       const hoy = new Date();
-      const mesActual = hoy.getMonth();
-      const añoActual = hoy.getFullYear();
-
       const escaneados = [];
       const pendientes = [];
+      const nombresVistos = new Set();
 
-      filas.forEach(fila => {
-        const nombre = fila.querySelector('p, span, .name, [class*="name"]')?.innerText?.trim() || 'Socio';
-        const infoExtra = fila.innerText;
+      items.forEach(el => {
+        // Intentamos extraer el nombre (suele ser el primer párrafo o elemento en negrita)
+        const textoFull = el.innerText;
+        const lineas = textoFull.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+        const nombre = lineas[0] || 'Socio';
         
-        // Buscamos patrones de fecha o menciones a Evolt/Scan
-        // Nota: Ajustamos esto según el formato real que veamos en la pantalla
-        const tieneEscaneoEsteMes = infoExtra.includes('Scan') && (infoExtra.includes('May') || infoExtra.includes('mayo') || infoExtra.includes('/05/'));
-
-        if (tieneEscaneoEsteMes) {
-          escaneados.push(nombre);
-        } else {
-          pendientes.push(nombre);
+        if (nombre && !nombresVistos.has(nombre) && nombre.length > 3) {
+           nombresVistos.add(nombre);
+           const tieneEscaneoEsteMes = textoFull.toLowerCase().includes('scan') && (textoFull.toLowerCase().includes('may') || textoFull.toLowerCase().includes('05/'));
+           
+           if (tieneEscaneoEsteMes) {
+             escaneados.push(nombre);
+           } else {
+             pendientes.push(nombre);
+           }
         }
       });
 
