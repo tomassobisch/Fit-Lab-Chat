@@ -74,19 +74,21 @@ async function checkAnytimeDashboard() {
 
     console.log('Dentro del Dashboard de Anytime. Iniciando auditoría completa...');
 
-    // --- 1. LEER SUGERENCIAS DE COACHING (LA FUENTE MÁS FIABLE) ---
-    console.log('Leyendo alertas de "Coaching sugerido"...');
-    const alertasSugeridas = await page.evaluate(() => {
-      // Buscamos cualquier elemento que diga "Coaching sugerido"
-      const titulo = Array.from(document.querySelectorAll('*')).find(el => el.innerText?.includes('Coaching sugerido'));
-      if (!titulo) return [];
+    // --- 1. LEER SUGERENCIAS Y TOTAL DE ALUMNOS ---
+    console.log('Leyendo datos del dashboard...');
+    const datosDashboard = await page.evaluate(() => {
+      // 1. Contador de alumnos (ej: "Mostrando 25 de 148 alumnos")
+      const contadorTexto = document.querySelector('.infinite-scroll-component')?.parentElement?.previousElementSibling?.innerText || '';
+      const matchAlumnos = contadorTexto.match(/de (\d+) alumnos/i);
+      const totalAlumnos = matchAlumnos ? matchAlumnos[1] : null;
 
+      // 2. Sugerencias de coaching
       const sugerencias = Array.from(document.querySelectorAll('div')).filter(div => {
         const text = div.innerText;
         return text.includes('escáner') || text.includes('seguimiento') || text.includes('entrenamiento');
       });
       
-      const resultados = [];
+      const sugerenciasResult = [];
       const textosVistos = new Set();
       for (const sug of sugerencias) {
         const lineas = sug.innerText.split('\n').map(l => l.trim()).filter(l => l.length > 5);
@@ -94,31 +96,27 @@ async function checkAnytimeDashboard() {
           const textoPrincipal = lineas[0];
           if (!textosVistos.has(textoPrincipal)) {
             textosVistos.add(textoPrincipal);
-            resultados.push({
+            sugerenciasResult.push({
               texto: textoPrincipal,
               tiempo: lineas.find(l => l.includes('hace') || l.includes('hora') || l.includes('día')) || ''
             });
           }
         }
       }
-      return resultados;
+      return { totalAlumnos, sugerenciasSugeridas: sugerenciasResult };
     });
 
     // --- 2. LEER MENSAJES PENDIENTES ---
-    console.log('Verificando mensajes de alumnos...');
-    const alertasMensajes = await page.evaluate(() => {
-      const badgeTotal = document.querySelector('.sidebar__item .badge, .sidebar__link .badge')?.innerText?.trim();
-      const resultados = [];
-      if (badgeTotal && parseInt(badgeTotal) > 0) {
-        resultados.push({ texto: `Tienes ${badgeTotal} mensajes pendientes en el chat.` });
-      }
-      return resultados;
-    });
+    // ... (sin cambios)
 
     // --- 3. CONSOLIDAR ALERTAS ---
     const todasLasAlertas = [];
     
-    alertasSugeridas.forEach(a => {
+    if (datosDashboard.totalAlumnos) {
+      todasLasAlertas.push(`Total de alumnos registrados en AF: ${datosDashboard.totalAlumnos}`);
+    }
+
+    datosDashboard.sugerenciasSugeridas.forEach(a => {
       // Filtrar para asegurar que solo enviamos sugerencias reales de coaching
       const textoLow = a.texto.toLowerCase();
       if (textoLow.includes('socio') || textoLow.includes('escáner') || textoLow.includes('seguimiento') || textoLow.includes('entren')) {
