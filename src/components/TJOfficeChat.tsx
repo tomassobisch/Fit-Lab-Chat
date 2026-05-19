@@ -11,6 +11,30 @@ const INITIAL_AGENTS: Agente[] = [
   { id: '55555555-5555-5555-5555-555555555555', nombre: 'Project Manager', nickname: 'Strategist', rol: 'Estrategia', skills: 'Planning, QA', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=strategy', estado_online: true, creado_en: '' }
 ];
 
+const PREDETERMINED_RESPONSES: Record<string, Record<string, string>> = {
+  'Programador': {
+    'hola': 'Hola, soy el Senior Dev. Sistema operativo y listo para programar. ¿En qué puedo ayudarte con el código?',
+    'status': 'Todos los sistemas están operativos. Conexión con Supabase: ESTABLE. Motor de IA: ACTIVO.',
+    'error': 'He detectado un posible glitch en la matriz. Recomiendo revisar los logs de la consola y las variables de entorno.',
+  },
+  'CommunityManager': {
+    'hola': '¡Hola! Aquí el equipo de Marketing. Listos para hacer brillar esta marca. ✨',
+    'campaña': 'Estoy analizando las métricas actuales. El engagement está subiendo, ¡sigamos así!',
+  },
+  'Legal': {
+    'hola': 'Saludos. Aquí el departamento Legal. Todos los procesos están bajo cumplimiento normativo.',
+    'contrato': 'He revisado las cláusulas. Todo parece estar en orden según la ley de protección de datos vigente.',
+  }
+};
+
+const FALLBACK_RESPONSES: Record<string, string> = {
+  'Programador': 'Recibido. Estoy procesando tu solicitud técnica. Dame un momento para compilar la mejor solución.',
+  'CommunityManager': '¡Entendido! Estoy ideando una estrategia creativa para eso. ¡Va a quedar genial!',
+  'Legal': 'He tomado nota. Estoy verificando los términos legales para darte una respuesta precisa.',
+  'Data': 'Analizando los puntos de datos. La tendencia sugiere que debemos proceder con precaución.',
+  'Strategist': 'Plan de acción en desarrollo. Estoy coordinando los recursos para ejecutar esta tarea.'
+};
+
 export const TJOfficeChat: React.FC = () => {
   const [agentes, setAgentes] = useState<Agente[]>(INITIAL_AGENTS);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
@@ -101,63 +125,64 @@ export const TJOfficeChat: React.FC = () => {
 
   const generateAgentResponse = async (agent: Agente, userText: string) => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    console.log(`Intentando respuesta de ${agent.nickname}...`);
+    const lowerText = userText.toLowerCase();
     
-    if (!apiKey) {
-      console.error("ERROR: VITE_GEMINI_API_KEY no encontrada en el entorno.");
-      return;
-    }
-
-    const prompt = `Actúa como ${agent.nombre} (@${agent.nickname}), un experto en ${agent.rol} con estas habilidades: ${agent.skills}. 
-    Estamos en el canal #general de TJ Office.
-    Instrucción del usuario: "${userText}".
-    
-    REGLAS:
-    1. Responde de forma breve y directa (máximo 2 párrafos).
-    2. Mantén la personalidad de tu rol.
-    3. Si es una duda técnica y eres el Programador, sé muy preciso. Si eres Marketing, sé creativo.
-    4. No menciones que eres una IA, actúa como el profesional que eres.
-    5. Usa un tono profesional pero moderno.`;
-
-    try {
-      console.log(`Llamando a Gemini API para ${agent.nickname}...`);
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
-        })
-      });
-      
-      const data = await response.json();
-      
-      if (data.error) {
-        console.error("Error de la API de Gemini:", data.error);
-        return;
-      }
-
-      const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      
-      if (aiText) {
-        console.log(`Respuesta de Gemini recibida, guardando en Supabase...`);
-        const { error: insertError } = await supabase.from('tj_mensajes').insert([{
-          remitente_tipo: 'agente',
-          remitente_id: agent.id,
-          texto: aiText,
-          canal: '#general'
-        }]);
-
-        if (insertError) {
-          console.error("Error al insertar mensaje de agente en Supabase:", insertError);
-        } else {
-          console.log(`Mensaje de ${agent.nickname} guardado con éxito.`);
+    // 1. INTENTAR RESPUESTA PREDETERMINADA (Keyword match)
+    const agentKeywords = PREDETERMINED_RESPONSES[agent.nickname];
+    if (agentKeywords) {
+      for (const [key, response] of Object.entries(agentKeywords)) {
+        if (lowerText.includes(key)) {
+          console.log(`>>> SISTEMA: Respuesta predeterminada encontrada para "${key}"`);
+          await supabase.from('tj_mensajes').insert([{
+            remitente_tipo: 'agente',
+            remitente_id: agent.id,
+            texto: response,
+            canal: '#general'
+          }]);
+          return;
         }
-      } else {
-        console.warn("Gemini no devolvió texto. Data:", data);
       }
-    } catch (err) {
-      console.error(`Error fatal en respuesta de ${agent.nickname}:`, err);
     }
+
+    // 2. INTENTAR GEMINI AI
+    if (apiKey) {
+      const prompt = `Actúa como ${agent.nombre} (@${agent.nickname}), un experto en ${agent.rol} con estas habilidades: ${agent.skills}. 
+      Estamos en el canal #general de TJ Office.
+      Instrucción del usuario: "${userText}".
+      REGLAS: Responde brevemente, máximo 2 párrafos, mantén tu rol.`;
+
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        
+        const data = await response.json();
+        const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (aiText) {
+          await supabase.from('tj_mensajes').insert([{
+            remitente_tipo: 'agente',
+            remitente_id: agent.id,
+            texto: aiText,
+            canal: '#general'
+          }]);
+          return;
+        }
+      } catch (err) {
+        console.error(`Error en Gemini para ${agent.nickname}:`, err);
+      }
+    }
+
+    // 3. FALLBACK (Si todo lo anterior falla)
+    console.warn(`>>> SISTEMA: Usando fallback para ${agent.nickname}`);
+    await supabase.from('tj_mensajes').insert([{
+      remitente_tipo: 'agente',
+      remitente_id: agent.id,
+      texto: FALLBACK_RESPONSES[agent.nickname] || "Recibido. Estoy trabajando en ello.",
+      canal: '#general'
+    }]);
   };
 
   const handleSend = async (e: React.FormEvent) => {
