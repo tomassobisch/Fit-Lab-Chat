@@ -210,6 +210,7 @@ export const TJOfficeChat: React.FC = () => {
 
   return (
     <div className="flex h-screen w-full bg-black text-white font-sans overflow-hidden text-[12px]">
+      {/* SIDEBAR IZQUIERDA - AGENTES TJ OFFICE */}
       <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#0A0A0A] border-r border-white/10 flex flex-col transition-transform duration-300 lg:static lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="h-16 flex items-center justify-between px-5 border-b border-white/10">
           <div className="flex items-center gap-3">
@@ -244,17 +245,16 @@ export const TJOfficeChat: React.FC = () => {
           </button>
         </div>
       </aside>
+
       {isSidebarOpen && <div onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden" />}
+
+      {/* CHAT PRINCIPAL - TJ OFFICE */}
       <main className="flex-1 flex flex-col bg-[#050505] overflow-hidden border-r border-white/10 relative">
         <header className="h-16 flex items-center justify-between px-6 border-b border-white/10 bg-black sticky top-0 z-20">
           <div className="flex items-center gap-3">
             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden text-white/60"><Menu size={20}/></button>
             <MessageSquare size={14} className="text-[#CCFF00]" />
             <span className="text-[10px] font-bold tracking-[0.2em] uppercase truncate max-w-[150px] md:max-w-none">Canal: <span className="text-[#CCFF00]">#general</span></span>
-            <div className="hidden md:flex items-center gap-1.5 ml-4 px-2 py-0.5 rounded-full bg-[#CCFF00]/10 border border-[#CCFF00]/20">
-              <div className="w-1 h-1 rounded-full bg-[#CCFF00] animate-pulse" />
-              <span className="text-[7px] font-bold text-[#CCFF00] uppercase tracking-widest">Agents Online</span>
-            </div>
           </div>
           <div className="flex items-center gap-4">
             <button onClick={() => setIsVoiceEnabled(!isVoiceEnabled)} className={`p-2 rounded-full border transition-all ${isVoiceEnabled ? 'border-[#CCFF00]/50 text-[#CCFF00]' : 'border-white/10 text-white/20'}`}>
@@ -262,14 +262,15 @@ export const TJOfficeChat: React.FC = () => {
             </button>
           </div>
         </header>
+
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 scrollbar-hide">
-          {mensajes.length === 0 ? (
+          {mensajes.filter(m => m.canal !== '#alertas').length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center opacity-10 text-center p-10">
               <Terminal size={32} />
               <p className="mt-4 text-[9px] tracking-[0.5em] font-bold uppercase">System idle: awaiting commands</p>
             </div>
           ) : (
-            mensajes.map(m => (
+            mensajes.filter(m => m.canal !== '#alertas').map(m => (
               <div key={m.id} className={`flex gap-3 md:gap-4 max-w-3xl mx-auto group animate-in ${m.remitente_tipo === 'agente' ? 'bg-white/5 border border-white/5 p-4 rounded-lg' : ''}`}>
                 <div className={`flex-shrink-0 w-7 h-7 rounded flex items-center justify-center text-[8px] font-bold ${m.remitente_tipo === 'agente' ? 'bg-[#CCFF00] text-black shadow-[0_0_10px_#CCFF0044]' : 'bg-white/10 text-white'}`}>
                   {m.remitente_tipo === 'agente' ? 'AI' : 'OP'}
@@ -289,9 +290,11 @@ export const TJOfficeChat: React.FC = () => {
             ))
           )}
         </div>
+
         <div className="p-4 md:p-6 bg-black border-t border-white/10 relative">
+          {/* MENTIONS BOX */}
           {showMentions && (
-            <div className="absolute bottom-full left-4 md:left-6 mb-2 w-64 bg-[#0A0A0A] border border-white/10 rounded-lg shadow-2xl overflow-hidden z-30 animate-in fade-in slide-in-from-bottom-2">
+            <div className="absolute bottom-full left-4 md:left-6 mb-2 w-64 bg-[#0A0A0A] border border-white/10 rounded-lg shadow-2xl overflow-hidden z-30 animate-in">
               <div className="p-2 border-b border-white/5 bg-white/5">
                 <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest px-2">Mencionar Agente</span>
               </div>
@@ -299,7 +302,7 @@ export const TJOfficeChat: React.FC = () => {
                 {agentes.filter(a => a.nickname.toLowerCase().includes(mentionFilter)).map(a => (
                   <button key={a.id} onClick={() => selectMention(a.nickname)} className="w-full flex items-center gap-3 p-2.5 hover:bg-[#CCFF00] hover:text-black transition-colors group text-left">
                     <img src={a.avatar_url} className="w-5 h-5 rounded bg-black" alt="" />
-                    <div className="flex-1 min-w-0"><p className="font-bold text-[10px]">@{a.nickname}</p><p className="text-[7px] text-white/40 group-hover:text-black/60 truncate uppercase font-medium">{a.rol}</p></div>
+                    <div className="flex-1 min-w-0"><p className="font-bold text-[10px]">@{a.nickname}</p></div>
                   </button>
                 ))}
               </div>
@@ -307,18 +310,56 @@ export const TJOfficeChat: React.FC = () => {
           )}
           <form onSubmit={handleSend} className="max-w-3xl mx-auto relative flex items-center gap-2">
             <div className="relative flex-1">
-              <input type="text" value={inputText} onChange={handleInputChange} placeholder={isSending ? "Enviando..." : "Instrucción de sistema... (usa @ para mencionar)"} disabled={isSending} className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-4 pr-12 text-base md:text-[12px] text-white focus:outline-none focus:border-[#CCFF00]/50 transition-all" />
+              <input type="text" value={inputText} onChange={handleInputChange} placeholder={isSending ? "Enviando..." : "Instrucción de sistema..."} disabled={isSending} className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-4 pr-12 text-base md:text-[12px] text-white focus:outline-none focus:border-[#CCFF00]/50 transition-all" />
               <button type="submit" disabled={!inputText.trim() || isSending} className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-lg bg-[#CCFF00] text-black flex items-center justify-center hover:scale-105 active:scale-95 disabled:opacity-30 transition-all"><Send size={16} /></button>
             </div>
           </form>
-          <p className="mt-3 text-[7px] text-white/20 font-bold uppercase tracking-[0.2em] text-center hidden md:block">Connected to TJ Fitlab Mainframe</p>
         </div>
       </main>
-      <aside className="hidden xl:flex w-72 flex-shrink-0 bg-[#0A0A0A] flex flex-col h-full">
-        <header className="h-16 flex items-center px-6 border-b border-white/10 bg-black"><div className="flex items-center gap-2"><Cpu size={14} className="text-white/20" /><span className="text-[9px] font-bold tracking-[0.2em] text-white/40 uppercase">Monitorización</span></div></header>
-        <div className="flex-1 p-6 space-y-6">
-          <div className="p-6 border border-white/5 rounded-lg bg-white/[0.01] flex flex-col items-center justify-center gap-4 text-center"><Terminal size={24} className="text-white/10" /><span className="text-[9px] font-bold tracking-widest text-white/60 uppercase">System Ready</span></div>
-          <div className="space-y-4"><div className="p-4 border border-white/5 rounded-lg"><div className="flex justify-between text-[8px] mb-2 font-bold uppercase text-white/40"><span>Traffic</span><Activity size={10} className="text-[#CCFF00]"/></div><div className="h-1 bg-white/5 rounded-full"><div className="bg-[#CCFF00] h-full w-[12%]" /></div></div></div>
+
+      {/* SIDEBAR DERECHA - ANYTIME FITNESS (MORADO) */}
+      <aside className="w-80 flex-shrink-0 bg-[#1A0B2E] flex flex-col h-full border-l border-white/10">
+        <header className="h-16 flex items-center px-6 border-b border-purple-500/20 bg-[#12071F] sticky top-0 z-20">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse shadow-[0_0_8px_#A855F7]" />
+            <span className="text-[9px] font-black tracking-[0.2em] text-purple-200 uppercase italic">ANYTIME <span className="text-white">COACHING</span></span>
+          </div>
+        </header>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
+          <div className="flex flex-col items-center justify-center py-6 text-center border-b border-purple-500/10 mb-4">
+             <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=anytime" className="w-12 h-12 rounded-full bg-purple-900 border-2 border-purple-500 shadow-lg mb-2" alt="Auditor" />
+             <p className="text-[10px] font-bold text-purple-200">@AuditorAnytime</p>
+             <p className="text-[8px] text-purple-400/60 uppercase font-bold tracking-widest mt-1">Auditando Sede SP-0085</p>
+          </div>
+
+          <div className="space-y-3">
+            {mensajes.filter(m => m.canal === '#alertas').length === 0 ? (
+              <div className="text-center p-10 opacity-30">
+                <Activity size={24} className="mx-auto text-purple-400 mb-2" />
+                <p className="text-[8px] font-bold uppercase tracking-widest">Esperando reporte nocturno...</p>
+              </div>
+            ) : (
+              mensajes.filter(m => m.canal === '#alertas').map(m => (
+                <div key={m.id} className="p-3.5 rounded-xl bg-purple-950/40 border border-purple-500/20 shadow-sm animate-in fade-in slide-in-from-right-2">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-[7px] font-black text-purple-400 uppercase tracking-tighter">Sugerencia Directa</span>
+                    <span className="text-[7px] text-purple-300/40">{new Date(m.creado_en).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-purple-100/90 font-medium">
+                    {m.texto.replace('📌 REPORTE NOCTURNO: ', '').replace('⚠️ Sugerencia: ', '')}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-purple-500/10 bg-[#12071F]">
+           <div className="flex items-center gap-2 px-3 py-2 rounded bg-purple-900/30 border border-purple-500/20">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+              <span className="text-[8px] font-bold text-purple-200/60 uppercase tracking-widest">Sincronizado con Anytime Dashboard</span>
+           </div>
         </div>
       </aside>
       {editingAgente && (
