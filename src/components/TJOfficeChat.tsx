@@ -125,7 +125,7 @@ export const TJOfficeChat: React.FC = () => {
 
   const generateAgentResponse = async (agent: Agente, userText: string) => {
     setIsTyping(agent.id);
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyAn6pT_Rca1XgvOR1R7KKwS93DW2dh29dU';
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     const lowerText = userText.toLowerCase();
     
     // 1. RESPUESTA PREDETERMINADA
