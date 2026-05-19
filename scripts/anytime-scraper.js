@@ -119,11 +119,14 @@ async function checkAnytimeDashboard() {
     });
 
     // --- 2. AUDITORÍA DETALLADA DE SOCIOS (ESCANEOS Y ENTRENOS) ---
-    console.log('Buscando la lista de alumnos en el panel lateral...');
+    console.log('Iniciando barrido completo de alumnos (Referencia Emanuel)...');
     
-    // El texto "Mostrando X de Y alumnos" es nuestro ancla
-    const listAnchor = page.locator('text=/Mostrando/i');
-    const scrollContainer = page.locator('.infinite-scroll-component, [class*="sidebar"], [class*="list"]').filter({ has: listAnchor }).first();
+    // Esperamos a que un alumno conocido de la captura aparezca para confirmar carga
+    try {
+      await page.waitForSelector('text=Emanuel Andrade cervantes', { timeout: 15000 });
+    } catch (e) {
+      console.log('No se encontró a Emanuel. Buscando cualquier alumno...');
+    }
 
     const auditoriaAcumulada = {
       escaneados: new Set(),
@@ -136,15 +139,14 @@ async function checkAnytimeDashboard() {
 
     while (scrollAttempts < maxScrollAttempts) {
       const datosPagina = await page.evaluate(() => {
-        // Buscamos el contenedor de la lista de alumnos
-        // Suele ser un div con scroll que contiene los nombres
-        const items = Array.from(document.querySelectorAll('div, li')).filter(el => {
-          // Buscamos elementos que tengan una imagen (avatar) y texto (nombre)
-          const hasImg = el.querySelector('img');
-          const text = el.innerText || '';
-          return hasImg && text.length > 5 && text.length < 200 && 
-                 !text.includes('Mostrando') && !text.includes('Tomas Sobisch');
-        });
+        // Buscamos el contenedor de Emanuel o similar
+        const ref = Array.from(document.querySelectorAll('*')).find(el => el.innerText?.includes('Emanuel Andrade'));
+        const container = ref ? ref.closest('[class*="infinite-scroll"], [class*="list"], ul') : document.querySelector('.infinite-scroll-component');
+        
+        if (!container) return [];
+
+        // Extraemos todos los items dentro de ese contenedor
+        const items = Array.from(container.children);
         
         return items.map(el => {
           const text = el.innerText || '';
@@ -154,7 +156,7 @@ async function checkAnytimeDashboard() {
           const tieneEscaneoEsteMes = textoLow.includes('scan') && (textoLow.includes('may') || textoLow.includes('05/'));
           
           return { nombre, tieneEscaneoEsteMes };
-        }).filter(d => d.nombre.length > 5);
+        }).filter(d => d.nombre.length > 5 && !d.nombre.includes('Mostrando'));
       });
 
       datosPagina.forEach(d => {
@@ -172,23 +174,20 @@ async function checkAnytimeDashboard() {
 
       if (auditoriaAcumulada.nombresVistos.size >= 148) break;
 
-      // Intentamos hacer scroll en el contenedor detectado o en el panel de la izquierda
+      // Hacemos scroll en el contenedor de la lista
       await page.evaluate(() => {
-        const list = document.querySelector('.infinite-scroll-component') || 
-                     Array.from(document.querySelectorAll('div')).find(el => el.innerText?.includes('Mostrando') && el.scrollHeight > el.clientHeight);
+        const ref = Array.from(document.querySelectorAll('*')).find(el => el.innerText?.includes('Emanuel Andrade'));
+        const list = ref ? ref.closest('[class*="infinite-scroll"], [class*="list"], ul, div[style*="overflow"]') : document.querySelector('.infinite-scroll-component');
         if (list) {
-           list.scrollBy(0, 800);
+           list.scrollBy(0, 1000);
         } else {
-           // Fallback: scroll en la posición de la lista
            window.scrollBy(0, 500);
         }
       });
       
       await page.waitForTimeout(1000);
       scrollAttempts++;
-      
-      // Si llevamos muchos intentos sin éxito, paramos
-      if (scrollAttempts > 15 && auditoriaAcumulada.nombresVistos.size === 0) break;
+      if (scrollAttempts > 10 && datosPagina.length === 0) break;
     }
 
     const auditoriaEscaneos = {
