@@ -38,10 +38,12 @@ const FALLBACK_RESPONSES: Record<string, string> = {
 export const TJOfficeChat: React.FC = () => {
   const [agentes, setAgentes] = useState<Agente[]>(INITIAL_AGENTS);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
+  const [ultimoReporte, setUltimoReporte] = useState<ReporteGym | null>(null);
   const [inputText, setInputText] = useState('');
   const [isAutoActive, setIsAutoActive] = useState(true);
   const [editingAgente, setEditingAgente] = useState<Agente | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [isTyping, setIsTyping] = useState<string | null>(null);
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showMentions, setShowMentions] = useState(false);
@@ -85,6 +87,9 @@ export const TJOfficeChat: React.FC = () => {
       if (a?.length) setAgentes(a);
       const { data: m } = await supabase.from('tj_mensajes').select('*').order('creado_en', { ascending: true });
       if (m) setMensajes(m);
+
+      const { data: r } = await supabase.from('tj_reportes').select('*').order('creado_en', { ascending: false }).limit(1);
+      if (r?.[0]) setUltimoReporte(r[0]);
     } catch (err) { console.error("Error fetching data:", err); }
   };
 
@@ -103,6 +108,9 @@ export const TJOfficeChat: React.FC = () => {
           speakMessage(newMessage.texto, agente?.nickname || '');
         }
       })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tj_reportes' }, (payload) => {
+        setUltimoReporte(payload.new as ReporteGym);
+      })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tj_agentes' }, fetchData)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -115,6 +123,7 @@ export const TJOfficeChat: React.FC = () => {
   }, [mensajes]);
 
   const generateAgentResponse = async (agent: Agente, userText: string) => {
+    setIsTyping(agent.id);
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     const lowerText = userText.toLowerCase();
     
@@ -129,6 +138,7 @@ export const TJOfficeChat: React.FC = () => {
           texto: agentKeywords[match],
           canal: '#general'
         }]);
+        setIsTyping(null);
         return;
       }
     }
@@ -139,12 +149,14 @@ export const TJOfficeChat: React.FC = () => {
         // Obtener el último reporte para contexto si es el Auditor o se pregunta por alumnos
         let contextText = "";
         if (agent.nickname === 'AuditorAnytime' || lowerText.includes('alumno') || lowerText.includes('reporte') || lowerText.includes('escaneo')) {
-          const latestAlerts = mensajes
-            .filter(m => m.canal === '#alertas')
-            .slice(-10)
-            .map(m => m.texto)
-            .join('\n');
-          contextText = `\n\nDATOS DEL ÚLTIMO REPORTE DE ANYTIME FITNESS:\n${latestAlerts}\n\nResponde basándote en estos datos si es relevante.`;
+          contextText = ultimoReporte 
+            ? `\n\nESTADO ACTUAL DEL GIMNASIO (REPORTE ESTRUCTURADO):\n` +
+              `- Total Alumnos: ${ultimoReporte.total_alumnos}\n` +
+              `- Mensajes Pendientes: ${ultimoReporte.mensajes_pendientes}\n` +
+              `- Faltan Escaneo (${ultimoReporte.pendientes_escaneo.length}): ${ultimoReporte.pendientes_escaneo.slice(0, 10).join(', ')}...\n` +
+              `- Sin Respuesta (${ultimoReporte.sin_respuesta.length}): ${ultimoReporte.sin_respuesta.slice(0, 10).join(', ')}...\n` +
+              `Responde basándote en estos números exactos.`
+            : "\n\nNo hay reportes recientes disponibles.";
         }
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
@@ -164,6 +176,7 @@ export const TJOfficeChat: React.FC = () => {
         const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (aiText) {
           await supabase.from('tj_mensajes').insert([{ remitente_tipo: 'agente', remitente_id: agent.id, texto: aiText, canal: '#general' }]);
+          setIsTyping(null);
           return;
         }
       } catch (e: any) {
@@ -174,6 +187,7 @@ export const TJOfficeChat: React.FC = () => {
           texto: `⚠️ Error de IA: ${e.message}. Por favor, revisa la configuración técnica.`,
           canal: '#general'
         }]);
+        setIsTyping(null);
         return;
       }
     }
@@ -185,6 +199,7 @@ export const TJOfficeChat: React.FC = () => {
       texto: apiKey ? (FALLBACK_RESPONSES[agent.nickname] || "Recibido. Estoy analizando la información.") : "⚠️ IA_CONFIG_ERROR: No se detecta una VITE_GEMINI_API_KEY válida. Por favor, añádela a tu archivo .env.",
       canal: '#general'
     }]);
+    setIsTyping(null);
   };
 
   const handleSend = async (e: React.FormEvent) => {
@@ -313,6 +328,21 @@ export const TJOfficeChat: React.FC = () => {
               </div>
             ))
           )}
+          {/* INDICADOR DE ESCRITURA */}
+          {isTyping && (
+            <div className="flex gap-4 max-w-3xl mx-auto animate-pulse">
+              <div className="flex-shrink-0 w-7 h-7 rounded bg-[#CCFF00] text-black flex items-center justify-center text-[8px] font-bold shadow-[0_0_10px_#CCFF0044]">
+                AI
+              </div>
+              <div className="flex-1 p-4 rounded-lg bg-white/5 border border-white/5">
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 bg-[#CCFF00] rounded-full animate-bounce [animation-delay:-0.3s]" />
+                  <span className="w-1.5 h-1.5 bg-[#CCFF00] rounded-full animate-bounce [animation-delay:-0.15s]" />
+                  <span className="w-1.5 h-1.5 bg-[#CCFF00] rounded-full animate-bounce" />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="p-4 md:p-6 bg-black border-t border-white/10 relative">
@@ -359,31 +389,16 @@ export const TJOfficeChat: React.FC = () => {
 
           {/* DASHBOARD DE REPORTES */}
           <div className="space-y-4">
-            {(() => {
-              const alerts = mensajes.filter(m => m.canal === '#alertas');
-              if (alerts.length === 0) return (
+            {!ultimoReporte ? (
                 <div className="text-center p-10 opacity-30">
                   <Activity size={24} className="mx-auto text-purple-400 mb-2" />
                   <p className="text-[8px] font-bold uppercase tracking-widest">Esperando reporte...</p>
                 </div>
-              );
-
-              // Agrupar por el último bloque de reporte (basado en el timestamp cercano)
-              const lastAlert = alerts[alerts.length - 1];
-              const lastReportTime = new Date(lastAlert.creado_en);
-              
-              const reportData = {
-                total: alerts.find(m => m.texto.includes('TOTAL AF'))?.texto.split('TOTAL AF: ')[1] || '---',
-                pendientes: alerts.find(m => m.texto.includes('PENDIENTES DE ESCANEO'))?.texto.split('PENDIENTES DE ESCANEO: ')[1]?.split(',') || [],
-                sinRespuesta: alerts.find(m => m.texto.includes('SIN RESPUESTA'))?.texto.split('SIN RESPUESTA / SEGUIMIENTO: ')[1]?.split(',') || [],
-                mensajes: alerts.find(m => m.texto.includes('💬 MENSAJES'))?.texto.split('MENSAJES: ')[1] || '0 mensajes'
-              };
-
-              return (
+            ) : (
                 <>
                   <div className="flex justify-between items-center px-2">
                     <span className="text-[8px] font-bold text-purple-400 uppercase tracking-widest">Último Reporte</span>
-                    <span className="text-[7px] text-white/30">{lastReportTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="text-[7px] text-white/30">{new Date(ultimoReporte.creado_en).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
 
                   {/* CARD TOTAL */}
@@ -392,7 +407,7 @@ export const TJOfficeChat: React.FC = () => {
                       <span className="text-[9px] font-bold text-purple-200 uppercase">Total Alumnos</span>
                       <Activity size={12} className="text-purple-400" />
                     </div>
-                    <p className="text-2xl font-black text-white">{reportData.total.split(' ')[0]}</p>
+                    <p className="text-2xl font-black text-white">{ultimoReporte.total_alumnos}</p>
                     <p className="text-[8px] text-purple-400 font-bold uppercase mt-1">Sincronizados con AF</p>
                   </div>
 
@@ -404,7 +419,7 @@ export const TJOfficeChat: React.FC = () => {
                         <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
                         <span className="text-[8px] font-bold text-blue-200 uppercase tracking-widest">Mensajes</span>
                       </div>
-                      <p className="text-[11px] text-blue-100 font-medium">{reportData.mensajes}</p>
+                      <p className="text-[11px] text-blue-100 font-medium">{ultimoReporte.mensajes_pendientes} mensajes pendientes</p>
                     </div>
 
                     {/* SIN RESPUESTA */}
@@ -414,8 +429,8 @@ export const TJOfficeChat: React.FC = () => {
                         <span className="text-[8px] font-bold text-orange-200 uppercase tracking-widest">Sin Respuesta / Seguimiento</span>
                       </div>
                       <div className="flex flex-wrap gap-1">
-                        {reportData.sinRespuesta.length > 0 ? reportData.sinRespuesta.map((n, i) => (
-                          <span key={i} className="px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-200 text-[9px] border border-orange-500/10">{n.trim()}</span>
+                        {ultimoReporte.sin_respuesta.length > 0 ? ultimoReporte.sin_respuesta.map((n, i) => (
+                          <span key={i} className="px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-200 text-[9px] border border-orange-500/10">{n}</span>
                         )) : <span className="text-[9px] text-orange-200/40 italic">Al día</span>}
                       </div>
                     </div>
@@ -427,9 +442,9 @@ export const TJOfficeChat: React.FC = () => {
                         <span className="text-[8px] font-bold text-red-200 uppercase tracking-widest">Faltan Escaneo Evolt</span>
                       </div>
                       <div className="max-h-32 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-                        {reportData.pendientes.length > 0 ? reportData.pendientes.map((n, i) => (
+                        {ultimoReporte.pendientes_escaneo.length > 0 ? ultimoReporte.pendientes_escaneo.map((n, i) => (
                           <div key={i} className="flex items-center justify-between text-[10px] text-red-100/80 p-1.5 rounded bg-red-500/5">
-                            <span>{n.trim()}</span>
+                            <span>{n}</span>
                             <span className="text-[7px] font-bold text-red-500/60">PENDIENTE</span>
                           </div>
                         )) : <span className="text-[9px] text-red-200/40 italic">Todos escaneados</span>}
@@ -437,8 +452,7 @@ export const TJOfficeChat: React.FC = () => {
                     </div>
                   </div>
                 </>
-              );
-            })()}
+            )}
           </div>
         </div>
 

@@ -117,30 +117,28 @@ async function checkAnytimeDashboard() {
     }
 
     // --- 3. CONSOLIDAR Y ENVIAR REPORTE ---
-    const reportes = [];
-    reportes.push(`📊 TOTAL AF: ${auditoria.nombresVistos.size} alumnos procesados.`);
+    console.log('Guardando reporte estructurado en la base de datos...');
     
-    if (auditoria.pendientes.size > 0) {
-      reportes.push(`❌ PENDIENTES DE ESCANEO: ${Array.from(auditoria.pendientes).join(', ')}`);
-    }
+    // Guardar en tabla estructurada para el Dashboard
+    const { error: reportError } = await supabase.from('tj_reportes').insert([{
+      total_alumnos: auditoria.nombresVistos.size,
+      mensajes_pendientes: extraData.numMensajes,
+      pendientes_escaneo: Array.from(auditoria.pendientes),
+      sin_respuesta: extraData.sugerencias
+    }]);
 
-    if (extraData.sugerencias.length > 0) {
-      reportes.push(`⚠️ SIN RESPUESTA / SEGUIMIENTO: ${extraData.sugerencias.join(', ')}`);
-    }
+    if (reportError) console.error('Error guardando reporte estructurado:', reportError.message);
 
-    if (extraData.numMensajes > 0) {
-      reportes.push(`💬 MENSAJES: Tienes ${extraData.numMensajes} mensajes pendientes.`);
-    }
-
+    const reportes = [];
+    reportes.push(`📊 REPORTE SINCRONIZADO: ${auditoria.nombresVistos.size} alumnos procesados.`);
+    
     const { data: agente } = await supabase.from('tj_agentes').upsert({ 
       nombre: 'Auditor Anytime', nickname: 'AuditorAnytime', rol: 'Analista de Rendimiento', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=auditor'
     }, { onConflict: 'nickname' }).select().single();
 
-    // Limpiar alertas antiguas para que la UI tome el reporte más fresco (opcional, pero ayuda a la limpieza)
-    // Para este caso, solo insertamos los nuevos
     for (const texto of reportes) {
       await supabase.from('tj_mensajes').insert([{
-        remitente_tipo: 'agente', remitente_id: agente.id, texto: `📌 REPORTE: ${texto}`, canal: '#alertas', estado_procesado: false
+        remitente_tipo: 'agente', remitente_id: agente.id, texto: `📌 ${texto}`, canal: '#alertas', estado_procesado: false
       }]);
     }
 
