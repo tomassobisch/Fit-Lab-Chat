@@ -71,21 +71,48 @@ export const TJOfficeChat: React.FC = () => {
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() || isSending) return;
+
     setIsSending(true);
+    const tempText = inputText;
+    
     try {
+      // 1. Guardar mensaje en Supabase
       const { data, error } = await supabase.from('tj_mensajes').insert([{
         remitente_tipo: 'usuario',
         remitente_id: '00000000-0000-0000-0000-000000000000',
-        texto: inputText,
+        texto: tempText,
         canal: '#general'
       }]).select();
+
       if (error) throw error;
+      
       if (data && data[0]) {
         setMensajes(prev => prev.some(m => m.id === data[0].id) ? prev : [...prev, data[0] as Mensaje]);
       }
+
       setInputText('');
-    } catch (error: any) { alert("Error: " + error.message); }
-    finally { setIsSending(false); }
+
+      // 2. Disparo inmediato a n8n de Railway para activar al agente
+      try {
+        await fetch('https://main-production-6e33.up.railway.app/webhook/nuevo-mensaje-chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            texto: tempText // Texto que leerá Gemini
+          }),
+        });
+        console.log("Webhook enviado a n8n con éxito");
+      } catch (webhookError) {
+        console.error("Error conectando con el agente de TJ Office:", webhookError);
+      }
+
+    } catch (error: any) { 
+      alert("Error: " + error.message); 
+    } finally { 
+      setIsSending(false); 
+    }
   };
 
   const toggleAutoAgents = async () => {
