@@ -177,27 +177,13 @@ export const TJOfficeChat: React.FC = () => {
 
       setInputText('');
 
-      // 2. Respuesta individual de agentes (si está activo)
-      if (isAutoActive) {
-        // Elegimos 1 o 2 agentes al azar para que respondan, o los que sean mencionados
-        const mentionedAgent = agentes.find(a => tempText.toLowerCase().includes(`@${a.nickname.toLowerCase()}`));
-        
-        if (mentionedAgent) {
-          // Si mencionan a uno específico, responde ese
-          setTimeout(() => generateAgentResponse(mentionedAgent, tempText), 1000);
-        } else {
-          // Si no, el Senior Dev responde casi siempre, y otro al azar puede unirse
-          const responder1 = agentes.find(a => a.nickname === 'Programador') || agentes[0];
-          setTimeout(() => generateAgentResponse(responder1, tempText), 1500);
-          
-          // 30% de probabilidad de que otro agente intervenga
-          if (Math.random() > 0.7) {
-            const others = agentes.filter(a => a.id !== responder1.id);
-            const responder2 = others[Math.floor(Math.random() * others.length)];
-            setTimeout(() => generateAgentResponse(responder2, tempText), 4000);
-          }
-        }
-      }
+      // PRUEBA DE FUERZA: Forzamos respuesta inmediata para ver qué pasa
+      console.log("DEBUG: Iniciando secuencia forzada de respuesta...");
+      const devAgent = agentes.find(a => a.nickname === 'Programador') || agentes[0];
+      setTimeout(() => {
+        console.log("DEBUG: Ejecutando generateAgentResponse ahora...");
+        generateAgentResponse(devAgent, tempText);
+      }, 500);
 
     } catch (error: any) { 
       alert("Error: " + error.message); 
