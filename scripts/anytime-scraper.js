@@ -23,14 +23,14 @@ async function checkAnytimeDashboard() {
 
   try {
     console.log('Iniciando sesión en Anytime Fitness...');
-    await page.goto('https://coach-v2.anytimefitness.com/home/SP-0085', { waitUntil: 'networkidle' });
+    await page.goto('https://coach-v2.anytimefitness.com/home/SP-0085', { waitUntil: 'load', timeout: 60000 });
 
     // 1. LOGIN PROTOCOLO BLINDADO
     if (page.url().includes('login') || (await page.getByText('Log into Dashboard').isVisible())) {
       const loginButton = page.getByText('Log into Dashboard');
       if (await loginButton.isVisible()) {
         await loginButton.click();
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('load');
       }
       
       const email = process.env.ANYTIME_EMAIL;
@@ -47,8 +47,8 @@ async function checkAnytimeDashboard() {
 
     // 2. NAVEGAR DIRECTO A LISTA DE SOCIOS
     console.log('Navegando a la lista de alumnos...');
-    await page.goto('https://coach-v2.anytimefitness.com/clients', { waitUntil: 'networkidle' });
-    await page.waitForTimeout(5000); // Dar tiempo a que cargue la lista
+    await page.goto('https://coach-v2.anytimefitness.com/clients', { waitUntil: 'load', timeout: 60000 });
+    await page.waitForTimeout(10000); // Dar tiempo generoso a que cargue la lista virtualizada
 
     // 3. BARRIDO COMPLETO (SCROLL)
     console.log('Iniciando barrido de 148 alumnos...');
