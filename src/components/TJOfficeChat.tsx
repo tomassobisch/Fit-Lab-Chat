@@ -58,6 +58,14 @@ export const TJOfficeChat: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+    
+    // PRUEBA MAESTRA: Forzar un saludo inicial del Dev
+    setTimeout(() => {
+      console.log(">>> SISTEMA: Forzando saludo inicial de diagnóstico...");
+      const devAgent = agentes.find(a => a.nickname === 'Programador') || INITIAL_AGENTS[0];
+      generateAgentResponse(devAgent, "Saluda al equipo y confirma que estás conectado al sistema de TJ Office");
+    }, 3000);
+
     const channel = supabase
       .channel('schema-db-changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tj_mensajes' }, (payload) => {
