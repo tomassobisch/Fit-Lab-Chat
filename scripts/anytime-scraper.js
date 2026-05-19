@@ -82,27 +82,39 @@ async function checkAnytimeDashboard() {
       const matchAlumnos = contadorTexto.match(/de (\d+) alumnos/i);
       const totalAlumnos = matchAlumnos ? matchAlumnos[1] : null;
 
-      // 2. Sugerencias de coaching
-      const sugerencias = Array.from(document.querySelectorAll('div')).filter(div => {
-        const text = div.innerText;
-        return text.includes('escáner') || text.includes('seguimiento') || text.includes('entrenamiento');
+      // 2. Sugerencias de coaching con intento de extracción de nombres
+      const sugerenciasResult = [];
+      // Buscamos los contenedores que suelen agrupar la foto/nombre con la sugerencia
+      const contenedoresSugerencia = Array.from(document.querySelectorAll('div')).filter(div => {
+        return div.innerText.includes('Envía al socio') || div.innerText.includes('programar un escáner');
+      });
+
+      contenedoresSugerencia.forEach(cont => {
+        const textoCompleto = cont.innerText.trim();
+        const lineas = textoCompleto.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+        
+        // Intentamos encontrar el nombre: suele estar en un elemento anterior o ser la primera línea si el contenedor es grande
+        // En la captura, el nombre parece estar en un elemento hermano o superior al texto de la alerta
+        let nombreCercano = '';
+        
+        // Estrategia: buscar el elemento de texto más cercano que parezca un nombre (sin verbos de acción)
+        const palabrasAccion = ['envía', 'programar', 'hace', 'socio', 'seguimiento'];
+        const posibleNombre = lineas.find(l => !palabrasAccion.some(p => l.toLowerCase().includes(p)) && l.length > 3 && l.length < 30);
+        
+        if (posibleNombre) nombreCercano = posibleNombre;
+
+        const textoAlerta = lineas.find(l => l.includes('Envía') || l.includes('programar')) || '';
+        const tiempo = lineas.find(l => l.includes('hace') || l.includes('hora')) || '';
+
+        if (textoAlerta) {
+          sugerenciasResult.push({
+            texto: nombreCercano ? `Para ${nombreCercano}: ${textoAlerta}` : textoAlerta,
+            tiempo: tiempo,
+            esRelevante: true
+          });
+        }
       });
       
-      const sugerenciasResult = [];
-      const textosVistos = new Set();
-      for (const sug of sugerencias) {
-        const lineas = sug.innerText.split('\n').map(l => l.trim()).filter(l => l.length > 5);
-        if (lineas.length > 0) {
-          const textoPrincipal = lineas[0];
-          if (!textosVistos.has(textoPrincipal)) {
-            textosVistos.add(textoPrincipal);
-            sugerenciasResult.push({
-              texto: textoPrincipal,
-              tiempo: lineas.find(l => l.includes('hace') || l.includes('hora') || l.includes('día')) || ''
-            });
-          }
-        }
-      }
       return { totalAlumnos, sugerenciasSugeridas: sugerenciasResult };
     });
 
