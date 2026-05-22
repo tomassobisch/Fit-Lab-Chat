@@ -213,11 +213,45 @@ export const TJOfficeChat: React.FC = () => {
 
       setInputText('');
 
-      if (isAutoActive) {
-        const mentioned = agentes.find(a => tempText.toLowerCase().includes(`@${a.nickname.toLowerCase()}`));
-        const responder = mentioned || agentes.find(a => a.nickname === 'Programador') || agentes[0];
-        setTimeout(() => generateAgentResponse(responder, tempText), 1000);
-      }
+      // 3. GENERAR RESPUESTA DINÁMICA CON GEMINI
+      setTimeout(async () => {
+        const randomAgent = agentes[Math.floor(Math.random() * agentes.length)];
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+        let aiText = `¡Hola, buenos días, jefe! El sistema está operativo.`;
+
+        if (apiKey) {
+          try {
+            const prompt = `Eres ${randomAgent.nombre}, un experto en ${randomAgent.rol}. 
+            Tus habilidades son: ${randomAgent.skills}. 
+            SIEMPRE empieza tu respuesta diciendo "¡Hola jefe!" o "¡Hola, buenos días, jefe!". 
+            Dime qué hacemos hoy y dame una noticia breve de tu área. 
+            El usuario dijo: "${tempText}"`;
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+            const data = await response.json();
+            aiText = data.candidates[0].content.parts[0].text;
+          } catch (e) {
+            console.error("Gemini Error:", e);
+          }
+        }
+
+        const { data: resData } = await supabase.from('tj_mensajes').insert([{
+          remitente_tipo: 'agente',
+          remitente_id: randomAgent.id,
+          texto: aiText,
+          canal: '#general'
+        }]).select();
+
+        if (resData?.[0]) {
+          setMensajes(prev => [...prev, resData[0] as Mensaje]);
+          speakMessage(aiText, randomAgent.nickname);
+        }
+      }, 1500);
     } catch (error: any) { 
       alert("Error: " + error.message); 
     } finally { 
