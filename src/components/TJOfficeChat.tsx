@@ -232,16 +232,21 @@ export const TJOfficeChat: React.FC = () => {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-            // ACTUALIZADO A MODELO 1.5 FLASH (Más rápido y compatible con Pro)
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+            // ACTUALIZADO A MODELO 2.0 FLASH (Confirmado disponible en tu lista de modelos)
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
               signal: controller.signal
             });
-            clearTimeout(timeoutId);
+
             const data = await response.json();
-            aiText = data.candidates[0].content.parts[0].text;
+
+            if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+              aiText = data.candidates[0].content.parts[0].text;
+            } else {
+              throw new Error(data.error?.message || "Respuesta de IA no válida");
+            }
           } catch (e) {
             console.error("Gemini Error / Timeout:", e);
             // FALLBACK INTELIGENTE
