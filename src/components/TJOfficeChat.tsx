@@ -148,7 +148,7 @@ export const TJOfficeChat: React.FC = () => {
     if (apiKey) {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
         let contextText = "";
         if (agent.nickname === 'AuditorAnytime' || lowerText.includes('alumno') || lowerText.includes('reporte') || lowerText.includes('escaneo')) {
