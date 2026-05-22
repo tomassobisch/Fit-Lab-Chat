@@ -38,8 +38,19 @@ export const TJOfficeChat: React.FC = () => {
     try {
       const { data: a } = await supabase.from('tj_agentes').select('*').order('creado_en', { ascending: true });
       if (a?.length) setAgentes(a);
-      const { data: m } = await supabase.from('tj_mensajes').select('*').order('creado_en', { ascending: true });
-      if (m) setMensajes(m);
+      
+      // OPTIMIZACIÓN: Solo cargamos los últimos 100 mensajes para evitar lentitud
+      const { data: m } = await supabase
+        .from('tj_mensajes')
+        .select('*')
+        .order('creado_en', { ascending: false })
+        .limit(100);
+      
+      if (m) {
+        // Los invertimos para que el más reciente esté abajo
+        setMensajes(m.reverse());
+      }
+      
       const { data: r } = await supabase.from('tj_reportes').select('*').order('creado_en', { ascending: false }).limit(1);
       if (r?.[0]) setUltimoReporte(r[0]);
     } catch (err) { console.error("Error fetching data:", err); }
@@ -47,12 +58,19 @@ export const TJOfficeChat: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+    
     const channel = supabase
-      .channel('tj-office-sync-reborn')
+      .channel('tj-office-sync-stable')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tj_mensajes' }, (payload) => {
         const newMessage = payload.new as Mensaje;
-        setMensajes(prev => prev.some(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
+        setMensajes(prev => {
+          if (prev.some(m => m.id === newMessage.id)) return prev;
+          // Solo añadimos si es del canal correcto (opcional)
+          return [...prev, newMessage];
+        });
+
         if (newMessage.remitente_tipo === 'agente') {
+          // Buscamos el agente en la lista actual o inicial
           const agente = [...INITIAL_AGENTS, ...agentes].find(a => a.id === newMessage.remitente_id);
           speakMessage(newMessage.texto, agente?.nickname || '');
         }
@@ -60,9 +78,13 @@ export const TJOfficeChat: React.FC = () => {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tj_reportes' }, (payload) => {
         setUltimoReporte(payload.new as ReporteGym);
       })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tj_agentes' }, () => {
+        fetchData();
+      })
       .subscribe();
+
     return () => { supabase.removeChannel(channel); };
-  }, [agentes]);
+  }, []); // Dependencia vacía para conectar una sola vez
 
   useEffect(() => {
     if (scrollRef.current) {
