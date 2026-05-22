@@ -12,30 +12,6 @@ const INITIAL_AGENTS: Agente[] = [
   { id: '55555555-5555-5555-5555-555555555555', nombre: 'Project Manager', nickname: 'Strategist', rol: 'Estrategia', skills: 'Planning, QA', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=strategy', estado_online: true, creado_en: '' }
 ];
 
-const PREDETERMINED_RESPONSES: Record<string, Record<string, string>> = {
-  'Programador': {
-    'hola': 'Hola, soy el Senior Dev. Sistema operativo y listo para programar. ¿En qué puedo ayudarte con el código?',
-    'status': 'Todos los sistemas están operativos. Conexión con Supabase: ESTABLE. Motor de IA: ACTIVO.',
-    'error': 'He detectado un posible glitch en la matriz. Recomiendo revisar los logs de la consola y las variables de entorno.',
-  },
-  'CommunityManager': {
-    'hola': '¡Hola! Aquí el equipo de Marketing. Listos para hacer brillar esta marca. ✨',
-    'campaña': 'Estoy analizando las métricas actuales. El engagement está subiendo, ¡sigamos así!',
-  },
-  'Legal': {
-    'hola': 'Saludos. Aquí el departamento Legal. Todos los procesos están bajo cumplimiento normativo.',
-    'contrato': 'He revisado las cláusulas. Todo parece estar en orden según la ley de protección de datos vigente.',
-  }
-};
-
-const FALLBACK_RESPONSES: Record<string, string> = {
-  'Programador': 'Recibido. Estoy procesando tu solicitud técnica. Dame un momento para compilar la mejor solución.',
-  'CommunityManager': '¡Entendido! Estoy ideando una estrategia creativa para eso. ¡Va a quedar genial!',
-  'Legal': 'He tomado nota. Estoy verificando los términos legales para darte una respuesta precisa.',
-  'Data': 'Analizando los puntos de datos. La tendencia sugiere que debemos proceder con precaución.',
-  'Strategist': 'Plan de acción en desarrollo. Estoy coordinando los recursos para ejecutar esta tarea.'
-};
-
 export const TJOfficeChat: React.FC = () => {
   const [agentes, setAgentes] = useState<Agente[]>(INITIAL_AGENTS);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
@@ -54,7 +30,6 @@ export const TJOfficeChat: React.FC = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setInputText(value);
-
     const lastWord = value.split(' ').pop() || '';
     if (lastWord.startsWith('@')) {
       setShowMentions(true);
@@ -88,7 +63,6 @@ export const TJOfficeChat: React.FC = () => {
       if (a?.length) setAgentes(a);
       const { data: m } = await supabase.from('tj_mensajes').select('*').order('creado_en', { ascending: true });
       if (m) setMensajes(m);
-
       const { data: r } = await supabase.from('tj_reportes').select('*').order('creado_en', { ascending: false }).limit(1);
       if (r?.[0]) setUltimoReporte(r[0]);
     } catch (err) { console.error("Error fetching data:", err); }
@@ -100,10 +74,7 @@ export const TJOfficeChat: React.FC = () => {
       .channel('schema-db-changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tj_mensajes' }, (payload) => {
         const newMessage = payload.new as Mensaje;
-        setMensajes(prev => {
-          if (prev.some(m => m.id === newMessage.id)) return prev;
-          return [...prev, newMessage];
-        });
+        setMensajes(prev => prev.some(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
         if (newMessage.remitente_tipo === 'agente') {
           const agente = [...INITIAL_AGENTS, ...agentes].find(a => a.id === newMessage.remitente_id);
           speakMessage(newMessage.texto, agente?.nickname || '');
@@ -115,83 +86,13 @@ export const TJOfficeChat: React.FC = () => {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tj_agentes' }, fetchData)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [agentes]);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
     }
   }, [mensajes]);
-
-  const generateAgentResponse = async (agent: Agente, userText: string) => {
-    setIsTyping(agent.id);
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    const lowerText = userText.toLowerCase();
-    
-    // 1. RESPUESTA PREDETERMINADA
-    const agentKeywords = PREDETERMINED_RESPONSES[agent.nickname];
-    if (agentKeywords) {
-      const match = Object.keys(agentKeywords).find(key => lowerText.includes(key));
-      if (match) {
-        await supabase.from('tj_mensajes').insert([{
-          remitente_tipo: 'agente',
-          remitente_id: agent.id,
-          texto: agentKeywords[match],
-          canal: '#general'
-        }]);
-        setIsTyping(null);
-        return;
-      }
-    }
-
-    // 2. INTENTO CON SDK DE GEMINI
-    if (apiKey) {
-      try {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
-
-        let contextText = "";
-        if (agent.nickname === 'AuditorAnytime' || lowerText.includes('alumno') || lowerText.includes('reporte') || lowerText.includes('escaneo')) {
-          contextText = ultimoReporte 
-            ? `\n\nESTADO ACTUAL DEL GIMNASIO:\n` +
-              `- Total Alumnos: ${ultimoReporte.total_alumnos}\n` +
-              `- Mensajes Pendientes: ${ultimoReporte.mensajes_pendientes}\n` +
-              `- Faltan Escaneo (${ultimoReporte.pendientes_escaneo.length}): ${ultimoReporte.pendientes_escaneo.slice(0, 10).join(', ')}...\n` +
-              `- Sin Respuesta (${ultimoReporte.sin_respuesta.length}): ${ultimoReporte.sin_respuesta.slice(0, 10).join(', ')}...\n`
-            : "\n\nNo hay reportes recientes disponibles.";
-        }
-
-        const prompt = `Responde como ${agent.rol} (@${agent.nickname}): ${userText}${contextText}`;
-        const result = await model.generateContent(prompt);
-        const aiText = result.response.text();
-
-        if (aiText) {
-          await supabase.from('tj_mensajes').insert([{ remitente_tipo: 'agente', remitente_id: agent.id, texto: aiText, canal: '#general' }]);
-          setIsTyping(null);
-          return;
-        }
-      } catch (e: any) {
-        console.error("Gemini SDK Error:", e);
-        await supabase.from('tj_mensajes').insert([{
-          remitente_tipo: 'agente',
-          remitente_id: agent.id,
-          texto: `⚠️ Error de IA: ${e.message}. Revisa la consola.`,
-          canal: '#general'
-        }]);
-        setIsTyping(null);
-        return;
-      }
-    }
-
-    // 3. FALLBACK
-    await supabase.from('tj_mensajes').insert([{
-      remitente_tipo: 'agente',
-      remitente_id: agent.id,
-      texto: apiKey ? (FALLBACK_RESPONSES[agent.nickname] || "Recibido. Estoy analizando la información.") : "⚠️ IA_CONFIG_ERROR: No se detecta una API Key válida.",
-      canal: '#general'
-    }]);
-    setIsTyping(null);
-  };
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -210,92 +111,60 @@ export const TJOfficeChat: React.FC = () => {
 
       if (error) throw error;
       if (data?.[0]) setMensajes(prev => [...prev, data[0] as Mensaje]);
-
       setInputText('');
 
-      // 3. GENERAR RESPUESTA DINÁMICA CON GEMINI
-      setTimeout(async () => {
-        const randomAgent = agentes[Math.floor(Math.random() * agentes.length)];
+      // GENERAR RESPUESTA IA (GEMINI PRO)
+      if (isAutoActive) {
+        setIsTyping("ALL");
         const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        const randomAgent = agentes[Math.floor(Math.random() * agentes.length)];
 
-        let aiText = `¡Hola, buenos días, jefe! El sistema está operativo.`;
+        let aiText = "¡Hola jefe! Estoy operativo y a sus órdenes.";
 
         if (apiKey) {
           try {
             const prompt = `Eres ${randomAgent.nombre}, un experto en ${randomAgent.rol}. 
-            Tus habilidades son: ${randomAgent.skills}. 
             SIEMPRE empieza tu respuesta diciendo "¡Hola jefe!" o "¡Hola, buenos días, jefe!". 
             Dime qué hacemos hoy y dame una noticia breve de tu área. 
             El usuario dijo: "${tempText}"`;
 
-            // Timeout de 6 segundos para la IA
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-            // ACTUALIZADO AL MODELO MÁS BARATO Y RÁPIDO: GEMINI 1.5 FLASH
             const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-              signal: controller.signal
+              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
             });
-
-            const data = await response.json();
-
-            if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
-              aiText = data.candidates[0].content.parts[0].text;
-            } else {
-              throw new Error(data.error?.message || "Respuesta de IA no válida");
-            }
-          } catch (e) {
-            console.error("Gemini Error / Timeout:", e);
-            // FALLBACK INTELIGENTE
-            const fallbacks: {[key: string]: string} = {
-              'Programador': "¡Hola jefe! Mi conexión con el núcleo de datos central está experimentando latencia, pero sigo monitorizando el código. ¿Qué prioridad tenemos hoy?",
-              'CommunityManager': "¡Hola, buenos días, jefe! La IA está procesando tendencias masivas ahora mismo. Mientras tanto, ¿qué estrategia de contenido lanzamos hoy?",
-              'Legal': "¡Hola jefe! Estoy revisando los protocolos de seguridad. ¿Hay algún documento crítico que deba auditar mientras se estabiliza mi procesador?",
-              'Data': "¡Hola jefe! Los algoritmos están en fase de recalibración, pero los KPIs de TJ Fitlab siguen estables. ¿Analizamos algún dato manual?",
-              'Strategist': "¡Hola, buenos días, jefe! Mi sistema de planificación está en mantenimiento, pero mi criterio sigue activo. ¿Por dónde empezamos hoy?"
-            };
-            aiText = fallbacks[randomAgent.nickname] || "¡Hola jefe! Mi sistema de IA está tardando un poco más de lo habitual, pero estoy listo para sus órdenes.";
-          }
+            const resData = await response.json();
+            if (response.ok) aiText = resData.candidates[0].content.parts[0].text;
+          } catch (e) { console.error("Gemini Error:", e); }
         }
 
-        const { data: resData } = await supabase.from('tj_mensajes').insert([{
+        await supabase.from('tj_mensajes').insert([{
           remitente_tipo: 'agente',
           remitente_id: randomAgent.id,
           texto: aiText,
           canal: '#general'
-        }]).select();
-
-        if (resData?.[0]) {
-          setMensajes(prev => [...prev, resData[0] as Mensaje]);
-          speakMessage(aiText, randomAgent.nickname);
-        }
-      }, 1500);
-    } catch (error: any) { 
-      alert("Error: " + error.message); 
-    } finally { 
-      setIsSending(false); 
-    }
+        }]);
+        setIsTyping(null);
+      }
+    } catch (error: any) { alert("Error: " + error.message); }
+    finally { setIsSending(false); }
   };
 
   const toggleAutoAgents = async () => {
-    const newState = !isAutoActive;
-    setIsAutoActive(newState);
-    if (newState) {
-      await supabase.from('tj_mensajes').insert([{
-        remitente_tipo: 'usuario',
-        remitente_id: '00000000-0000-0000-0000-000000000000',
-        texto: '/SYSTEM_ACTIVATE_PROACTIVE_GREETINGS',
-        canal: '#general'
-      }]);
+    setIsAutoActive(!isAutoActive);
+    if (!isAutoActive) {
+        await supabase.from('tj_mensajes').insert([{
+            remitente_tipo: 'usuario',
+            remitente_id: '00000000-0000-0000-0000-000000000000',
+            texto: '/SYSTEM_ACTIVATE_PROACTIVE_GREETINGS',
+            canal: '#general'
+        }]);
     }
   };
 
   return (
     <div className="flex h-screen w-full bg-black text-white font-sans overflow-hidden text-[12px]">
-      {/* SIDEBAR IZQUIERDA - AGENTES TJ OFFICE */}
+      {/* SIDEBAR IZQUIERDA - AGENTES */}
       <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#0A0A0A] border-r border-white/10 flex flex-col transition-transform duration-300 lg:static lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="h-16 flex items-center justify-between px-5 border-b border-white/10">
           <div className="flex items-center gap-3">
@@ -308,7 +177,7 @@ export const TJOfficeChat: React.FC = () => {
           <span className="text-[9px] font-bold text-white/40 tracking-[0.2em] uppercase px-1">Especialistas IA</span>
           <div className="space-y-2">
             {agentes.map(a => (
-              <div key={a.id} className="group p-2.5 rounded bg-white/5 border border-white/5 hover:border-[#CCFF00]/30 transition-all">
+              <div key={a.id} className="group p-2.5 rounded bg-white/5 border border-white/5 hover:border-[#CCFF00]/30 transition-all cursor-default">
                 <div className="flex items-center gap-3">
                   <div className="relative flex-shrink-0">
                     <img src={a.avatar_url} className="w-7 h-7 rounded bg-black" alt="" />
@@ -318,7 +187,7 @@ export const TJOfficeChat: React.FC = () => {
                     <p className="font-bold text-[10px] truncate">@{a.nickname}</p>
                     <p className="text-[8px] text-white/40 truncate uppercase font-medium">{a.rol}</p>
                   </div>
-                  <button onClick={() => setEditingAgente(a)} className="text-white/20 hover:text-[#CCFF00]"><Edit3 size={12}/></button>
+                  <button onClick={() => setEditingAgente(a)} className="text-white/20 hover:text-[#CCFF00] transition-colors"><Edit3 size={12}/></button>
                 </div>
               </div>
             ))}
@@ -333,13 +202,14 @@ export const TJOfficeChat: React.FC = () => {
 
       {isSidebarOpen && <div onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden" />}
 
-      {/* CHAT PRINCIPAL - TJ OFFICE */}
+      {/* CHAT CENTRAL - FOCO PRINCIPAL */}
       <main className="flex-1 flex flex-col bg-[#050505] overflow-hidden border-r border-white/10 relative">
         <header className="h-16 flex items-center justify-between px-6 border-b border-white/10 bg-black sticky top-0 z-20">
           <div className="flex items-center gap-3">
             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden text-white/60"><Menu size={20}/></button>
             <MessageSquare size={14} className="text-[#CCFF00]" />
-            <span className="text-[10px] font-bold tracking-[0.2em] uppercase truncate max-w-[150px] md:max-w-none">Canal: <span className="text-[#CCFF00]">#general</span></span>
+            <span className="text-[10px] font-bold tracking-[0.2em] uppercase truncate">Panel de Instrucciones</span>
+            <span className="ml-2 px-1.5 py-0.5 rounded bg-[#CCFF00]/10 text-[#CCFF00] text-[8px] font-black tracking-widest border border-[#CCFF00]/20">v1.5-FLASH</span>
           </div>
           <div className="flex items-center gap-4">
             <button onClick={() => setIsVoiceEnabled(!isVoiceEnabled)} className={`p-2 rounded-full border transition-all ${isVoiceEnabled ? 'border-[#CCFF00]/50 text-[#CCFF00]' : 'border-white/10 text-white/20'}`}>
@@ -349,13 +219,13 @@ export const TJOfficeChat: React.FC = () => {
         </header>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 scrollbar-hide">
-          {mensajes.filter(m => m.canal !== '#alertas').length === 0 ? (
+          {mensajes.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center opacity-10 text-center p-10">
               <Terminal size={32} />
               <p className="mt-4 text-[9px] tracking-[0.5em] font-bold uppercase">System idle: awaiting commands</p>
             </div>
           ) : (
-            mensajes.filter(m => m.canal !== '#alertas').map(m => (
+            mensajes.map(m => (
               <div key={m.id} className={`flex gap-3 md:gap-4 max-w-3xl mx-auto group animate-in ${m.remitente_tipo === 'agente' ? 'bg-white/5 border border-white/5 p-4 rounded-lg' : ''}`}>
                 <div className={`flex-shrink-0 w-7 h-7 rounded flex items-center justify-center text-[8px] font-bold ${m.remitente_tipo === 'agente' ? 'bg-[#CCFF00] text-black shadow-[0_0_10px_#CCFF0044]' : 'bg-white/10 text-white'}`}>
                   {m.remitente_tipo === 'agente' ? 'AI' : 'OP'}
@@ -374,30 +244,13 @@ export const TJOfficeChat: React.FC = () => {
               </div>
             ))
           )}
-          {/* INDICADOR DE ESCRITURA */}
-          {isTyping && (
-            <div className="flex gap-4 max-w-3xl mx-auto animate-pulse">
-              <div className="flex-shrink-0 w-7 h-7 rounded bg-[#CCFF00] text-black flex items-center justify-center text-[8px] font-bold shadow-[0_0_10px_#CCFF0044]">
-                AI
-              </div>
-              <div className="flex-1 p-4 rounded-lg bg-white/5 border border-white/5">
-                <div className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 bg-[#CCFF00] rounded-full animate-bounce [animation-delay:-0.3s]" />
-                  <span className="w-1.5 h-1.5 bg-[#CCFF00] rounded-full animate-bounce [animation-delay:-0.15s]" />
-                  <span className="w-1.5 h-1.5 bg-[#CCFF00] rounded-full animate-bounce" />
-                </div>
-              </div>
-            </div>
-          )}
+          {isTyping && <div className="flex gap-4 max-w-3xl mx-auto animate-pulse"><div className="flex-shrink-0 w-7 h-7 rounded bg-[#CCFF00] text-black flex items-center justify-center text-[8px] font-bold">AI</div><div className="flex-1 p-4 rounded-lg bg-white/5 border border-white/5"><div className="flex items-center gap-1"><span className="w-1 h-1 bg-[#CCFF00] rounded-full animate-bounce" /><span className="w-1 h-1 bg-[#CCFF00] rounded-full animate-bounce [animation-delay:0.2s]" /><span className="w-1 h-1 bg-[#CCFF00] rounded-full animate-bounce [animation-delay:0.4s]" /></div></div></div>}
         </div>
 
         <div className="p-4 md:p-6 bg-black border-t border-white/10 relative">
-          {/* MENTIONS BOX */}
           {showMentions && (
             <div className="absolute bottom-full left-4 md:left-6 mb-2 w-64 bg-[#0A0A0A] border border-white/10 rounded-lg shadow-2xl overflow-hidden z-30 animate-in">
-              <div className="p-2 border-b border-white/5 bg-white/5">
-                <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest px-2">Mencionar Agente</span>
-              </div>
+              <div className="p-2 border-b border-white/5 bg-white/5"><span className="text-[8px] font-bold text-white/40 uppercase tracking-widest px-2">Mencionar Agente</span></div>
               <div className="max-h-48 overflow-y-auto">
                 {agentes.filter(a => a.nickname.toLowerCase().includes(mentionFilter)).map(a => (
                   <button key={a.id} onClick={() => selectMention(a.nickname)} className="w-full flex items-center gap-3 p-2.5 hover:bg-[#CCFF00] hover:text-black transition-colors group text-left">
@@ -417,107 +270,37 @@ export const TJOfficeChat: React.FC = () => {
         </div>
       </main>
 
-      {/* SIDEBAR DERECHA - ANYTIME FITNESS (MORADO) */}
-      <aside className="w-80 flex-shrink-0 bg-[#1A0B2E] flex flex-col h-full border-l border-white/10">
+      {/* SIDEBAR DERECHA - MONITOR ANYTIME */}
+      <aside className="hidden xl:flex w-80 flex-shrink-0 bg-[#1A0B2E] flex flex-col h-full border-l border-white/10">
         <header className="h-16 flex items-center px-6 border-b border-purple-500/20 bg-[#12071F] sticky top-0 z-20">
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse shadow-[0_0_8px_#A855F7]" />
+            <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
             <span className="text-[9px] font-black tracking-[0.2em] text-purple-200 uppercase italic">ANYTIME <span className="text-white">COACHING</span></span>
           </div>
         </header>
-
-        <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide">
-          <div className="flex flex-col items-center justify-center py-6 text-center border-b border-purple-500/10 mb-2">
-             <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=auditor" className="w-12 h-12 rounded-full bg-purple-900 border-2 border-purple-500 shadow-lg mb-2" alt="Auditor" />
-             <p className="text-[10px] font-bold text-purple-200">@AuditorAnytime</p>
-             <p className="text-[8px] text-purple-400/60 uppercase font-bold tracking-widest mt-1">Auditando Sede SP-0085</p>
-          </div>
-
-          {/* DASHBOARD DE REPORTES */}
-          <div className="space-y-4">
-            {!ultimoReporte ? (
-                <div className="text-center p-10 opacity-30">
-                  <Activity size={24} className="mx-auto text-purple-400 mb-2" />
-                  <p className="text-[8px] font-bold uppercase tracking-widest">Esperando reporte...</p>
-                </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
+            {ultimoReporte ? (
+              <div className="p-4 rounded-xl bg-purple-950/40 border border-purple-500/20">
+                <p className="text-[8px] font-bold text-purple-400 uppercase mb-2 italic">Dashboard de Rendimiento</p>
+                <div className="flex justify-between items-baseline"><span className="text-[10px] text-purple-200">Total Alumnos</span><span className="text-xl font-black text-white">{ultimoReporte.total_alumnos}</span></div>
+                <div className="flex justify-between items-baseline mt-2"><span className="text-[10px] text-purple-200">Pendientes</span><span className="text-lg font-bold text-red-400">{ultimoReporte.mensajes_pendientes}</span></div>
+              </div>
             ) : (
-                <>
-                  <div className="flex justify-between items-center px-2">
-                    <span className="text-[8px] font-bold text-purple-400 uppercase tracking-widest">Último Reporte</span>
-                    <span className="text-[7px] text-white/30">{new Date(ultimoReporte.creado_en).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
-
-                  {/* CARD TOTAL */}
-                  <div className="p-4 rounded-xl bg-purple-950/40 border border-purple-500/20 shadow-lg">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[9px] font-bold text-purple-200 uppercase">Total Alumnos</span>
-                      <Activity size={12} className="text-purple-400" />
-                    </div>
-                    <p className="text-2xl font-black text-white">{ultimoReporte.total_alumnos}</p>
-                    <p className="text-[8px] text-purple-400 font-bold uppercase mt-1">Sincronizados con AF</p>
-                  </div>
-
-                  {/* SECCIONES DETALLADAS */}
-                  <div className="space-y-2">
-                    {/* MENSAJES PENDIENTES */}
-                    <div className="p-3 rounded-lg bg-blue-900/20 border border-blue-500/20">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-                        <span className="text-[8px] font-bold text-blue-200 uppercase tracking-widest">Mensajes</span>
-                      </div>
-                      <p className="text-[11px] text-blue-100 font-medium">{ultimoReporte.mensajes_pendientes} mensajes pendientes</p>
-                    </div>
-
-                    {/* SIN RESPUESTA */}
-                    <div className="p-3 rounded-lg bg-orange-900/20 border border-orange-500/20">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-                        <span className="text-[8px] font-bold text-orange-200 uppercase tracking-widest">Sin Respuesta / Seguimiento</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {ultimoReporte.sin_respuesta.length > 0 ? ultimoReporte.sin_respuesta.map((n, i) => (
-                          <span key={i} className="px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-200 text-[9px] border border-orange-500/10">{n}</span>
-                        )) : <span className="text-[9px] text-orange-200/40 italic">Al día</span>}
-                      </div>
-                    </div>
-
-                    {/* FALTAN ESCANEO */}
-                    <div className="p-3 rounded-lg bg-red-900/20 border border-red-500/20">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                        <span className="text-[8px] font-bold text-red-200 uppercase tracking-widest">Faltan Escaneo Evolt</span>
-                      </div>
-                      <div className="max-h-32 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-                        {ultimoReporte.pendientes_escaneo.length > 0 ? ultimoReporte.pendientes_escaneo.map((n, i) => (
-                          <div key={i} className="flex items-center justify-between text-[10px] text-red-100/80 p-1.5 rounded bg-red-500/5">
-                            <span>{n}</span>
-                            <span className="text-[7px] font-bold text-red-500/60">PENDIENTE</span>
-                          </div>
-                        )) : <span className="text-[9px] text-red-200/40 italic">Todos escaneados</span>}
-                      </div>
-                    </div>
-                  </div>
-                </>
+              <div className="p-10 text-center opacity-20"><Activity size={24} className="mx-auto text-purple-400" /><p className="text-[8px] font-bold uppercase mt-2">No Data Available</p></div>
             )}
-          </div>
-        </div>
-
-        <div className="p-4 border-t border-purple-500/10 bg-[#12071F]">
-           <div className="flex items-center gap-2 px-3 py-2 rounded bg-purple-900/30 border border-purple-500/20">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-              <span className="text-[8px] font-bold text-purple-200/60 uppercase tracking-widest">Sincronizado con Anytime Dashboard</span>
-           </div>
         </div>
       </aside>
+
+      {/* MODAL CONFIGURACIÓN AGENTE */}
       {editingAgente && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-in">
-          <div className="w-full max-w-sm bg-[#0A0A0A] border border-white/10 rounded-xl p-6 md:p-8 shadow-2xl relative">
-            <button onClick={() => setEditingAgente(null)} className="absolute top-4 right-4 text-white/40"><X size={18}/></button>
-            <h2 className="text-xs font-bold tracking-[0.2em] uppercase mb-6 flex items-center gap-3"><Settings2 size={16} className="text-[#CCFF00]" /> Configurar Agente</h2>
-            <div className="space-y-5">
-              <div><label className="text-[8px] text-white/30 font-bold block mb-2 uppercase tracking-widest">Identificador</label><input type="text" value={editingAgente.nombre} onChange={(e) => setEditingAgente({...editingAgente, nombre: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded p-3 text-base md:text-xs text-white outline-none focus:border-[#CCFF00]/40" /></div>
-              <div><label className="text-[8px] text-white/30 font-bold block mb-2 uppercase tracking-widest">Rol Sistema</label><input type="text" value={editingAgente.rol} onChange={(e) => setEditingAgente({...editingAgente, rol: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded p-3 text-base md:text-xs text-white outline-none focus:border-[#CCFF00]/40" /></div>
-              <button onClick={async () => { await supabase.from('tj_agentes').update({ nombre: editingAgente.nombre, rol: editingAgente.rol }).eq('id', editingAgente.id); setEditingAgente(null); fetchData(); }} className="w-full bg-[#CCFF00] text-black font-black py-4 rounded text-[10px] tracking-widest hover:bg-white transition-all">GUARDAR CAMBIOS</button>
+          <div className="w-full max-w-sm bg-[#0A0A0A] border border-white/10 rounded-xl p-8 shadow-2xl relative">
+            <button onClick={() => setEditingAgente(null)} className="absolute top-4 right-4 text-white/20 hover:text-white"><X size={16} /></button>
+            <div className="flex items-center gap-3 mb-8"><Settings2 size={16} className="text-[#CCFF00]" /><h2 className="text-xs font-bold tracking-[0.2em] uppercase">Configurar Agente</h2></div>
+            <div className="space-y-6">
+              <div><label className="text-[8px] text-white/30 font-bold block mb-2 uppercase">Nombre</label><input type="text" value={editingAgente.nombre} onChange={(e) => setEditingAgente({...editingAgente, nombre: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded p-3 text-base md:text-xs text-white focus:border-[#CCFF00]/40 outline-none" /></div>
+              <div><label className="text-[8px] text-white/30 font-bold block mb-2 uppercase">Rol</label><input type="text" value={editingAgente.rol} onChange={(e) => setEditingAgente({...editingAgente, rol: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded p-3 text-base md:text-xs text-white focus:border-[#CCFF00]/40 outline-none" /></div>
+              <button onClick={async () => { await supabase.from('tj_agentes').update({ nombre: editingAgente.nombre, rol: editingAgente.rol }).eq('id', editingAgente.id); setEditingAgente(null); fetchData(); }} className="w-full bg-[#CCFF00] text-black font-black py-4 rounded text-[10px] tracking-widest hover:bg-white transition-all">APLICAR CAMBIOS</button>
             </div>
           </div>
         </div>
