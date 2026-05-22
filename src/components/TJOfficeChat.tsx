@@ -232,8 +232,8 @@ export const TJOfficeChat: React.FC = () => {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-            // ACTUALIZADO A MODELO 2.0 FLASH (Confirmado disponible en tu lista de modelos)
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+            // ACTUALIZADO AL MODELO MÁS BARATO Y RÁPIDO: GEMINI 1.5 FLASH
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
