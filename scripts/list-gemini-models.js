@@ -1,18 +1,24 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import * as dotenv from 'dotenv';
-dotenv.config();
+import fetch from 'node-fetch';
 
-const apiKey = process.env.VITE_GEMINI_API_KEY;
+const apiKey = 'AIzaSyAc65yyCVGO3-RjMWMfejUUQRRqYQ6bGXA';
+const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
 
 async function listModels() {
+  console.log('--- LISTANDO MODELOS DISPONIBLES ---');
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    // Note: The SDK doesn't have a direct listModels, we usually use fetch for that
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    const response = await fetch(url);
     const data = await response.json();
-    console.log(JSON.stringify(data, null, 2));
-  } catch (e) {
-    console.error(e);
+
+    if (response.ok) {
+      console.log('✅ ÉXITO: Conexión establecida.');
+      console.log('Modelos encontrados:', data.models?.length || 0);
+      data.models?.forEach(m => console.log(`- ${m.name}`));
+    } else {
+      console.error('❌ ERROR:', response.status);
+      console.error('Detalle:', JSON.stringify(data, null, 2));
+    }
+  } catch (err) {
+    console.error('❌ ERROR DE CONEXIÓN:', err.message);
   }
 }
 
