@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Power, Edit3, Terminal, Cpu, Activity, MessageSquare, Settings2, X, Check, Menu } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { Agente, Mensaje, Canal } from '../types';
+import { Agente, Mensaje, Canal, ReporteGym } from '../types';
 
 const INITIAL_AGENTS: Agente[] = [
   { id: '11111111-1111-1111-1111-111111111111', nombre: 'Senior Dev', nickname: 'Programador', rol: 'Ingeniero de Software', skills: 'React, Python, Supabase', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=code', estado_online: true, creado_en: '' },
@@ -14,6 +14,7 @@ const INITIAL_AGENTS: Agente[] = [
 export const TJOfficeChat: React.FC = () => {
   const [agentes, setAgentes] = useState<Agente[]>(INITIAL_AGENTS);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
+  const [ultimoReporte, setUltimoReporte] = useState<ReporteGym | null>(null);
   const [inputText, setInputText] = useState('');
   const [isAutoActive, setIsAutoActive] = useState(true);
   const [editingAgente, setEditingAgente] = useState<Agente | null>(null);
@@ -21,7 +22,6 @@ export const TJOfficeChat: React.FC = () => {
   const [isTyping, setIsTyping] = useState<string | null>(null);
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [showMentions, setShowMentions] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const speakMessage = (text: string, nickname: string) => {
@@ -40,13 +40,15 @@ export const TJOfficeChat: React.FC = () => {
       if (a?.length) setAgentes(a);
       const { data: m } = await supabase.from('tj_mensajes').select('*').order('creado_en', { ascending: true });
       if (m) setMensajes(m);
+      const { data: r } = await supabase.from('tj_reportes').select('*').order('creado_en', { ascending: false }).limit(1);
+      if (r?.[0]) setUltimoReporte(r[0]);
     } catch (err) { console.error("Error fetching data:", err); }
   };
 
   useEffect(() => {
     fetchData();
     const channel = supabase
-      .channel('tj-office-sync')
+      .channel('tj-office-sync-reborn')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tj_mensajes' }, (payload) => {
         const newMessage = payload.new as Mensaje;
         setMensajes(prev => prev.some(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
@@ -54,6 +56,9 @@ export const TJOfficeChat: React.FC = () => {
           const agente = [...INITIAL_AGENTS, ...agentes].find(a => a.id === newMessage.remitente_id);
           speakMessage(newMessage.texto, agente?.nickname || '');
         }
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tj_reportes' }, (payload) => {
+        setUltimoReporte(payload.new as ReporteGym);
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -74,7 +79,6 @@ export const TJOfficeChat: React.FC = () => {
     setInputText('');
 
     try {
-      // 1. GUARDAR MENSAJE USUARIO
       const { data, error } = await supabase.from('tj_mensajes').insert([{
         remitente_tipo: 'usuario',
         remitente_id: '00000000-0000-0000-0000-000000000000',
@@ -85,39 +89,25 @@ export const TJOfficeChat: React.FC = () => {
       if (error) throw error;
       if (data?.[0]) setMensajes(prev => [...prev, data[0] as Mensaje]);
 
-      // 2. RESPUESTA IA (SI ESTÁ ACTIVO)
       if (isAutoActive) {
         setIsTyping("ALL");
         const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
         const agent = agentes[Math.floor(Math.random() * agentes.length)];
-
-        let aiText = "¡Hola jefe! Estoy operativo y a sus órdenes. Mi sistema Gemini Flash está listo.";
+        let aiText = "¡Hola jefe! Estoy operativo y a sus órdenes.";
 
         if (apiKey) {
           try {
-            const prompt = `Eres ${agent.nombre}, experto en ${agent.rol}. 
-            Skills: ${agent.skills}. 
-            SIEMPRE saluda diciendo "¡Hola jefe!" o "¡Hola, buenos días, jefe!". 
-            Dime qué hacemos hoy y dame una noticia técnica de tu área. 
-            El usuario dijo: "${userText}"`;
-
-            // USANDO GEMINI 1.5 FLASH (EL MÁS BARATO Y COMPATIBLE)
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+            const prompt = `Eres ${agent.nombre}, experto en ${agent.rol}. SIEMPRE saluda diciendo "¡Hola jefe!" o "¡Hola, buenos días, jefe!". Dime qué hacemos hoy y dame una noticia técnica de tu área. El usuario dijo: "${userText}"`;
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
             });
-
             const resData = await response.json();
             if (response.ok && resData.candidates?.[0]?.content?.parts?.[0]?.text) {
               aiText = resData.candidates[0].content.parts[0].text;
-            } else {
-              console.error("API Error:", resData);
-              aiText = `¡Hola jefe! El mainframe reporta una respuesta inusual de la IA, pero sigo a sus órdenes. (Error: ${resData.error?.status || 'API_FAIL'})`;
             }
-          } catch (e) {
-            console.error("Fetch Gemini Error:", e);
-          }
+          } catch (e) { console.error("Fetch Gemini Error:", e); }
         }
 
         await supabase.from('tj_mensajes').insert([{
@@ -128,30 +118,27 @@ export const TJOfficeChat: React.FC = () => {
         }]);
         setIsTyping(null);
       }
-    } catch (err: any) {
-      alert("Error de conexión: " + err.message);
-    } finally {
-      setIsSending(false);
-    }
+    } catch (err: any) { alert("Error: " + err.message); }
+    finally { setIsSending(false); }
   };
 
   return (
     <div className="flex h-screen w-full bg-black text-white font-sans overflow-hidden text-[12px]">
       
-      {/* 1. SIDEBAR IZQUIERDA: AGENTES */}
+      {/* 1. SIDEBAR IZQUIERDA: AGENTES TJ OFFICE */}
       <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#0A0A0A] border-r border-white/10 flex flex-col transition-transform duration-300 lg:static lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="h-16 flex items-center justify-between px-5 border-b border-white/10">
+        <div className="h-16 flex items-center justify-between px-5 border-b border-white/10 bg-black">
           <div className="flex items-center gap-3">
-            <img src="/logo-tjo.jpg" className="w-8 h-8 rounded border border-[#CCFF00]/30" alt="TJO" />
-            <span className="font-black tracking-tighter text-sm italic uppercase">TJ<span className="text-[#CCFF00]">OFFICE</span></span>
+            <img src="/logo-tjo.jpg" className="w-8 h-8 rounded border border-[#CCFF00]/30 shadow-[0_0_10px_#CCFF0044]" alt="TJO" />
+            <span className="font-black tracking-tighter text-sm italic uppercase italic">TJ<span className="text-[#CCFF00]">OFFICE</span></span>
           </div>
           <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-white/40"><X size={18}/></button>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
           <span className="text-[9px] font-bold text-white/40 tracking-[0.2em] uppercase">Especialistas IA</span>
           <div className="space-y-2">
             {agentes.map(a => (
-              <div key={a.id} className="group p-2.5 rounded bg-white/5 border border-white/5 hover:border-[#CCFF00]/30 transition-all">
+              <div key={a.id} className="group p-2.5 rounded bg-white/5 border border-white/5 hover:border-[#CCFF00]/30 transition-all cursor-default">
                 <div className="flex items-center gap-3">
                   <div className="relative">
                     <img src={a.avatar_url} className="w-7 h-7 rounded bg-black" alt="" />
@@ -166,20 +153,20 @@ export const TJOfficeChat: React.FC = () => {
             ))}
           </div>
         </div>
-        <div className="p-4 border-t border-white/10">
+        <div className="p-4 border-t border-white/10 bg-black">
           <button onClick={() => setIsAutoActive(!isAutoActive)} className={`w-full py-3.5 rounded text-[10px] font-bold tracking-widest border transition-all ${isAutoActive ? 'bg-[#CCFF00] text-black border-[#CCFF00] shadow-[0_0_10px_#CCFF0044]' : 'bg-white/5 border-white/10 text-white/40'}`}>
             {isAutoActive ? 'AGENTS_ACTIVE' : 'ACTIVATE_AGENTS'}
           </button>
         </div>
       </aside>
 
-      {/* 2. CHAT CENTRAL: FOCO TOTAL */}
+      {/* 2. CHAT CENTRAL: INSTRUCCIONES */}
       <main className="flex-1 flex flex-col bg-[#050505] overflow-hidden border-r border-white/10 relative">
-        <header className="h-16 flex items-center justify-between px-6 border-b border-white/10 bg-black">
+        <header className="h-16 flex items-center justify-between px-6 border-b border-white/10 bg-black sticky top-0 z-20">
           <div className="flex items-center gap-3">
             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden text-white/60"><Menu size={18}/></button>
             <MessageSquare size={14} className="text-[#CCFF00]" />
-            <span className="text-[10px] font-bold tracking-[0.2em] uppercase">Panel Central de Instrucciones</span>
+            <span className="text-[10px] font-bold tracking-[0.2em] uppercase">Panel de Instrucciones</span>
             <span className="ml-2 px-1.5 py-0.5 rounded bg-[#CCFF00]/10 text-[#CCFF00] text-[8px] font-black border border-[#CCFF00]/20 uppercase">v1.5-FLASH</span>
           </div>
           <button onClick={() => setIsVoiceEnabled(!isVoiceEnabled)} className={`p-2 rounded-full border transition-all ${isVoiceEnabled ? 'border-[#CCFF00]/50 text-[#CCFF00]' : 'border-white/10 text-white/20'}`}>
@@ -191,11 +178,11 @@ export const TJOfficeChat: React.FC = () => {
           {mensajes.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center opacity-10">
               <Terminal size={32} />
-              <p className="mt-4 text-[9px] tracking-[0.5em] font-bold uppercase">Awaiting commands, Jefe...</p>
+              <p className="mt-4 text-[9px] tracking-[0.5em] font-bold uppercase italic">Awaiting commands, Jefe...</p>
             </div>
           ) : (
             mensajes.map(m => (
-              <div key={m.id} className={`flex gap-4 max-w-3xl mx-auto animate-in ${m.remitente_tipo === 'agente' ? 'bg-white/5 border border-white/5 p-4 rounded-lg' : ''}`}>
+              <div key={m.id} className={`flex gap-4 max-w-3xl mx-auto group animate-in ${m.remitente_tipo === 'agente' ? 'bg-white/5 border border-white/5 p-4 rounded-lg' : ''}`}>
                 <div className={`flex-shrink-0 w-8 h-8 rounded flex items-center justify-center text-[9px] font-bold ${m.remitente_tipo === 'agente' ? 'bg-[#CCFF00] text-black shadow-[0_0_10px_#CCFF0044]' : 'bg-white/10 text-white'}`}>
                   {m.remitente_tipo === 'agente' ? 'AI' : 'OP'}
                 </div>
@@ -206,41 +193,93 @@ export const TJOfficeChat: React.FC = () => {
                     </span>
                     <span className="text-[7px] text-white/20">{new Date(m.creado_en).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
-                  <p className={`text-[12px] leading-relaxed break-words ${m.remitente_tipo === 'agente' ? 'text-[#CCFF00]/90' : 'text-white/80'}`}>{m.texto}</p>
+                  <p className={`text-[12px] leading-relaxed break-words ${m.remitente_tipo === 'agente' ? 'text-[#CCFF00]/90 font-medium' : 'text-white/80'}`}>{m.texto}</p>
                 </div>
               </div>
             ))
           )}
-          {isTyping && <div className="flex gap-4 max-w-3xl mx-auto animate-pulse"><div className="flex-shrink-0 w-8 h-8 rounded bg-[#CCFF00] text-black flex items-center justify-center text-[8px] font-bold">AI</div><div className="flex-1 p-4 rounded-lg bg-white/5 border border-white/5"><div className="flex gap-1"><span className="w-1 h-1 bg-[#CCFF00] rounded-full animate-bounce" /><span className="w-1 h-1 bg-[#CCFF00] rounded-full animate-bounce [animation-delay:0.2s]" /><span className="w-1 h-1 bg-[#CCFF00] rounded-full animate-bounce [animation-delay:0.4s]" /></div></div></div>}
+          {isTyping && <div className="flex gap-4 max-w-3xl mx-auto animate-pulse"><div className="flex-shrink-0 w-8 h-8 rounded bg-[#CCFF00] text-black flex items-center justify-center text-[8px] font-bold shadow-[0_0_8px_#CCFF00]">AI</div><div className="flex-1 p-4 rounded-lg bg-white/5 border border-white/5"><div className="flex gap-1"><span className="w-1 h-1 bg-[#CCFF00] rounded-full animate-bounce" /><span className="w-1 h-1 bg-[#CCFF00] rounded-full animate-bounce [animation-delay:0.2s]" /><span className="w-1 h-1 bg-[#CCFF00] rounded-full animate-bounce [animation-delay:0.4s]" /></div></div></div>}
         </div>
 
         <div className="p-4 md:p-6 bg-black border-t border-white/10">
           <form onSubmit={handleSend} className="max-w-3xl mx-auto relative">
-            <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Instrucción de sistema..." disabled={isSending} className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-5 pr-14 text-base md:text-[12px] text-white focus:outline-none focus:border-[#CCFF00]/50 transition-all" />
-            <button type="submit" disabled={!inputText.trim() || isSending} className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-lg bg-[#CCFF00] text-black flex items-center justify-center hover:scale-105 active:scale-95 disabled:opacity-20"><Send size={16} /></button>
+            <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Comando de sistema..." disabled={isSending} className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-5 pr-14 text-base md:text-[12px] text-white focus:outline-none focus:border-[#CCFF00]/50 transition-all" />
+            <button type="submit" disabled={!inputText.trim() || isSending} className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-lg bg-[#CCFF00] text-black flex items-center justify-center hover:scale-105 active:scale-95 disabled:opacity-20 transition-all"><Send size={16}/></button>
           </form>
         </div>
       </main>
 
-      {/* 3. SIDEBAR DERECHA: MONITOR */}
-      <aside className="hidden xl:flex w-72 flex-shrink-0 bg-[#0A0A0A] flex flex-col h-full">
-        <header className="h-16 flex items-center px-6 border-b border-white/10 bg-black">
+      {/* 3. SIDEBAR DERECHA: ANYTIME COACHING (MORADO) */}
+      <aside className="hidden xl:flex w-80 flex-shrink-0 bg-[#1A0B2E] flex flex-col h-full">
+        <header className="h-16 flex items-center px-6 border-b border-purple-500/20 bg-[#12071F] sticky top-0 z-20">
           <div className="flex items-center gap-2">
-            <Cpu size={14} className="text-white/20" />
-            <span className="text-[9px] font-bold tracking-[0.2em] text-white/40 uppercase">Monitorización</span>
+            <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse shadow-[0_0_8px_#A855F7]" />
+            <span className="text-[9px] font-black tracking-[0.2em] text-purple-200 uppercase italic">ANYTIME <span className="text-white">COACHING</span></span>
           </div>
         </header>
-        <div className="flex-1 p-6 space-y-6">
-          <div className="p-6 border border-white/5 rounded-lg bg-white/[0.01] flex flex-col items-center justify-center gap-4 text-center">
-            <Terminal size={24} className="text-white/10" />
-            <span className="text-[9px] font-bold tracking-widest text-white/60 uppercase italic">Mainframe Ready</span>
+        
+        <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide text-center">
+          <div className="py-6 border-b border-purple-500/10 mb-4">
+             <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=auditor" className="w-16 h-16 rounded-full bg-purple-900 border-2 border-purple-500 shadow-xl mx-auto mb-3" alt="Auditor" />
+             <p className="text-[11px] font-bold text-purple-100 tracking-tight">@AuditorAnytime</p>
+             <p className="text-[8px] text-purple-400 font-bold uppercase tracking-widest mt-1">Status: Monitoring SP-0085</p>
           </div>
-          <div className="p-4 border border-white/5 rounded-lg">
-            <div className="flex justify-between text-[8px] mb-2 font-bold uppercase text-white/40"><span>Uptime</span><Activity size={10} className="text-[#CCFF00]"/></div>
-            <div className="h-1 bg-white/5 rounded-full"><div className="bg-[#CCFF00] h-full w-[95%] shadow-[0_0_5px_#CCFF00]" /></div>
+
+          <div className="space-y-4">
+            {!ultimoReporte ? (
+              <div className="p-10 opacity-30 flex flex-col items-center">
+                <Activity size={24} className="text-purple-400 mb-2" />
+                <p className="text-[8px] font-bold uppercase tracking-widest text-purple-200">Waiting for live feed...</p>
+              </div>
+            ) : (
+              <>
+                <div className="p-4 rounded-xl bg-purple-950/40 border border-purple-500/20 shadow-inner">
+                  <div className="flex justify-between items-center mb-1 text-[9px] font-bold text-purple-300 uppercase">
+                    <span>Total Alumnos</span>
+                    <Activity size={12} />
+                  </div>
+                  <p className="text-3xl font-black text-white text-left">{ultimoReporte.total_alumnos}</p>
+                </div>
+
+                <div className="p-4 rounded-xl bg-orange-950/20 border border-orange-500/20">
+                  <p className="text-[8px] font-bold text-orange-400 uppercase text-left mb-2 tracking-widest">Pendientes Feedback</p>
+                  <p className="text-xl font-bold text-orange-100 text-left">{ultimoReporte.mensajes_pendientes}</p>
+                </div>
+
+                <div className="p-4 rounded-xl bg-red-950/20 border border-red-500/20">
+                   <p className="text-[8px] font-bold text-red-400 uppercase text-left mb-2 tracking-widest">Escaneos Faltantes</p>
+                   <div className="max-h-32 overflow-y-auto space-y-1 text-left">
+                      {ultimoReporte.pendientes_escaneo.slice(0, 5).map((n, i) => (
+                        <div key={i} className="text-[10px] text-red-100 flex justify-between"><span>{n}</span><span className="text-[7px] text-red-500 font-black">X</span></div>
+                      ))}
+                      {ultimoReporte.pendientes_escaneo.length > 5 && <p className="text-[7px] text-red-400 italic">+{ultimoReporte.pendientes_escaneo.length - 5} más...</p>}
+                   </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
+
+        <div className="p-4 border-t border-purple-500/10 bg-[#12071F] flex items-center gap-2">
+           <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+           <span className="text-[7px] text-purple-300 font-bold uppercase tracking-widest">Anytime Data Pipeline: Active</span>
+        </div>
       </aside>
+
+      {/* MODAL CONFIGURACIÓN */}
+      {editingAgente && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-in">
+          <div className="w-full max-w-sm bg-[#0A0A0A] border border-white/10 rounded-xl p-8 shadow-2xl relative">
+            <button onClick={() => setEditingAgente(null)} className="absolute top-4 right-4 text-white/40 hover:text-white"><X size={16}/></button>
+            <div className="flex items-center gap-3 mb-8"><Settings2 size={16} className="text-[#CCFF00]" /><h2 className="text-xs font-bold tracking-[0.2em] uppercase">Configurar Agente</h2></div>
+            <div className="space-y-6">
+              <div><label className="text-[8px] text-white/30 font-bold block mb-2 uppercase">Nombre</label><input type="text" value={editingAgente.nombre} onChange={(e) => setEditingAgente({...editingAgente, nombre: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded p-3 text-base md:text-xs text-white focus:border-[#CCFF00]/40 outline-none" /></div>
+              <div><label className="text-[8px] text-white/30 font-bold block mb-2 uppercase">Rol</label><input type="text" value={editingAgente.rol} onChange={(e) => setEditingAgente({...editingAgente, rol: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded p-3 text-base md:text-xs text-white focus:border-[#CCFF00]/40 outline-none" /></div>
+              <button onClick={async () => { await supabase.from('tj_agentes').update({ nombre: editingAgente.nombre, rol: editingAgente.rol }).eq('id', editingAgente.id); setEditingAgente(null); fetchData(); }} className="w-full bg-[#CCFF00] text-black font-black py-4 rounded text-[10px] tracking-widest hover:bg-white transition-all uppercase">Aplicar Cambios</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
