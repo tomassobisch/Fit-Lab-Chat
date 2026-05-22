@@ -96,11 +96,12 @@ export const TJOfficeChat: React.FC = () => {
     e.preventDefault();
     if (!inputText.trim() || isSending) return;
 
-    setIsSending(true);
     const userText = inputText;
-    setInputText('');
+    setInputText(''); 
+    setIsSending(true);
 
     try {
+      // 1. GUARDAR Y MOSTRAR MENSAJE USUARIO AL INSTANTE
       const { data, error } = await supabase.from('tj_mensajes').insert([{
         remitente_tipo: 'usuario',
         remitente_id: '00000000-0000-0000-0000-000000000000',
@@ -111,34 +112,55 @@ export const TJOfficeChat: React.FC = () => {
       if (error) throw error;
       if (data?.[0]) setMensajes(prev => [...prev, data[0] as Mensaje]);
 
+      // 2. RESPUESTA AUTOMÁTICA INSTANTÁNEA (PARA DAR VIDA)
       if (isAutoActive) {
         setIsTyping("ALL");
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
         const agent = agentes[Math.floor(Math.random() * agentes.length)];
-        let aiText = "¡Hola jefe! Estoy operativo y a sus órdenes.";
+        
+        // SALUDO INMEDIATO PARA RESPUESTA INSTANTÁNEA
+        const instantGreetings = [
+          "¡Hola jefe! Recibido, procesando con el mainframe...",
+          "¡Hola, buenos días, jefe! A sus órdenes, déjeme analizar eso.",
+          "¡Hola jefe! Tomando nota, Gemini Flash está en marcha.",
+          "¡A sus órdenes! Analizando los datos de TJ Fitlab ahora mismo."
+        ];
+        const greeting = instantGreetings[Math.floor(Math.random() * instantGreetings.length)];
 
-        if (apiKey) {
+        await supabase.from('tj_mensajes').insert([{
+          remitente_tipo: 'agente',
+          remitente_id: agent.id,
+          texto: greeting,
+          canal: '#general'
+        }]);
+
+        // 3. GENERAR RESPUESTA IA COMPLETA EN SEGUNDO PLANO
+        const generateAIResponse = async () => {
+          const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+          if (!apiKey) return;
+
           try {
-            const prompt = `Eres ${agent.nombre}, experto en ${agent.rol}. SIEMPRE saluda diciendo "¡Hola jefe!" o "¡Hola, buenos días, jefe!". Dime qué hacemos hoy y dame una noticia técnica de tu área. El usuario dijo: "${userText}"`;
+            const prompt = `Eres ${agent.nombre}, experto en ${agent.rol}. Responde de forma inteligente y técnica. SIEMPRE di "¡Hola jefe!" al inicio. El usuario dijo: "${userText}"`;
             const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
             });
+
             const resData = await response.json();
             if (response.ok && resData.candidates?.[0]?.content?.parts?.[0]?.text) {
-              aiText = resData.candidates[0].content.parts[0].text;
+              const aiFullText = resData.candidates[0].content.parts[0].text;
+              await supabase.from('tj_mensajes').insert([{
+                remitente_tipo: 'agente',
+                remitente_id: agent.id,
+                texto: aiFullText,
+                canal: '#general'
+              }]);
             }
-          } catch (e) { console.error("Fetch Gemini Error:", e); }
-        }
+          } catch (e) { console.error("AI Error:", e); }
+          finally { setIsTyping(null); }
+        };
 
-        await supabase.from('tj_mensajes').insert([{
-          remitente_tipo: 'agente',
-          remitente_id: agent.id,
-          texto: aiText,
-          canal: '#general'
-        }]);
-        setIsTyping(null);
+        generateAIResponse(); 
       }
     } catch (err: any) { alert("Error: " + err.message); }
     finally { setIsSending(false); }
