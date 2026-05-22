@@ -228,15 +228,30 @@ export const TJOfficeChat: React.FC = () => {
             Dime qué hacemos hoy y dame una noticia breve de tu área. 
             El usuario dijo: "${tempText}"`;
 
+            // Timeout de 6 segundos para la IA
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 6000);
+
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+              signal: controller.signal
             });
+            clearTimeout(timeoutId);
             const data = await response.json();
             aiText = data.candidates[0].content.parts[0].text;
           } catch (e) {
-            console.error("Gemini Error:", e);
+            console.error("Gemini Error / Timeout:", e);
+            // FALLBACK INTELIGENTE
+            const fallbacks: {[key: string]: string} = {
+              'Programador': "¡Hola jefe! Mi conexión con el núcleo de datos central está experimentando latencia, pero sigo monitorizando el código. ¿Qué prioridad tenemos hoy?",
+              'CommunityManager': "¡Hola, buenos días, jefe! La IA está procesando tendencias masivas ahora mismo. Mientras tanto, ¿qué estrategia de contenido lanzamos hoy?",
+              'Legal': "¡Hola jefe! Estoy revisando los protocolos de seguridad. ¿Hay algún documento crítico que deba auditar mientras se estabiliza mi procesador?",
+              'Data': "¡Hola jefe! Los algoritmos están en fase de recalibración, pero los KPIs de TJ Fitlab siguen estables. ¿Analizamos algún dato manual?",
+              'Strategist': "¡Hola, buenos días, jefe! Mi sistema de planificación está en mantenimiento, pero mi criterio sigue activo. ¿Por dónde empezamos hoy?"
+            };
+            aiText = fallbacks[randomAgent.nickname] || "¡Hola jefe! Mi sistema de IA está tardando un poco más de lo habitual, pero estoy listo para sus órdenes.";
           }
         }
 
