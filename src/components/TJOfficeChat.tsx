@@ -105,8 +105,23 @@ export const TJOfficeChat: React.FC = () => {
       if (error) throw error;
       if (data?.[0]) setMensajes(prev => [...prev, data[0] as Mensaje]);
 
-      // 2. IA Background
-      // 2. IA Background (No bloqueante)
+      // 2. DISPARO INMEDIATO A WEBHOOK LOCAL (WhatsApp / n8n)
+      try {
+        fetch('http://localhost:5678/webhook-test/tj-mensajes-webhook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            texto: userText,
+            remitente: "Operador",
+            canal: "#general",
+            timestamp: new Date().toISOString()
+          }),
+        }).catch(err => console.warn("Webhook local no alcanzable desde la nube."));
+      } catch (e) {
+        console.error("Error disparando webhook:", e);
+      }
+
+      // 3. IA Background (No bloqueante)
       if (isAutoActive) {
         setIsTyping("ALL");
         
