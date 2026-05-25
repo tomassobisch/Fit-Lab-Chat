@@ -102,6 +102,33 @@ export const TJOfficeChat: React.FC = () => {
       if (error) throw error;
       if (data?.[0]) setMensajes(prev => [...prev, data[0] as Mensaje]);
 
+      // 2. DISPARO DE AUTOMATIZACIÓN (Global: Railway + Local)
+      const triggerAutomation = async () => {
+        const payload = { 
+          texto: userText,
+          remitente: "Operador",
+          canal: "#general",
+          timestamp: new Date().toISOString()
+        };
+
+        // Disparo a Railway (Para cuando usas Vercel)
+        fetch('https://main-production-6e33.up.railway.app/webhook/nuevo-mensaje-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }).catch(() => {});
+
+        // Disparo a Localhost (Para cuando usas la app local)
+        fetch('http://localhost:5678/webhook-test/tj-mensajes-webhook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }).catch(() => {});
+      };
+      
+      triggerAutomation();
+
+      // 3. IA Background (No bloqueante)
       if (isAutoActive) {
         setIsTyping("ALL");
         const generateResponse = async () => {
