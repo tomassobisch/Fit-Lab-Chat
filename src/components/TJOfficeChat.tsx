@@ -97,10 +97,23 @@ export const TJOfficeChat: React.FC = () => {
 
         if (apiKey) {
            try {
+              const prompt = `INSTRUCCIÓN DE ALTA PRIORIDAD PARA ASISTENTE DE TJ OFFICE:
+              Tu nombre es ${agent.nombre}, experto en ${agent.rol}.
+              Habilidades clave: ${agent.skills}.
+              
+              INSTRUCCIONES DE TONO:
+              1. SIEMPRE empieza tu respuesta diciendo "¡Hola jefe!" o "¡Hola, buenos días, jefe!".
+              2. Mantén un tono técnico, profesional y de alta eficiencia.
+              3. Eres leal al sistema TJ Fitlab.
+
+              INSTRUCCIÓN DE LÓGICA:
+              El usuario (Jefe) te ha enviado este comando: "${userText}"
+              Usa tu lógica y habilidades para responder de forma útil, dando pasos a seguir, análisis o soluciones técnicas según tu rol. No seas genérico.`;
+
               const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: `Eres ${agent.nombre}. SIEMPRE di "¡Hola jefe!" al inicio. Responde a: ${userText}` }] }] })
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
               });
               const resJson = await res.json();
               if (res.ok) aiText = resJson.candidates[0].content.parts[0].text;
