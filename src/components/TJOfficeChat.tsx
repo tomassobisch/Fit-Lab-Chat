@@ -14,15 +14,14 @@ const INITIAL_AGENTS: Agente[] = [
 // DATA DEFAULT PARA QUE NUNCA SE VEA VACÍO EL PANEL
 const MOCK_REPORTE: ReporteGym = {
     id: 'mock',
-    total_alumnos: 142,
-    mensajes_pendientes: 12,
-    pendientes_escaneo: ['Juan Perez', 'Maria Garcia', 'Carlos Ruiz'],
+    total_alumnos: 148,
+    mensajes_pendientes: 8,
+    pendientes_escaneo: ['JAVIER M.', 'SOFÍA R.'],
     sin_respuesta: [],
     lista_alumnos: [
-      'Adrian Lopez', 'Agostina V.', 'Julian Fit', 'Tomas S.', 'Marcos G.', 
-      'Lucia R.', 'Elena M.', 'Santi P.', 'Fran D.', 'Sofia L.',
-      'Beto K.', 'Damián X.', 'Valeria O.', 'Nico J.', 'Paola Q.',
-      'Gabi T.', 'Leo F.', 'Matias V.', 'Claudio B.', 'Fede H.'
+      'ALUMNO EJEMPLO', 'ATLETA SIMULADO', 'carlos carol', 'CATALINA G.', 'DAVID PRUEBA 3',
+      'JAVIER M.', 'JULIÁN ONZAGA', 'Lluis Alcala', 'Luis ', 'MARCOS PRUEBA 1',
+      'RUBEN PRO MAX', 'SARA PRUEBA 2', 'SOFÍA R.', 'PRUEBA FINAL_ADMISION'
     ],
     creado_en: new Date().toISOString()
 };
