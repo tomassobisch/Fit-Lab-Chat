@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Power, Edit3, Terminal, Cpu, Activity, MessageSquare, Settings2, X, Check, Menu, RefreshCw } from 'lucide-react';
+import { Send, Power, Edit3, Terminal, Cpu, Activity, MessageSquare, Settings2, X, Check, Menu, RefreshCw, Search } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Agente, Mensaje, Canal, ReporteGym } from '../types';
 
@@ -17,6 +17,13 @@ const MOCK_REPORTE: ReporteGym = {
     total_alumnos: 142,
     mensajes_pendientes: 12,
     pendientes_escaneo: ['Juan Perez', 'Maria Garcia', 'Carlos Ruiz'],
+    sin_respuesta: [],
+    lista_alumnos: [
+      'Adrian Lopez', 'Agostina V.', 'Julian Fit', 'Tomas S.', 'Marcos G.', 
+      'Lucia R.', 'Elena M.', 'Santi P.', 'Fran D.', 'Sofia L.',
+      'Beto K.', 'Damián X.', 'Valeria O.', 'Nico J.', 'Paola Q.',
+      'Gabi T.', 'Leo F.', 'Matias V.', 'Claudio B.', 'Fede H.'
+    ],
     creado_en: new Date().toISOString()
 };
 
@@ -24,6 +31,7 @@ export const TJOfficeChat: React.FC = () => {
   const [agentes, setAgentes] = useState<Agente[]>(INITIAL_AGENTS);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [ultimoReporte, setUltimoReporte] = useState<ReporteGym>(MOCK_REPORTE);
+  const [studentSearch, setStudentSearch] = useState('');
   const [inputText, setInputText] = useState('');
   const [isAutoActive, setIsAutoActive] = useState(true);
   const [editingAgente, setEditingAgente] = useState<Agente | null>(null);
@@ -78,7 +86,6 @@ export const TJOfficeChat: React.FC = () => {
     setInputText('');
     setIsSending(true);
 
-    // EMERGENCY UNLOCK: Si en 5 segundos no ha terminado, liberamos la barra
     setTimeout(() => setIsSending(false), 5000);
 
     try {
@@ -97,23 +104,10 @@ export const TJOfficeChat: React.FC = () => {
 
         if (apiKey) {
            try {
-              const prompt = `INSTRUCCIÓN DE ALTA PRIORIDAD PARA ASISTENTE DE TJ OFFICE:
-              Tu nombre es ${agent.nombre}, experto en ${agent.rol}.
-              Habilidades clave: ${agent.skills}.
-              
-              INSTRUCCIONES DE TONO:
-              1. SIEMPRE empieza tu respuesta diciendo "¡Hola jefe!" o "¡Hola, buenos días, jefe!".
-              2. Mantén un tono técnico, profesional y de alta eficiencia.
-              3. Eres leal al sistema TJ Fitlab.
-
-              INSTRUCCIÓN DE LÓGICA:
-              El usuario (Jefe) te ha enviado este comando: "${userText}"
-              Usa tu lógica y habilidades para responder de forma útil, dando pasos a seguir, análisis o soluciones técnicas según tu rol. No seas genérico.`;
-
               const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                body: JSON.stringify({ contents: [{ parts: [{ text: `Eres ${agent.nombre}. SIEMPRE di "¡Hola jefe!" al inicio. Responde a: ${userText}` }] }] })
               });
               const resJson = await res.json();
               if (res.ok) aiText = resJson.candidates[0].content.parts[0].text;
@@ -136,7 +130,7 @@ export const TJOfficeChat: React.FC = () => {
       <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#0A0A0A] border-r border-white/10 flex flex-col lg:static ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} transition-transform`}>
         <div className="h-16 flex items-center gap-3 px-5 border-b border-white/10">
           <img src="/logo-tjo.jpg" className="w-8 h-8 rounded border border-[#CCFF00]/30 shadow-[0_0_10px_#CCFF0044]" alt="" />
-          <span className="font-black italic">TJ<span className="text-[#CCFF00]">OFFICE</span></span>
+          <span className="font-black italic uppercase">TJ<span className="text-[#CCFF00]">OFFICE</span></span>
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
           <span className="text-[9px] font-bold text-white/40 tracking-widest uppercase">Especialistas IA</span>
@@ -144,12 +138,12 @@ export const TJOfficeChat: React.FC = () => {
             <div key={a.id} className="flex items-center gap-3 p-2.5 rounded bg-white/5 border border-white/5">
               <div className="relative"><img src={a.avatar_url} className="w-7 h-7 rounded bg-black" /><div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#CCFF00]" /></div>
               <div className="flex-1 min-w-0"><p className="font-bold text-[10px] truncate">@{a.nickname}</p><p className="text-[8px] text-white/40 truncate uppercase">{a.rol}</p></div>
-              <button onClick={() => setEditingAgente(a)} className="text-white/20 hover:text-[#CCFF00]"><Edit3 size={12}/></button>
+              <button onClick={() => setEditingAgente(a)} className="text-white/20 hover:text-[#CCFF00] transition-colors"><Edit3 size={12}/></button>
             </div>
           ))}
         </div>
         <div className="p-4 border-t border-white/10">
-          <button onClick={() => setIsAutoActive(!isAutoActive)} className={`w-full py-3 rounded text-[10px] font-bold border transition-all ${isAutoActive ? 'bg-[#CCFF00] text-black border-[#CCFF00]' : 'bg-white/5 text-white/40'}`}>
+          <button onClick={() => setIsAutoActive(!isAutoActive)} className={`w-full py-3 rounded text-[10px] font-bold border transition-all ${isAutoActive ? 'bg-[#CCFF00] text-black border-[#CCFF00] shadow-[0_0_10px_#CCFF0044]' : 'bg-white/5 text-white/40'}`}>
             {isAutoActive ? 'AGENTS_ACTIVE' : 'ACTIVATE_AGENTS'}
           </button>
         </div>
@@ -170,17 +164,17 @@ export const TJOfficeChat: React.FC = () => {
           </div>
         </header>
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-8 space-y-4">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-8 space-y-4 scrollbar-hide">
           {mensajes.map(m => (
-            <div key={m.id} className={`flex gap-3 max-w-3xl mx-auto ${m.remitente_tipo === 'agente' ? 'bg-white/5 border border-white/5 p-3 rounded-lg' : ''}`}>
-              <div className={`w-6 h-6 rounded flex items-center justify-center text-[8px] font-bold ${m.remitente_tipo === 'agente' ? 'bg-[#CCFF00] text-black' : 'bg-white/10 text-white'}`}>{m.remitente_tipo === 'agente' ? 'AI' : 'OP'}</div>
+            <div key={m.id} className={`flex gap-3 max-w-3xl mx-auto animate-in ${m.remitente_tipo === 'agente' ? 'bg-white/5 border border-white/5 p-3 rounded-lg' : ''}`}>
+              <div className={`w-6 h-6 rounded flex items-center justify-center text-[8px] font-bold ${m.remitente_tipo === 'agente' ? 'bg-[#CCFF00] text-black shadow-[0_0_10px_#CCFF0044]' : 'bg-white/10 text-white'}`}>{m.remitente_tipo === 'agente' ? 'AI' : 'OP'}</div>
               <div className="flex-1 min-w-0">
                 <p className="text-[9px] font-bold text-white/40 uppercase mb-1">{m.remitente_tipo === 'agente' ? agentes.find(a => a.id === m.remitente_id)?.nombre : 'Jefe'}</p>
                 <p className={`text-[12px] leading-relaxed break-words ${m.remitente_tipo === 'agente' ? 'text-[#CCFF00]/90' : 'text-white/80'}`}>{m.texto}</p>
               </div>
             </div>
           ))}
-          {isTyping && <div className="flex gap-3 max-w-3xl mx-auto"><div className="w-6 h-6 rounded bg-[#CCFF00] text-black flex items-center justify-center text-[8px] font-bold">...</div><div className="flex-1 p-3 rounded-lg bg-white/5 border border-white/5 animate-pulse">Pensando...</div></div>}
+          {isTyping && <div className="flex gap-3 max-w-3xl mx-auto"><div className="w-6 h-6 rounded bg-[#CCFF00] text-black flex items-center justify-center text-[8px] font-bold shadow-[0_0_10px_#CCFF0044]">...</div><div className="flex-1 p-3 rounded-lg bg-white/5 border border-white/5 animate-pulse">Pensando...</div></div>}
         </div>
 
         <div className="p-4 md:p-6 bg-black border-t border-white/10">
@@ -191,40 +185,83 @@ export const TJOfficeChat: React.FC = () => {
         </div>
       </main>
 
-      {/* SIDEBAR DERECHA: ANYTIME */}
+      {/* SIDEBAR DERECHA: ANYTIME COACHING */}
       <aside className="hidden xl:flex w-80 flex-shrink-0 bg-[#1A0B2E] flex flex-col h-full border-l border-white/10">
         <header className="h-16 flex items-center px-6 border-b border-purple-500/20 bg-[#12071F]">
            <span className="text-[9px] font-black text-purple-200 uppercase tracking-widest italic">ANYTIME <span className="text-white">COACHING</span></span>
         </header>
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-           <div className="p-4 rounded-xl bg-purple-950/40 border border-purple-500/20 text-center">
-              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=auditor" className="w-12 h-12 mx-auto mb-2 rounded-full bg-purple-900 border border-purple-500" />
-              <p className="text-[10px] font-bold text-white">Auditor Activo</p>
-              <p className="text-[7px] text-purple-400 uppercase tracking-tighter mt-1">Conectado a SP-0085</p>
+        <div className="flex-1 flex flex-col overflow-hidden">
+           <div className="p-4 border-b border-purple-500/10 text-center">
+              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=auditor" className="w-10 h-10 mx-auto mb-1 rounded-full bg-purple-900 border border-purple-500" />
+              <p className="text-[9px] font-bold text-white tracking-tight">Auditor Activo</p>
            </div>
-           <div className="grid grid-cols-1 gap-3">
-              <div className="p-4 rounded-xl bg-purple-950/20 border border-purple-500/20"><p className="text-[8px] font-bold text-purple-400 uppercase mb-1">Total Alumnos</p><p className="text-2xl font-black text-white">{ultimoReporte.total_alumnos}</p></div>
-              <div className="p-4 rounded-xl bg-orange-950/10 border border-orange-500/20"><p className="text-[8px] font-bold text-orange-400 uppercase mb-1">Pendientes</p><p className="text-xl font-bold text-orange-100">{ultimoReporte.mensajes_pendientes}</p></div>
-              <div className="p-4 rounded-xl bg-red-950/10 border border-red-500/20">
-                 <p className="text-[8px] font-bold text-red-400 uppercase mb-2 italic">Alertas de Escaneo</p>
+           
+           <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
+              <div className="grid grid-cols-2 gap-2">
+                 <div className="p-3 rounded-xl bg-purple-950/20 border border-purple-500/20">
+                    <p className="text-[7px] font-bold text-purple-400 uppercase mb-1">Total</p>
+                    <p className="text-xl font-black text-white">{ultimoReporte.total_alumnos}</p>
+                 </div>
+                 <div className="p-3 rounded-xl bg-orange-950/10 border border-orange-500/20">
+                    <p className="text-[7px] font-bold text-orange-400 uppercase mb-1">Pendientes</p>
+                    <p className="text-xl font-bold text-orange-100">{ultimoReporte.mensajes_pendientes}</p>
+                 </div>
+              </div>
+
+              {/* DIRECTORIO DE ALUMNOS */}
+              <div className="flex-1 flex flex-col min-h-0 bg-black/20 rounded-xl border border-purple-500/10 overflow-hidden">
+                 <div className="p-3 border-b border-purple-500/10">
+                    <p className="text-[8px] font-bold text-purple-200 uppercase mb-2 tracking-widest">Directorio de Alumnos</p>
+                    <div className="relative">
+                       <input 
+                         type="text" 
+                         value={studentSearch}
+                         onChange={(e) => setStudentSearch(e.target.value)}
+                         placeholder="Buscar alumno..."
+                         className="w-full bg-purple-950/30 border border-purple-500/20 rounded-lg py-1.5 px-3 text-[10px] text-white focus:outline-none focus:border-purple-400 transition-all placeholder:text-purple-300/40"
+                       />
+                       <Search size={10} className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-400/50" />
+                    </div>
+                 </div>
+                 <div className="flex-1 overflow-y-auto p-2 space-y-1 max-h-64 scrollbar-thin scrollbar-thumb-purple-900">
+                    {(ultimoReporte.lista_alumnos || [])
+                      .filter(name => name.toLowerCase().includes(studentSearch.toLowerCase()))
+                      .map((name, i) => (
+                        <div key={i} className="flex items-center gap-2 p-2 rounded hover:bg-purple-500/10 transition-all border border-transparent hover:border-purple-500/20 group cursor-default">
+                           <div className="w-1.5 h-1.5 rounded-full bg-purple-500/40 group-hover:bg-purple-400 shadow-[0_0_5px_#A855F7]" />
+                           <span className="text-[10px] text-purple-100/80 group-hover:text-white font-medium truncate">{name}</span>
+                        </div>
+                    ))}
+                    {(ultimoReporte.lista_alumnos || []).filter(name => name.toLowerCase().includes(studentSearch.toLowerCase())).length === 0 && (
+                        <p className="text-[8px] text-purple-400/60 text-center py-4 italic uppercase">No se encontraron resultados</p>
+                    )}
+                 </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-red-950/10 border border-red-500/20 shadow-lg">
+                 <p className="text-[8px] font-bold text-red-400 uppercase mb-2 italic tracking-widest">Alertas de Escaneo</p>
                  <div className="space-y-1">
-                    {(ultimoReporte.pendientes_escaneo || []).map((n, i) => (<div key={i} className="text-[9px] text-red-100 flex justify-between border-b border-white/5"><span>{n}</span><span className="text-red-500 font-black">!</span></div>))}
+                    {(ultimoReporte.pendientes_escaneo || []).map((n, i) => (<div key={i} className="text-[9px] text-red-100 flex justify-between border-b border-white/5 pb-1"><span>{n}</span><span className="text-red-500 font-black">!</span></div>))}
                  </div>
               </div>
            </div>
         </div>
+        <div className="p-4 border-t border-purple-500/10 bg-[#12071F] flex items-center gap-2">
+           <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_#22C55E]" />
+           <span className="text-[7px] text-purple-300 font-bold uppercase tracking-widest">Live Feed: Operational</span>
+        </div>
       </aside>
 
-      {/* MODAL CONFIGURACIÓN */}
+      {/* MODAL CONFIGURACIÓN AGENTE */}
       {editingAgente && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-in">
           <div className="w-full max-w-sm bg-[#0A0A0A] border border-white/10 rounded-xl p-8 shadow-2xl relative">
-            <button onClick={() => setEditingAgente(null)} className="absolute top-4 right-4 text-white/40"><X size={16}/></button>
-            <div className="flex items-center gap-3 mb-6"><Settings2 size={16} className="text-[#CCFF00]" /><h2 className="text-xs font-bold uppercase">Configurar Especialista</h2></div>
+            <button onClick={() => setEditingAgente(null)} className="absolute top-4 right-4 text-white/40 hover:text-white"><X size={16}/></button>
+            <div className="flex items-center gap-3 mb-6"><Settings2 size={16} className="text-[#CCFF00]" /><h2 className="text-xs font-bold uppercase tracking-[0.2em]">Configurar Agente</h2></div>
             <div className="space-y-4">
-              <div><label className="text-[8px] text-white/30 font-bold block mb-1 uppercase">Identificador</label><input type="text" value={editingAgente.nombre} onChange={(e) => setEditingAgente({...editingAgente, nombre: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded p-2 text-xs text-white" /></div>
-              <div><label className="text-[8px] text-white/30 font-bold block mb-1 uppercase">Rol</label><input type="text" value={editingAgente.rol} onChange={(e) => setEditingAgente({...editingAgente, rol: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded p-2 text-xs text-white" /></div>
-              <button onClick={async () => { await supabase.from('tj_agentes').update({ nombre: editingAgente.nombre, rol: editingAgente.rol }).eq('id', editingAgente.id); setEditingAgente(null); fetchData(); }} className="w-full bg-[#CCFF00] text-black font-black py-3 rounded text-[10px] hover:bg-white transition-all">APLICAR CAMBIOS</button>
+              <div><label className="text-[8px] text-white/30 font-bold block mb-1 uppercase tracking-widest">Identificador</label><input type="text" value={editingAgente.nombre} onChange={(e) => setEditingAgente({...editingAgente, nombre: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded p-3 text-base md:text-xs text-white focus:border-[#CCFF00]/40 outline-none" /></div>
+              <div><label className="text-[8px] text-white/30 font-bold block mb-1 uppercase tracking-widest">Rol Sistema</label><input type="text" value={editingAgente.rol} onChange={(e) => setEditingAgente({...editingAgente, rol: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded p-3 text-base md:text-xs text-white focus:border-[#CCFF00]/40 outline-none" /></div>
+              <button onClick={async () => { await supabase.from('tj_agentes').update({ nombre: editingAgente.nombre, rol: editingAgente.rol }).eq('id', editingAgente.id); setEditingAgente(null); fetchData(); }} className="w-full bg-[#CCFF00] text-black font-black py-4 rounded text-[10px] tracking-widest hover:bg-white transition-all">APLICAR CAMBIOS</button>
             </div>
           </div>
         </div>

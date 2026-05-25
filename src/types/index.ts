@@ -27,6 +27,7 @@ export interface ReporteGym {
   mensajes_pendientes: number;
   pendientes_escaneo: string[];
   sin_respuesta: string[];
+  lista_alumnos?: string[];
   creado_en: string;
 }
 
