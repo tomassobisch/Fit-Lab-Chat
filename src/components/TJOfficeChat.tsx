@@ -196,22 +196,72 @@ export const TJOfficeChat: React.FC = () => {
         const agent = agentes[Math.floor(Math.random() * agentes.length)] || agentes[0];
         const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
         let aiText = "¡Hola jefe! Recibido y procesando.";
+        let publishData: { titulo: string; contenido: string } | null = null;
 
         if (apiKey) {
+           const promptText = `Eres ${agent.nombre} (rol: ${agent.rol}). 
+Tienes acceso a buscar en internet en tiempo real a través de Google Search. Utilízalo siempre que te pregunten sobre datos actuales, noticias, tendencias o estadísticas del fitness en 2026.
+SIEMPRE di "¡Hola jefe!" al inicio de tu respuesta.
+
+Si encuentras una tendencia importante de fitness, noticias o estudios científicos recientes, o una oportunidad de negocio/mejora relevante para TJ FITLAB y quieres publicarla en el foro del equipo, debes añadir al final de tu respuesta EXACTAMENTE esta estructura en formato JSON:
+[PUBLISH_POST]: {"titulo": "Título corto y llamativo de la tendencia", "contenido": "Explicación detallada de la tendencia en formato Markdown, incluyendo datos clave, estadísticas encontradas en internet y cómo aplicarla en TJ FITLAB."}
+
+Intenta que el JSON no tenga saltos de línea reales dentro de los valores de texto (usa \\n para saltos de línea y escapa las comillas dobles si es necesario).
+Ejemplo de respuesta si decides publicar:
+¡Hola jefe! He investigado sobre el crecimiento de HYROX en 2026... He publicado un artículo en el foro con los detalles.
+[PUBLISH_POST]: {"titulo": "Crecimiento Exponencial de HYROX", "contenido": "El crecimiento de...\\n\\n**Recomendación:**..."}
+
+Responde al usuario: ${userText}`;
+
            try {
               const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: `Eres ${agent.nombre}. SIEMPRE di "¡Hola jefe!" al inicio. Responde a: ${userText}` }] }] })
+                body: JSON.stringify({ 
+                  contents: [{ parts: [{ text: promptText }] }],
+                  tools: [{ googleSearch: {} }] // Habilitar Google Search grounding
+                })
               });
               const resJson = await res.json();
-              if (res.ok) aiText = resJson.candidates[0].content.parts[0].text;
+              if (res.ok && resJson.candidates?.[0]?.content?.parts?.[0]?.text) {
+                 aiText = resJson.candidates[0].content.parts[0].text;
+              }
            } catch (e) {}
+        }
+
+        // Analizar si el mensaje contiene una instrucción de publicación en el foro
+        const publishRegex = /\[PUBLISH_POST\]:\s*(\{.*\})/is;
+        const match = aiText.match(publishRegex);
+        if (match) {
+          try {
+            const parsed = JSON.parse(match[1]);
+            if (parsed.titulo && parsed.contenido) {
+              publishData = parsed;
+              // Limpiar la etiqueta del texto del chat
+              aiText = aiText.replace(publishRegex, '').trim();
+            }
+          } catch (jsonErr) {
+            console.error("Error al parsear el post autogenerado:", jsonErr);
+          }
         }
 
         await supabase.from('tj_mensajes').insert([{
           remitente_tipo: 'agente', remitente_id: agent.id, texto: aiText, canal: '#general'
         }]);
+
+        // Si se extrajo un post del foro, publicarlo automáticamente
+        if (publishData) {
+          const newPost: ForumPost = {
+            id: `post-${Date.now()}`,
+            titulo: publishData.titulo,
+            autor_nombre: `${agent.nombre} (@${agent.nickname})`,
+            autor_rol: agent.rol,
+            contenido: publishData.contenido,
+            creado_en: new Date().toISOString()
+          };
+          setForumPosts(prev => [newPost, ...prev]);
+        }
+
         setIsTyping(null);
       }
     } catch (err) {}
