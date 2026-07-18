@@ -214,19 +214,50 @@ Ejemplo de respuesta si decides publicar:
 Responde al usuario: ${userText}`;
 
            try {
-              const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+              // Intento 1: v1beta con google_search
+              let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                   contents: [{ parts: [{ text: promptText }] }],
-                  tools: [{ googleSearch: {} }] // Habilitar Google Search grounding
+                  tools: [{ google_search: {} }] 
                 })
               });
+              
+              // Intento 2: fallback a google_search_retrieval si la anterior falla
+              if (!res.ok) {
+                console.warn("Fallo con google_search, intentando con google_search_retrieval...");
+                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ 
+                    contents: [{ parts: [{ text: promptText }] }],
+                    tools: [{ google_search_retrieval: { dynamic_retrieval_config: { mode: "MODE_DYNAMIC", dynamic_threshold: 0.3 } } }]
+                  })
+                });
+              }
+              
+              // Intento 3: fallback sin herramientas si sigue fallando
+              if (!res.ok) {
+                console.warn("Fallo con herramientas, ejecutando llamada simple...");
+                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ 
+                    contents: [{ parts: [{ text: promptText }] }]
+                  })
+                });
+              }
+              
               const resJson = await res.json();
               if (res.ok && resJson.candidates?.[0]?.content?.parts?.[0]?.text) {
                  aiText = resJson.candidates[0].content.parts[0].text;
+              } else {
+                 console.error("Gemini API Error details:", resJson);
               }
-           } catch (e) {}
+           } catch (e) {
+              console.error("Gemini Fetch Exception:", e);
+           }
         }
 
         // Analizar si el mensaje contiene una instrucción de publicación en el foro
