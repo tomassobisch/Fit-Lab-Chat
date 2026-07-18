@@ -116,13 +116,22 @@ export const TJOfficeChat: React.FC = () => {
       
       const { data: r } = await supabase.from('tj_reportes').select('*').order('creado_en', { ascending: false }).limit(1);
       if (r?.[0]) setUltimoReporte(r[0]);
+
+      // NUEVO: Intentar cargar posts del foro desde Supabase
+      const { data: f, error: fErr } = await supabase.from('tj_foro_posts').select('*').order('creado_en', { ascending: false });
+      if (!fErr && f && f.length > 0) {
+        setForumPosts(f);
+      }
     } catch (err) { console.warn("DB offline, using mock data"); }
     finally { setIsSyncing(false); }
   };
 
   useEffect(() => {
     fetchData();
-    const sub = supabase.channel('ultra-sync').on('postgres_changes', { event: '*', schema: 'public', table: 'tj_mensajes' }, fetchData).subscribe();
+    const sub = supabase.channel('ultra-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tj_mensajes' }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tj_foro_posts' }, fetchData)
+      .subscribe();
     return () => { supabase.removeChannel(sub); };
   }, []);
 
@@ -195,11 +204,13 @@ export const TJOfficeChat: React.FC = () => {
         setIsTyping("ALL");
         const agent = agentes[Math.floor(Math.random() * agentes.length)] || agentes[0];
         const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-        let aiText = "¡Hola jefe! Recibido y procesando.";
+        let aiText = "";
         let publishData: { titulo: string; contenido: string } | null = null;
 
-        if (apiKey) {
-           const promptText = `Eres ${agent.nombre} (rol: ${agent.rol}). 
+        if (!apiKey) {
+           aiText = "¡Hola jefe! Recibido y procesando. (Aviso: No se detectó la clave VITE_GEMINI_API_KEY en las variables de entorno, por lo que el agente está respondiendo en modo local simulado. Por favor, asegúrate de configurar tu archivo .env y reiniciar el servidor de desarrollo).";
+        } else {
+            const promptText = `Eres ${agent.nombre} (rol: ${agent.rol}). 
 Tienes acceso a buscar en internet en tiempo real a través de Google Search. Utilízalo siempre que te pregunten sobre datos actuales, noticias, tendencias o estadísticas del fitness en 2026.
 SIEMPRE di "¡Hola jefe!" al inicio de tu respuesta.
 
@@ -254,9 +265,12 @@ Responde al usuario: ${userText}`;
                  aiText = resJson.candidates[0].content.parts[0].text;
               } else {
                  console.error("Gemini API Error details:", resJson);
+                 const errMsg = resJson.error?.message || "Error desconocido";
+                 aiText = `¡Hola jefe! Recibido y procesando. (Error en la respuesta de la API de Gemini: ${errMsg})`;
               }
-           } catch (e) {
+           } catch (e: any) {
               console.error("Gemini Fetch Exception:", e);
+              aiText = `¡Hola jefe! Recibido y procesando. (Error de red/conexión al llamar a Gemini: ${e.message})`;
            }
         }
 
@@ -295,15 +309,36 @@ Responde al usuario: ${userText}`;
 
         // Si se extrajo un post del foro, publicarlo automáticamente
         if (publishData) {
-          const newPost: ForumPost = {
-            id: `post-${Date.now()}`,
+          const newPost = {
             titulo: publishData.titulo,
             autor_nombre: `${agent.nombre} (@${agent.nickname})`,
             autor_rol: agent.rol,
-            contenido: publishData.contenido,
-            creado_en: new Date().toISOString()
+            contenido: publishData.contenido
           };
-          setForumPosts(prev => [newPost, ...prev]);
+          
+          try {
+            // Intentar guardar en Supabase
+            const { data: inserted, error: insErr } = await supabase.from('tj_foro_posts').insert([newPost]).select();
+            if (insErr) {
+              console.warn("No se pudo guardar post en Supabase, guardando local...", insErr.message);
+              const localPost: ForumPost = {
+                id: `post-${Date.now()}`,
+                ...newPost,
+                creado_en: new Date().toISOString()
+              };
+              setForumPosts(prev => [localPost, ...prev]);
+            } else if (inserted && inserted[0]) {
+              setForumPosts(prev => [inserted[0], ...prev]);
+            }
+          } catch (dbErr) {
+            console.warn("Exception al guardar post en Supabase, guardando local...");
+            const localPost: ForumPost = {
+              id: `post-${Date.now()}`,
+              ...newPost,
+              creado_en: new Date().toISOString()
+            };
+            setForumPosts(prev => [localPost, ...prev]);
+          }
         }
 
         setIsTyping(null);
@@ -312,7 +347,7 @@ Responde al usuario: ${userText}`;
     finally { setIsSending(false); }
   };
 
-  const handleCreatePost = (e: React.FormEvent) => {
+  const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPostTitle.trim() || !newPostContent.trim() || !newPostAuthor) return;
 
@@ -320,16 +355,36 @@ Responde al usuario: ${userText}`;
     const authorName = authorAgent ? `${authorAgent.nombre} (@${authorAgent.nickname})` : 'Jefe';
     const authorRol = authorAgent ? authorAgent.rol : 'Administrador';
 
-    const newPost: ForumPost = {
-      id: `post-${Date.now()}`,
+    const newPost = {
       titulo: newPostTitle.trim(),
       autor_nombre: authorName,
       autor_rol: authorRol,
-      contenido: newPostContent.trim(),
-      creado_en: new Date().toISOString()
+      contenido: newPostContent.trim()
     };
 
-    setForumPosts(prev => [newPost, ...prev]);
+    try {
+      // Intentar guardar en Supabase
+      const { data: inserted, error: insErr } = await supabase.from('tj_foro_posts').insert([newPost]).select();
+      if (insErr) {
+        console.warn("No se pudo guardar post manual en Supabase, guardando local...", insErr.message);
+        const localPost: ForumPost = {
+          id: `post-${Date.now()}`,
+          ...newPost,
+          creado_en: new Date().toISOString()
+        };
+        setForumPosts(prev => [localPost, ...prev]);
+      } else if (inserted && inserted[0]) {
+        setForumPosts(prev => [inserted[0], ...prev]);
+      }
+    } catch (dbErr) {
+      console.warn("Exception al guardar post manual en Supabase, guardando local...");
+      const localPost: ForumPost = {
+        id: `post-${Date.now()}`,
+        ...newPost,
+        creado_en: new Date().toISOString()
+      };
+      setForumPosts(prev => [localPost, ...prev]);
+    }
     
     // Reset Form
     setNewPostTitle('');
@@ -470,7 +525,7 @@ Responde al usuario: ${userText}`;
       </aside>
 
       {/* PANEL CENTRAL PRINCIPAL */}
-      <main className="flex-1 flex flex-col bg-[#050505] overflow-hidden border-r border-white/10 relative">
+      <main className="flex-1 flex flex-col bg-[#050505] overflow-hidden relative">
         <header className="h-16 flex items-center justify-between px-6 border-b border-white/10 bg-black sticky top-0 z-20">
           <div className="flex items-center gap-3">
             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden"><Menu size={18}/></button>
@@ -630,73 +685,6 @@ Responde al usuario: ${userText}`;
           </div>
         )}
       </main>
-
-      {/* SIDEBAR DERECHA: ANYTIME COACHING */}
-      <aside className="hidden xl:flex w-80 flex-shrink-0 bg-[#1A0B2E] flex flex-col h-full border-l border-white/10">
-        <header className="h-16 flex items-center px-6 border-b border-purple-500/20 bg-[#12071F]">
-           <span className="text-[9px] font-black text-purple-200 uppercase tracking-widest italic">ANYTIME <span className="text-white">COACHING</span></span>
-        </header>
-        <div className="flex-1 flex flex-col overflow-hidden">
-           <div className="p-4 border-b border-purple-500/10 text-center">
-              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=auditor" className="w-10 h-10 mx-auto mb-1 rounded-full bg-purple-900 border border-purple-500" alt="" />
-              <p className="text-[9px] font-bold text-white tracking-tight">Auditor Activo</p>
-           </div>
-           
-           <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
-              <div className="grid grid-cols-2 gap-2">
-                 <div className="p-3 rounded-xl bg-purple-950/20 border border-purple-500/20">
-                    <p className="text-[7px] font-bold text-purple-400 uppercase mb-1">Total</p>
-                    <p className="text-xl font-black text-white">{ultimoReporte.total_alumnos}</p>
-                 </div>
-                 <div className="p-3 rounded-xl bg-orange-950/10 border border-orange-500/20">
-                    <p className="text-[7px] font-bold text-orange-400 uppercase mb-1">Pendientes</p>
-                    <p className="text-xl font-bold text-orange-100">{ultimoReporte.mensajes_pendientes}</p>
-                 </div>
-              </div>
-
-              {/* DIRECTORIO DE ALUMNOS */}
-              <div className="flex-1 flex flex-col min-h-0 bg-black/20 rounded-xl border border-purple-500/10 overflow-hidden">
-                 <div className="p-3 border-b border-purple-500/10">
-                    <p className="text-[8px] font-bold text-purple-200 uppercase mb-2 tracking-widest">Directorio de Alumnos</p>
-                    <div className="relative">
-                       <input 
-                         type="text" 
-                         value={studentSearch}
-                         onChange={(e) => setStudentSearch(e.target.value)}
-                         placeholder="Buscar alumno..."
-                         className="w-full bg-purple-950/30 border border-purple-500/20 rounded-lg py-1.5 px-3 text-[10px] text-white focus:outline-none focus:border-purple-400 transition-all placeholder:text-purple-300/40"
-                       />
-                       <Search size={10} className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-400/50" />
-                    </div>
-                 </div>
-                 <div className="flex-1 overflow-y-auto p-2 space-y-1 max-h-64 scrollbar-thin scrollbar-thumb-purple-900">
-                    {(ultimoReporte.lista_alumnos || [])
-                      .filter(name => name.toLowerCase().includes(studentSearch.toLowerCase()))
-                      .map((name, i) => (
-                        <div key={i} className="flex items-center gap-2 p-2 rounded hover:bg-purple-500/10 transition-all border border-transparent hover:border-purple-500/20 group cursor-default">
-                           <div className="w-1.5 h-1.5 rounded-full bg-purple-500/40 group-hover:bg-purple-400 shadow-[0_0_5px_#A855F7]" />
-                           <span className="text-[10px] text-purple-100/80 group-hover:text-white font-medium truncate">{name}</span>
-                        </div>
-                    ))}
-                    {(ultimoReporte.lista_alumnos || []).filter(name => name.toLowerCase().includes(studentSearch.toLowerCase())).length === 0 && (
-                        <p className="text-[8px] text-purple-400/60 text-center py-4 italic uppercase">No se encontraron resultados</p>
-                    )}
-                 </div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-red-950/10 border border-red-500/20 shadow-lg">
-                 <p className="text-[8px] font-bold text-red-400 uppercase mb-2 italic tracking-widest">Alertas de Escaneo</p>
-                 <div className="space-y-1">
-                    {(ultimoReporte.pendientes_escaneo || []).map((n, i) => (<div key={i} className="text-[9px] text-red-100 flex justify-between border-b border-white/5 pb-1"><span>{n}</span><span className="text-red-500 font-black">!</span></div>))}
-                 </div>
-              </div>
-           </div>
-        </div>
-        <div className="p-4 border-t border-purple-500/10 bg-[#12071F] flex items-center gap-2">
-           <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_#22C55E]" />
-           <span className="text-[7px] text-purple-300 font-bold uppercase tracking-widest">Live Feed: Operational</span>
-        </div>
-      </aside>
 
       {/* MODAL CONFIGURACIÓN AGENTE */}
       {editingAgente && (
