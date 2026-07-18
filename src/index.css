@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-tj-dark text-white;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-tj-dark;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Custom Markdown Rendering Styles for Reports Viewer */
+.markdown-body {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.markdown-body h1 {
+  font-size: 24px;
+  font-weight: 800;
+  color: #CCFF00;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  padding-bottom: 0.5rem;
+}
+.markdown-body h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: white;
+  margin-top: 1.8rem;
+  margin-bottom: 0.8rem;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding-bottom: 0.3rem;
+}
+.markdown-body h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  margin-top: 1.2rem;
+  margin-bottom: 0.6rem;
+}
+.markdown-body p {
+  margin-bottom: 1rem;
+  color: rgba(255,255,255,0.7);
+}
+.markdown-body strong {
+  color: white;
+  font-weight: 600;
+}
+.markdown-body ul, .markdown-body ol {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+  color: rgba(255,255,255,0.7);
+}
+.markdown-body li {
+  margin-bottom: 0.4rem;
+}
+.markdown-body hr {
+  border: 0;
+  height: 1px;
+  background: rgba(255,255,255,0.1);
+  margin: 1.8rem 0;
+}
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.markdown-body th {
+  background: rgba(255,255,255,0.05);
+  font-weight: 600;
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  color: white;
+}
+.markdown-body td {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.7);
+}
+.markdown-body tr:last-child td {
+  border-bottom: 0;
+}
+.markdown-body a {
+  color: #CCFF00;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.markdown-body a:hover {
+  color: white;
+}
+
