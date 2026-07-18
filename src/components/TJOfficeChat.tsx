@@ -268,11 +268,24 @@ Responde al usuario: ${userText}`;
             const parsed = JSON.parse(match[1]);
             if (parsed.titulo && parsed.contenido) {
               publishData = parsed;
-              // Limpiar la etiqueta del texto del chat
               aiText = aiText.replace(publishRegex, '').trim();
             }
           } catch (jsonErr) {
-            console.error("Error al parsear el post autogenerado:", jsonErr);
+            console.warn("Fallo al parsear JSON estricto, intentando extracción regex tolerante...");
+            const titleMatch = match[1].match(/"titulo"\s*:\s*"([\s\S]*?)"\s*(?:,|\n|\})/i);
+            const contentMatch = match[1].match(/"contenido"\s*:\s*"([\s\S]*?)"\s*$/is) || 
+                                 match[1].match(/"contenido"\s*:\s*"([\s\S]*?)"\s*\}\s*$/is) ||
+                                 match[1].match(/"contenido"\s*:\s*"([\s\S]*?)"\s*(?:\}\s*)?$/is);
+            
+            if (titleMatch && contentMatch) {
+              publishData = {
+                titulo: titleMatch[1].trim(),
+                contenido: contentMatch[1].replace(/\\n/g, '\n').trim()
+              };
+              aiText = aiText.replace(publishRegex, '').trim();
+            } else {
+              console.error("Fallo completo en extracción de post autogenerado.");
+            }
           }
         }
 
