@@ -61,6 +61,40 @@ const MOCK_REPORTE: ReporteGym = {
     creado_en: new Date().toISOString()
 };
 
+const extractUrls = (text: string): string[] => {
+  const regex = /(https?:\/\/[^\s\)\*\_\]\[\>]+)/g;
+  const matches = text.match(regex) || [];
+  return Array.from(new Set(matches)).filter(url => {
+    return !url.includes('dicebear.com') && 
+           !url.match(/\.(png|jpg|jpeg|gif|svg)$/i) &&
+           !url.endsWith(')');
+  });
+};
+
+const extractStats = (text: string): string[] => {
+  const lines = text.split('\n');
+  const stats: string[] = [];
+  
+  for (const line of lines) {
+    const cleanLine = line.replace(/^[\s*\-\+]+/, '').trim();
+    if (cleanLine.length > 10 && cleanLine.length < 150) {
+      if (
+        cleanLine.includes('%') || 
+        /\b\d{4,9}\b/.test(cleanLine) || 
+        cleanLine.toLowerCase().includes('millones') ||
+        cleanLine.toLowerCase().includes('estadísticas') ||
+        cleanLine.toLowerCase().includes('crecimiento de')
+      ) {
+        if (!cleanLine.includes('http://') && !cleanLine.includes('https://')) {
+          stats.push(cleanLine);
+        }
+      }
+    }
+    if (stats.length >= 4) break;
+  }
+  return stats;
+};
+
 export const TJOfficeChat: React.FC = () => {
   const [agentes, setAgentes] = useState<Agente[]>(INITIAL_AGENTS);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
@@ -87,6 +121,7 @@ export const TJOfficeChat: React.FC = () => {
     const saved = localStorage.getItem('tj_forum_posts');
     return saved ? JSON.parse(saved) : INITIAL_FORUM_POSTS;
   });
+  const [selectedPost, setSelectedPost] = useState<ForumPost | null>(null);
 
   // MODAL CREAR PUBLICACIÓN
   const [isCreatingPost, setIsCreatingPost] = useState(false);
@@ -650,8 +685,149 @@ Responde al usuario: ${userText}`;
                   dangerouslySetInnerHTML={{ __html: renderMarkdown(reportMarkdown) }}
                 />
               </div>
+            ) : selectedPost ? (
+              // VISTA DETALLADA DEL ARTÍCULO EXPANDIDO
+              <div className="max-w-4xl mx-auto space-y-6 animate-in">
+                <button 
+                  onClick={() => setSelectedPost(null)}
+                  className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:border-white/20 text-white/80 hover:text-[#CCFF00] transition-all text-[9px] font-bold uppercase tracking-widest flex items-center gap-1.5"
+                >
+                  &larr; Volver al Foro
+                </button>
+                
+                <div className="p-6 md:p-10 rounded-2xl bg-[#090909] border border-white/10 shadow-2xl space-y-6">
+                  {/* CABECERA DEL ARTÍCULO */}
+                  <div className="flex gap-4 items-start border-b border-white/5 pb-6">
+                    <img 
+                      src={
+                        agentes.find(a => selectedPost.autor_nombre.toLowerCase().includes(a.nombre.toLowerCase()) || selectedPost.autor_nombre.toLowerCase().includes(a.nickname.toLowerCase()))?.avatar_url || 
+                        'https://api.dicebear.com/7.x/avataaars/svg?seed=jefe'
+                      } 
+                      className="w-12 h-12 rounded bg-black border border-white/10 shadow-[0_0_10px_#CCFF0011] flex-shrink-0" 
+                      alt="" 
+                    />
+                    <div className="min-w-0">
+                      <h2 className="text-base md:text-lg font-black text-[#CCFF00] leading-tight">{selectedPost.titulo}</h2>
+                      <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider mt-2">
+                        Por: {selectedPost.autor_nombre} — <span className="text-[#CCFF00]/75">{selectedPost.autor_rol}</span>
+                      </p>
+                      <p className="text-[8px] text-white/30 mt-0.5">Publicado: {new Date(selectedPost.creado_en).toLocaleString()}</p>
+                    </div>
+                  </div>
+
+                  {/* DISEÑO EN DOS COLUMNAS */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* COLUMNA IZQUIERDA (2/3): CUERPO DEL ARTÍCULO */}
+                    <div className="lg:col-span-2 space-y-6 min-w-0">
+                      <div 
+                        className="prose prose-invert max-w-none text-white/80 text-[12px] leading-relaxed markdown-body"
+                        dangerouslySetInnerHTML={{ 
+                          __html: (window as any).marked && (window as any).marked.parse 
+                            ? (window as any).marked.parse(selectedPost.contenido) 
+                            : selectedPost.contenido 
+                        }}
+                      />
+                    </div>
+
+                    {/* COLUMNA DERECHA (1/3): FICHA TÉCNICA, ENLACES Y ESTADÍSTICAS */}
+                    <div className="space-y-6">
+                      {/* 🤖 FICHA DEL AGENTE */}
+                      <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-3">
+                        <p className="text-[8px] font-bold text-white/30 uppercase tracking-widest">Investigador</p>
+                        <div className="flex items-center gap-3">
+                          <img 
+                            src={
+                              agentes.find(a => selectedPost.autor_nombre.toLowerCase().includes(a.nombre.toLowerCase()) || selectedPost.autor_nombre.toLowerCase().includes(a.nickname.toLowerCase()))?.avatar_url || 
+                              'https://api.dicebear.com/7.x/avataaars/svg?seed=jefe'
+                            } 
+                            className="w-9 h-9 rounded bg-black border border-white/10 flex-shrink-0" 
+                            alt="" 
+                          />
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-bold text-white truncate">{selectedPost.autor_nombre.split('(')[0].trim()}</p>
+                            <p className="text-[8px] text-[#CCFF00] uppercase font-bold tracking-wider truncate">{selectedPost.autor_rol}</p>
+                          </div>
+                        </div>
+                        {/* Habilidades del Agente */}
+                        {(() => {
+                          const ag = agentes.find(a => selectedPost.autor_nombre.toLowerCase().includes(a.nombre.toLowerCase()) || selectedPost.autor_nombre.toLowerCase().includes(a.nickname.toLowerCase()));
+                          if (ag && ag.skills) {
+                            return (
+                              <div className="pt-2.5 border-t border-white/5">
+                                <p className="text-[7px] text-white/40 uppercase tracking-wider mb-1.5">Habilidades:</p>
+                                <div className="flex flex-wrap gap-1">
+                                  {ag.skills.split(',').map((skill, index) => (
+                                    <span key={index} className="text-[7px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-white/60">{skill.trim()}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+
+                      {/* 🌐 ENLACES DE REFERENCIA EXTRACTOR */}
+                      {(() => {
+                        const urls = extractUrls(selectedPost.contenido);
+                        if (urls.length > 0) {
+                          return (
+                            <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-3">
+                              <p className="text-[8px] font-bold text-[#CCFF00]/80 uppercase tracking-widest">
+                                🔗 Enlaces de Consulta
+                              </p>
+                              <div className="space-y-1.5">
+                                {urls.map((url, index) => {
+                                  let label = url.replace(/https?:\/\/(www\.)?/, '').split('/')[0];
+                                  if (label.length > 25) label = label.substring(0, 22) + '...';
+                                  return (
+                                    <a 
+                                      key={index} 
+                                      href={url} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer" 
+                                      className="flex items-center justify-between p-2 rounded bg-[#CCFF00]/5 border border-[#CCFF00]/10 hover:border-[#CCFF00]/40 text-[#CCFF00] hover:text-white transition-all text-[9px] group"
+                                    >
+                                      <span className="truncate font-semibold">{label}</span>
+                                      <span className="text-[7px] opacity-65 group-hover:opacity-100">&nearr;</span>
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+
+                      {/* 📊 TARJETAS DE ESTADÍSTICAS EXTRAÍDAS */}
+                      {(() => {
+                        const stats = extractStats(selectedPost.contenido);
+                        if (stats.length > 0) {
+                          return (
+                            <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-3">
+                              <p className="text-[8px] font-bold text-white/30 uppercase tracking-widest">
+                                📊 Estadísticas del Post
+                              </p>
+                              <div className="space-y-2">
+                                {stats.map((stat, index) => (
+                                  <div key={index} className="p-2.5 rounded-lg bg-black/40 border border-white/5 text-[9px] text-white/70 leading-snug">
+                                    <div className="font-bold text-[#CCFF00] mb-0.5 text-[8px] uppercase tracking-wider">Dato #{index+1}</div>
+                                    {stat}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
             ) : (
-              <div className="space-y-4 max-w-3xl mx-auto">
+              <div className="space-y-4 max-w-3xl mx-auto animate-in">
                 {forumPosts.map(post => {
                   // Resolver avatar del agente
                   const cleanName = post.autor_nombre.split('(')[0].trim().replace('@', '');
@@ -659,20 +835,26 @@ Responde al usuario: ${userText}`;
                   const avatar = agent?.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=jefe';
                   
                   return (
-                    <div key={post.id} className="p-5 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 transition-all flex gap-4 animate-in">
+                    <div 
+                      key={post.id} 
+                      onClick={() => setSelectedPost(post)}
+                      className="p-5 rounded-xl bg-white/5 border border-white/10 hover:border-[#CCFF00]/30 transition-all flex gap-4 animate-in hover:bg-white/[0.02] cursor-pointer group"
+                    >
                       <img src={avatar} className="w-9 h-9 rounded bg-black flex-shrink-0 border border-white/10" alt="" />
                       <div className="flex-grow min-w-0">
                         <div className="flex items-center justify-between gap-4 mb-1">
-                          <h3 className="font-bold text-[13px] text-[#CCFF00]">{post.titulo}</h3>
-                          <span className="text-[8px] text-white/40">{new Date(post.creado_en).toLocaleDateString()}</span>
+                          <h3 className="font-bold text-[13px] text-white group-hover:text-[#CCFF00] transition-all truncate">{post.titulo}</h3>
+                          <span className="text-[8px] text-white/40 flex-shrink-0">{new Date(post.creado_en).toLocaleDateString()}</span>
                         </div>
-                        <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider mb-3">
-                          Por: {post.autor_nombre} — <span className="text-[#CCFF00]/75">{post.autor_rol}</span>
+                        <p className="text-[8px] text-white/30 font-bold uppercase tracking-wider mb-2">
+                          Por: {post.autor_nombre} — <span className="text-[#CCFF00]/60">{post.autor_rol}</span>
                         </p>
-                        <div 
-                          className="text-[12px] text-white/80 leading-relaxed whitespace-pre-line"
-                          dangerouslySetInnerHTML={{ __html: (window as any).marked && (window as any).marked.parse ? (window as any).marked.parse(post.contenido) : post.contenido }}
-                        />
+                        <p className="text-[11px] text-white/60 leading-relaxed line-clamp-2 mb-3">
+                          {post.contenido.replace(/[#*`_\[\]\(\)]/g, '').substring(0, 160)}...
+                        </p>
+                        <span className="text-[9px] font-black text-[#CCFF00] uppercase tracking-widest flex items-center gap-1 group-hover:translate-x-1 transition-all">
+                          Leer artículo completo &rarr;
+                        </span>
                       </div>
                     </div>
                   );
