@@ -213,9 +213,9 @@ Ejemplo de respuesta si decides publicar:
 
 Responde al usuario: ${userText}`;
 
-           try {
-              // Intento 1: v1beta con google_search
-              let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+            try {
+              // Intento 1: v1beta con gemini-2.5-flash y google_search
+              let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -224,15 +224,15 @@ Responde al usuario: ${userText}`;
                 })
               });
               
-              // Intento 2: fallback a google_search_retrieval si la anterior falla
+              // Intento 2: fallback a gemini-2.0-flash si la anterior falla
               if (!res.ok) {
-                console.warn("Fallo con google_search, intentando con google_search_retrieval...");
-                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+                console.warn("Fallo con gemini-2.5-flash, intentando con gemini-2.0-flash...");
+                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ 
                     contents: [{ parts: [{ text: promptText }] }],
-                    tools: [{ google_search_retrieval: { dynamic_retrieval_config: { mode: "MODE_DYNAMIC", dynamic_threshold: 0.3 } } }]
+                    tools: [{ google_search: {} }]
                   })
                 });
               }
@@ -240,7 +240,7 @@ Responde al usuario: ${userText}`;
               // Intento 3: fallback sin herramientas si sigue fallando
               if (!res.ok) {
                 console.warn("Fallo con herramientas, ejecutando llamada simple...");
-                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ 
