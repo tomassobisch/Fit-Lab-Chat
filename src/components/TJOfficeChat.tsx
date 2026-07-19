@@ -286,6 +286,37 @@ export const TJOfficeChat: React.FC = () => {
     } catch (e) {}
   };
 
+  const insertAndAddMessage = async (msg: {
+    remitente_tipo: 'usuario' | 'agente';
+    remitente_id: string;
+    texto: string;
+    canal: string;
+  }) => {
+    try {
+      const { data, error } = await supabase.from('tj_mensajes').insert([msg]).select();
+      if (!error && data?.[0]) {
+        setMensajes(prev => {
+          if (prev.some(m => m.id === data[0].id)) return prev;
+          return [...prev, data[0] as Mensaje];
+        });
+        return data[0] as Mensaje;
+      }
+    } catch (e) {
+      console.warn("Error inserting message, fallbacks to local state", e);
+    }
+    
+    const localMsg: Mensaje = {
+      id: `msg-fallback-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      remitente_tipo: msg.remitente_tipo,
+      remitente_id: msg.remitente_id,
+      texto: msg.texto,
+      canal: msg.canal,
+      creado_en: new Date().toISOString()
+    };
+    setMensajes(prev => [...prev, localMsg]);
+    return localMsg;
+  };
+
   const fetchData = async () => {
     setIsSyncing(true);
     try {
@@ -519,14 +550,12 @@ Responde al usuario.`;
       ? `¡Hola jefe! He completado mi investigación en internet sobre **"${nicho}"** (${subnicho}). He publicado el artículo de tendencias titulado: **"${publishData.titulo}"** en el foro de discusión con enlaces reales y estadísticas de 2026.`
       : aiText;
 
-    try {
-      await supabase.from('tj_mensajes').insert([{
-        remitente_tipo: 'agente',
-        remitente_id: agent.id,
-        texto: statusMsgText,
-        canal: '#general'
-      }]);
-    } catch(err){}
+    await insertAndAddMessage({
+      remitente_tipo: 'agente',
+      remitente_id: agent.id,
+      texto: statusMsgText,
+      canal: '#general'
+    });
 
     if (publishData) {
       const newPost = {
@@ -570,14 +599,12 @@ Responde al usuario.`;
     
     if (researchAgent === 'all') {
       setResearchStatus('Inicializando la ronda de agentes...');
-      try {
-        await supabase.from('tj_mensajes').insert([{
-          remitente_tipo: 'usuario',
-          remitente_id: '00000000-0000-0000-0000-000000000000',
-          texto: `[SISTEMA]: Iniciando Ronda de Investigación y Publicación de Foros. Los agentes buscarán en internet sobre ${topicDisplay} en 2026.`,
-          canal: '#general'
-        }]);
-      } catch(e){}
+      await insertAndAddMessage({
+        remitente_tipo: 'usuario',
+        remitente_id: '00000000-0000-0000-0000-000000000000',
+        texto: `[SISTEMA]: Iniciando Ronda de Investigación y Publicación de Foros. Los agentes buscarán en internet sobre ${topicDisplay} en 2026.`,
+        canal: '#general'
+      });
 
       for (let i = 0; i < agentes.length; i++) {
         const agent = agentes[i];
@@ -596,14 +623,12 @@ Responde al usuario.`;
       const selectedAg = agentes.find(a => a.id === researchAgent || a.nickname === researchAgent);
       if (selectedAg) {
         setResearchStatus(`Investigando: @${selectedAg.nickname} (${selectedAg.rol}) buscando en internet...`);
-        try {
-          await supabase.from('tj_mensajes').insert([{
-            remitente_tipo: 'usuario',
-            remitente_id: '00000000-0000-0000-0000-000000000000',
-            texto: `[SISTEMA]: @${selectedAg.nickname} inicia investigación en internet sobre ${topicDisplay}.`,
-            canal: '#general'
-          }]);
-        } catch(e){}
+        await insertAndAddMessage({
+          remitente_tipo: 'usuario',
+          remitente_id: '00000000-0000-0000-0000-000000000000',
+          texto: `[SISTEMA]: @${selectedAg.nickname} inicia investigación en internet sobre ${topicDisplay}.`,
+          canal: '#general'
+        });
 
         try {
           await executeSingleAgentResearch(selectedAg, researchTopic);
@@ -616,14 +641,12 @@ Responde al usuario.`;
     setResearchProgress(100);
     setResearchStatus('¡Investigación finalizada!');
     
-    try {
-      await supabase.from('tj_mensajes').insert([{
-        remitente_tipo: 'usuario',
-        remitente_id: '00000000-0000-0000-0000-000000000000',
-        texto: `[SISTEMA]: Investigación finalizada. Nuevos datos publicados en el Foro.`,
-        canal: '#general'
-      }]);
-    } catch(e){}
+    await insertAndAddMessage({
+      remitente_tipo: 'usuario',
+      remitente_id: '00000000-0000-0000-0000-000000000000',
+      texto: `[SISTEMA]: Investigación finalizada. Nuevos datos publicados en el Foro.`,
+      canal: '#general'
+    });
 
     setTimeout(() => {
       setIsResearching(false);
@@ -762,12 +785,12 @@ El sistema de IA está offline en este momento debido a un límite de cuota o fa
     setTimeout(() => setIsSending(false), 5000);
 
     try {
-      const { data } = await supabase.from('tj_mensajes').insert([{
-        remitente_tipo: 'usuario', remitente_id: '00000000-0000-0000-0000-000000000000',
-        texto: userText, canal: '#general'
-      }]).select();
-
-      if (data?.[0]) setMensajes(prev => [...prev, data[0] as Mensaje]);
+      await insertAndAddMessage({
+      remitente_tipo: 'usuario',
+      remitente_id: '00000000-0000-0000-0000-000000000000',
+      texto: userText,
+      canal: '#general'
+    });
 
       // Detectar si se menciona a algún agente en particular (ej: @Programador)
       const mentionRegex = /@([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_.]+)/i;
@@ -924,9 +947,31 @@ Responde al usuario: ${userText}`;
           }
         }
 
-        await supabase.from('tj_mensajes').insert([{
-          remitente_tipo: 'agente', remitente_id: agent.id, texto: aiText, canal: '#general'
-        }]);
+        const newAgentMsg = {
+          remitente_tipo: 'agente' as const,
+          remitente_id: agent.id,
+          texto: aiText,
+          canal: '#general'
+        };
+
+        try {
+          const { data: insMsg } = await supabase.from('tj_mensajes').insert([newAgentMsg]).select();
+          if (insMsg?.[0]) {
+            setMensajes(prev => [...prev, insMsg[0] as Mensaje]);
+          } else {
+            setMensajes(prev => [...prev, {
+              id: `msg-agent-${Date.now()}`,
+              ...newAgentMsg,
+              creado_en: new Date().toISOString()
+            } as Mensaje]);
+          }
+        } catch (dbErr) {
+          setMensajes(prev => [...prev, {
+            id: `msg-agent-${Date.now()}`,
+            ...newAgentMsg,
+            creado_en: new Date().toISOString()
+          } as Mensaje]);
+        }
 
         // Si se extrajo un post del foro, publicarlo automáticamente
         if (publishData) {
