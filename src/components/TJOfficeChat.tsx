@@ -132,6 +132,7 @@ export const TJOfficeChat: React.FC = () => {
   // NUEVOS ESTADOS PARA INVESTIGACIÓN Y RONDAS
   const [isResearching, setIsResearching] = useState(false);
   const [researchTopic, setResearchTopic] = useState('');
+  const [researchAgent, setResearchAgent] = useState<string>('all');
   const [showResearchModal, setShowResearchModal] = useState(false);
   const [researchStatus, setResearchStatus] = useState<string>('');
   const [researchProgress, setResearchProgress] = useState<number>(0);
@@ -393,43 +394,62 @@ Responde al usuario.`;
     if (isResearching) return;
     setIsResearching(true);
     setResearchProgress(0);
-    setResearchStatus('Inicializando la ronda de agentes...');
     
-    // Publicar un mensaje de sistema en el chat
     const topicDisplay = researchTopic.trim() ? `"${researchTopic.trim()}"` : 'temas asignados por especialidad';
-    try {
-      await supabase.from('tj_mensajes').insert([{
-        remitente_tipo: 'usuario',
-        remitente_id: '00000000-0000-0000-0000-000000000000',
-        texto: `[SISTEMA]: Iniciando Ronda de Investigación y Publicación de Foros. Los agentes buscarán en internet sobre ${topicDisplay} en 2026.`,
-        canal: '#general'
-      }]);
-    } catch(e){}
-
-    // Ejecutar agentes en secuencia
-    for (let i = 0; i < agentes.length; i++) {
-      const agent = agentes[i];
-      const prog = Math.round((i / agentes.length) * 100);
-      setResearchProgress(prog);
-      setResearchStatus(`Investigando: @${agent.nickname} (${agent.rol}) buscando en internet...`);
-      
+    
+    if (researchAgent === 'all') {
+      setResearchStatus('Inicializando la ronda de agentes...');
       try {
-        await executeSingleAgentResearch(agent, researchTopic);
-      } catch (err: any) {
-        console.error(`Error en investigación de @${agent.nickname}:`, err);
+        await supabase.from('tj_mensajes').insert([{
+          remitente_tipo: 'usuario',
+          remitente_id: '00000000-0000-0000-0000-000000000000',
+          texto: `[SISTEMA]: Iniciando Ronda de Investigación y Publicación de Foros. Los agentes buscarán en internet sobre ${topicDisplay} en 2026.`,
+          canal: '#general'
+        }]);
+      } catch(e){}
+
+      for (let i = 0; i < agentes.length; i++) {
+        const agent = agentes[i];
+        const prog = Math.round((i / agentes.length) * 100);
+        setResearchProgress(prog);
+        setResearchStatus(`Investigando: @${agent.nickname} (${agent.rol}) buscando en internet...`);
+        
+        try {
+          await executeSingleAgentResearch(agent, researchTopic);
+        } catch (err: any) {
+          console.error(`Error en investigación de @${agent.nickname}:`, err);
+        }
+        await new Promise(r => setTimeout(r, 2000));
       }
-      // Pequeño descanso entre agentes para evitar rate-limits
-      await new Promise(r => setTimeout(r, 2000));
+    } else {
+      const selectedAg = agentes.find(a => a.id === researchAgent || a.nickname === researchAgent);
+      if (selectedAg) {
+        setResearchStatus(`Investigando: @${selectedAg.nickname} (${selectedAg.rol}) buscando en internet...`);
+        try {
+          await supabase.from('tj_mensajes').insert([{
+            remitente_tipo: 'usuario',
+            remitente_id: '00000000-0000-0000-0000-000000000000',
+            texto: `[SISTEMA]: @${selectedAg.nickname} inicia investigación en internet sobre ${topicDisplay}.`,
+            canal: '#general'
+          }]);
+        } catch(e){}
+
+        try {
+          await executeSingleAgentResearch(selectedAg, researchTopic);
+        } catch (err: any) {
+          console.error(`Error en investigación de @${selectedAg.nickname}:`, err);
+        }
+      }
     }
 
     setResearchProgress(100);
-    setResearchStatus('¡Ronda de investigación finalizada!');
+    setResearchStatus('¡Investigación finalizada!');
     
     try {
       await supabase.from('tj_mensajes').insert([{
         remitente_tipo: 'usuario',
         remitente_id: '00000000-0000-0000-0000-000000000000',
-        texto: `[SISTEMA]: Ronda finalizada. Se han publicado nuevos análisis e informes detallados en el Foro de Tendencias.`,
+        texto: `[SISTEMA]: Investigación finalizada. Nuevos datos publicados en el Foro.`,
         canal: '#general'
       }]);
     } catch(e){}
@@ -438,6 +458,7 @@ Responde al usuario.`;
       setIsResearching(false);
       setShowResearchModal(false);
       setResearchTopic('');
+      setResearchAgent('all');
       fetchData(); // Recargar todo
     }, 2000);
   };
@@ -831,7 +852,10 @@ Responde al usuario: ${userText}`;
               </div>
               <div className="flex items-center gap-1.5 opacity-40 group-hover/agent:opacity-100 transition-opacity">
                 <button 
-                  onClick={() => executeSingleAgentResearch(a, '')}
+                  onClick={() => {
+                    setResearchAgent(a.id);
+                    setShowResearchModal(true);
+                  }}
                   disabled={isResearching || isSending || isTyping !== null}
                   className="text-white hover:text-[#CCFF00] transition-colors disabled:opacity-30 disabled:hover:text-white/40"
                   title="Buscar en internet y publicar"
@@ -1275,8 +1299,22 @@ Responde al usuario: ${userText}`;
             </div>
             <div className="space-y-4">
               <p className="text-[11px] text-white/60 leading-relaxed">
-                Los 5 agentes colaboradores buscarán en tiempo real en internet usando <strong>Google Search Grounding</strong>. Escribe un tema para enfocar la investigación o déjalo en blanco para usar sus temas predeterminados.
+                Los agentes colaboradores buscarán en tiempo real en internet usando <strong>Google Search Grounding</strong>. Elige si quieres consultar a todos o a un especialista específico.
               </p>
+              <div>
+                <label className="text-[8px] text-white/30 font-bold block mb-1.5 uppercase tracking-widest">Agente Investigador</label>
+                <select 
+                  value={researchAgent}
+                  onChange={(e) => setResearchAgent(e.target.value)}
+                  disabled={isResearching}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3.5 text-base md:text-xs text-white focus:border-[#CCFF00]/40 outline-none"
+                >
+                  <option value="all" className="bg-[#0A0A0A]">Todos los agentes (Ronda completa)</option>
+                  {agentes.map(a => (
+                    <option key={a.id} value={a.id} className="bg-[#0A0A0A]">@{a.nickname} — {a.rol}</option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="text-[8px] text-white/30 font-bold block mb-1.5 uppercase tracking-widest">Tema de Investigación Especializada (Opcional)</label>
                 <input 
@@ -1294,7 +1332,7 @@ Responde al usuario: ${userText}`;
                 className="w-full bg-indigo-600 text-white font-black py-4 rounded text-[10px] tracking-widest hover:bg-indigo-500 transition-all uppercase flex items-center justify-center gap-2 shadow-[0_0_15px_#6366F122] disabled:opacity-50"
               >
                 <RefreshCw size={12} className={isResearching ? 'animate-spin' : ''} />
-                <span>INICIAR RONDA DE AGENTES</span>
+                <span>{isResearching ? 'PROCESANDO...' : (researchAgent === 'all' ? 'INICIAR RONDA COMPLETA' : 'INICIAR INVESTIGACIÓN')}</span>
               </button>
             </div>
           </div>
