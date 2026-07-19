@@ -1634,7 +1634,7 @@ Responde al usuario: ${userText}`;
       {/* MODAL PERFIL DETALLADO DE AGENTE / JEFE */}
       {profileToShow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in">
-          <div className="w-full max-w-lg bg-[#0A0A0A] border border-white/10 rounded-2xl overflow-hidden shadow-2xl relative flex flex-col md:flex-row">
+          <div className="w-full max-w-2xl bg-[#0A0A0A] border border-white/10 rounded-2xl overflow-hidden shadow-2xl relative flex flex-col md:flex-row">
             {/* Botón Cerrar */}
             <button 
               onClick={() => setProfileToShow(null)} 
@@ -1643,18 +1643,18 @@ Responde al usuario: ${userText}`;
               <X size={14}/>
             </button>
 
-            {/* Panel Izquierdo: Avatar y Rol */}
-            <div className="md:w-2/5 bg-white/[0.02] border-b md:border-b-0 md:border-r border-white/10 p-6 flex flex-col items-center justify-center text-center">
-              <div className="relative mb-4 group">
+            {/* Panel Izquierdo: Avatar y Rol (Agrandado) */}
+            <div className="md:w-[45%] bg-white/[0.02] border-b md:border-b-0 md:border-r border-white/10 p-8 flex flex-col items-center justify-center text-center">
+              <div className="relative mb-6 group">
                 <img 
                   src={profileToShow.avatar_url} 
-                  className="w-24 h-24 rounded-2xl bg-black border border-white/15 shadow-[0_0_20px_rgba(204,255,0,0.15)] object-cover group-hover:scale-105 transition-all duration-300" 
+                  className="w-36 h-36 md:w-52 md:h-52 rounded-2xl bg-black border border-white/15 shadow-[0_0_30px_rgba(204,255,0,0.25)] object-cover group-hover:scale-[1.02] transition-all duration-300" 
                   alt="" 
                 />
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#CCFF00] border-2 border-black" />
+                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#CCFF00] border-2 border-black" />
               </div>
-              <h3 className="font-black text-sm text-white">@{profileToShow.nickname}</h3>
-              <p className="text-[10px] text-[#CCFF00] font-bold uppercase tracking-wider mt-1">{profileToShow.rol}</p>
+              <h3 className="font-black text-base text-white">@{profileToShow.nickname}</h3>
+              <p className="text-[10px] text-[#CCFF00] font-bold uppercase tracking-wider mt-1.5">{profileToShow.rol}</p>
               <p className="text-[9px] text-white/40 mt-1 font-mono">{profileToShow.nombre}</p>
             </div>
 
