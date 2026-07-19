@@ -8,11 +8,11 @@ const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_0pFvPE
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const mapping = [
-  { nickname: 'Programador', avatar_url: '/avatars/1.png' },
-  { nickname: 'CommunityManager', avatar_url: '/avatars/2.png' },
-  { nickname: 'Legal', avatar_url: '/avatars/3.png' },
-  { nickname: 'Data', avatar_url: '/avatars/4.png' },
-  { nickname: 'Strategist', avatar_url: '/avatars/5.png' }
+  { nickname: 'Programador', avatar_url: '/avatars/programador.png' },
+  { nickname: 'CommunityManager', avatar_url: '/avatars/communitymanager.png' },
+  { nickname: 'Legal', avatar_url: '/avatars/legal.png' },
+  { nickname: 'Data', avatar_url: '/avatars/dataanalyst.png' },
+  { nickname: 'Strategist', avatar_url: '/avatars/strategist.png' }
 ];
 
 async function updateAvatars() {

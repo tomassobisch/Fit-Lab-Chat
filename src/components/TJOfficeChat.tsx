@@ -137,6 +137,80 @@ export const TJOfficeChat: React.FC = () => {
   const [researchStatus, setResearchStatus] = useState<string>('');
   const [researchProgress, setResearchProgress] = useState<number>(0);
 
+  // ESTADO PARA MOSTRAR PERFIL DETALLADO DE AGENTES/JEFE
+  const [profileToShow, setProfileToShow] = useState<{
+    nombre: string;
+    nickname: string;
+    rol: string;
+    avatar_url: string;
+    skills: string;
+    cualidades: string;
+    dedicacion: string;
+    suma: string;
+  } | null>(null);
+
+  const handleOpenProfile = (agent: Agente) => {
+    let cualidades = '';
+    let dedicacion = '';
+    let suma = '';
+
+    switch (agent.nickname.toLowerCase()) {
+      case 'programador':
+        cualidades = 'Lógica implacable, velocidad de desarrollo extrema, resolutivo frente a bugs complejos y orientado a rendimiento de sistemas.';
+        dedicacion = 'Diseña e implementa el código base del ecosistema, integraciones de IA (Gemini API), automatizaciones con n8n y persistencia en bases de datos.';
+        suma = 'Acelera la entrega de nuevas características, garantiza que la app escale y funcione en producción sin caídas, y automatiza procesos internos del equipo.';
+        break;
+      case 'communitymanager':
+        cualidades = 'Empatía con el usuario, creatividad visual desbordante, gran redacción persuasiva y analítica de conversión.';
+        dedicacion = 'Analiza las redes sociales del sector fitness, gestiona la comunicación corporativa, planifica campañas de captación y redacta posts informativos de alta conversión.';
+        suma = 'Atrae nuevos prospectos calificados, mejora el posicionamiento orgánico en Google de TJ FITLAB y crea una comunidad fiel y activa alrededor del fitness y la salud.';
+        break;
+      case 'legal':
+        cualidades = 'Precisión analítica absoluta, previsión de riesgos regulatorios, ética profesional intachable y redacción minuciosa.';
+        dedicacion = 'Vela por el cumplimiento de las normativas legales, redacta políticas de privacidad para la app, diseña los contratos de proveedores/colaboradores y previene litigios.';
+        suma = 'Protege legalmente a TJ FITLAB contra reclamaciones o multas millonarias de datos, y proporciona una base regulatoria segura para todas las operaciones y servicios digitales.';
+        break;
+      case 'data':
+        cualidades = 'Pensamiento analítico profundo, objetividad matemática, habilidad para encontrar patrones invisibles en masas de datos.';
+        dedicacion = 'Monitoriza el comportamiento de los usuarios en la app, analiza estadísticas de uso, genera previsiones de negocio y reporta métricas clave de retención y conversión.';
+        suma = 'Permite tomar decisiones de negocio basadas en datos reales y no en intuiciones, optimizando las tarifas, los programas de entrenamiento y la retención de clientes.';
+        break;
+      case 'strategist':
+        cualidades = 'Visión holística, liderazgo organizativo, perfeccionista con la calidad del producto y excelente mediador.';
+        dedicacion = 'Coordina los sprints de desarrollo, planifica las fases del proyecto, valida la calidad de las entregas antes del lanzamiento y diseña la estrategia competitiva de FITLAB.';
+        suma = 'Evita cuellos de botella en el equipo, asegura que el producto se entregue a tiempo con calidad prémium y alinea los objetivos del software con la visión comercial de la empresa.';
+        break;
+      default:
+        cualidades = 'Especialista proactivo enfocado en el crecimiento y optimización deportiva.';
+        dedicacion = 'Aporta conocimientos de su área específica de deportes y salud para la mejora técnica.';
+        suma = 'Enriquece el criterio del equipo y aporta valor científico al ecosistema de TJ FITLAB.';
+    }
+
+    setProfileToShow({
+      nombre: agent.nombre,
+      nickname: agent.nickname,
+      rol: agent.rol,
+      avatar_url: agent.avatar_url,
+      skills: agent.skills,
+      cualidades,
+      dedicacion,
+      suma
+    });
+  };
+
+  const handleOpenJefeProfile = () => {
+    setProfileToShow({
+      nombre: 'Administrador General',
+      nickname: 'Jefe',
+      rol: 'CEO y Director General',
+      avatar_url: '/avatars/jefe.png',
+      skills: 'Liderazgo Estratégico, Toma de Decisiones, Finanzas, Negociación, Visión de Negocio',
+      cualidades: 'Visión de futuro, capacidad de inspirar al equipo, toma de decisiones rápidas y asertivas bajo presión.',
+      dedicacion: 'Dirige el rumbo comercial de la empresa, aprueba las iniciativas estratégicas propuestas por los agentes, gestiona los recursos clave y lidera la expansión del ecosistema FITLAB.',
+      suma: 'Es el motor y la visión detrás de la compañía, alinea los objetivos del software con la visión comercial para liderar el sector fitness.'
+    });
+  };
+
   const speakMessage = (text: string, nickname: string) => {
     if (!isVoiceEnabled || !window.speechSynthesis) return;
     try {
@@ -905,9 +979,9 @@ Responde al usuario: ${userText}`;
           <span className="text-[9px] font-bold text-white/40 tracking-widest uppercase">Especialistas IA</span>
           {agentes.map(a => (
             <div key={a.id} className="flex items-center gap-3 p-2.5 rounded bg-white/5 border border-white/5 relative group/agent">
-              <div className="relative">
-                <img src={a.avatar_url} className="w-7 h-7 rounded bg-black" alt="" />
-                <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#CCFF00]" />
+              <div className="relative cursor-pointer" onClick={() => handleOpenProfile(a)} title="Ver perfil del especialista">
+                <img src={a.avatar_url} className="w-10 h-10 rounded bg-black border border-white/10 hover:border-[#CCFF00] transition-all object-cover" alt="" />
+                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#CCFF00] border border-black" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-[10px] truncate">@{a.nickname}</p>
@@ -1109,15 +1183,37 @@ Responde al usuario: ${userText}`;
           <>
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-8 space-y-4 scrollbar-hide">
               {mensajes.map(m => (
-                <div key={m.id} className={`flex gap-3 max-w-3xl mx-auto animate-in ${m.remitente_tipo === 'agente' ? 'bg-white/5 border border-white/5 p-3 rounded-lg' : ''}`}>
-                  <div className={`w-6 h-6 rounded flex items-center justify-center text-[8px] font-bold ${m.remitente_tipo === 'agente' ? 'bg-[#CCFF00] text-black shadow-[0_0_10px_#CCFF0044]' : 'bg-white/10 text-white'}`}>{m.remitente_tipo === 'agente' ? 'AI' : 'OP'}</div>
+                <div key={m.id} className={`flex gap-3 max-w-3xl mx-auto animate-in items-start ${m.remitente_tipo === 'agente' ? 'bg-white/5 border border-white/5 p-3.5 rounded-lg' : ''}`}>
+                  <img 
+                    src={m.remitente_tipo === 'agente' ? (agentes.find(a => a.id === m.remitente_id)?.avatar_url || '/avatars/programador.png') : '/avatars/jefe.png'} 
+                    onClick={() => {
+                      if (m.remitente_tipo === 'agente') {
+                        const ag = agentes.find(a => a.id === m.remitente_id);
+                        if (ag) handleOpenProfile(ag);
+                      } else {
+                        handleOpenJefeProfile();
+                      }
+                    }}
+                    className="w-8 h-8 rounded bg-black border border-white/10 cursor-pointer hover:border-[#CCFF00] transition-all object-cover flex-shrink-0" 
+                    title="Ver perfil"
+                    alt="" 
+                  />
                   <div className="flex-1 min-w-0">
                     <p className="text-[9px] font-bold text-white/40 uppercase mb-1">{m.remitente_tipo === 'agente' ? agentes.find(a => a.id === m.remitente_id)?.nombre : 'Jefe'}</p>
                     <p className={`text-[12px] leading-relaxed break-words ${m.remitente_tipo === 'agente' ? 'text-[#CCFF00]/90' : 'text-white/80'}`}>{m.texto}</p>
                   </div>
                 </div>
               ))}
-              {isTyping && <div className="flex gap-3 max-w-3xl mx-auto"><div className="w-6 h-6 rounded bg-[#CCFF00] text-black flex items-center justify-center text-[8px] font-bold shadow-[0_0_10px_#CCFF0044]">...</div><div className="flex-1 p-3 rounded-lg bg-white/5 border border-white/5 animate-pulse">Pensando...</div></div>}
+              {isTyping && (
+                <div className="flex gap-3 max-w-3xl mx-auto items-start">
+                  <div className="w-8 h-8 rounded bg-[#CCFF00] text-black flex items-center justify-center text-[10px] font-black shadow-[0_0_10px_#CCFF0044] animate-pulse flex-shrink-0">
+                    AI
+                  </div>
+                  <div className="flex-1 p-3.5 rounded-lg bg-white/5 border border-white/5 animate-pulse text-[12px] text-white/50">
+                    Redactando respuesta...
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-4 md:p-6 bg-black border-t border-white/10">
@@ -1224,9 +1320,15 @@ Responde al usuario: ${userText}`;
                     <img 
                       src={
                         agentes.find(a => selectedPost.autor_nombre.toLowerCase().includes(a.nombre.toLowerCase()) || selectedPost.autor_nombre.toLowerCase().includes(a.nickname.toLowerCase()))?.avatar_url || 
-                        '/avatars/6.png'
+                        '/avatars/jefe.png'
                       } 
-                      className="w-12 h-12 rounded bg-black border border-white/10 shadow-[0_0_10px_#CCFF0011] flex-shrink-0" 
+                      onClick={() => {
+                        const ag = agentes.find(a => selectedPost.autor_nombre.toLowerCase().includes(a.nombre.toLowerCase()) || selectedPost.autor_nombre.toLowerCase().includes(a.nickname.toLowerCase()));
+                        if (ag) handleOpenProfile(ag);
+                        else handleOpenJefeProfile();
+                      }}
+                      className="w-12 h-12 rounded bg-black border border-white/10 shadow-[0_0_10px_#CCFF0011] flex-shrink-0 cursor-pointer hover:border-[#CCFF00] transition-all object-cover" 
+                      title="Ver perfil"
                       alt="" 
                     />
                     <div className="min-w-0">
@@ -1261,9 +1363,15 @@ Responde al usuario: ${userText}`;
                           <img 
                             src={
                               agentes.find(a => selectedPost.autor_nombre.toLowerCase().includes(a.nombre.toLowerCase()) || selectedPost.autor_nombre.toLowerCase().includes(a.nickname.toLowerCase()))?.avatar_url || 
-                              '/avatars/6.png'
+                              '/avatars/jefe.png'
                             } 
-                            className="w-9 h-9 rounded bg-black border border-white/10 flex-shrink-0" 
+                            onClick={() => {
+                              const ag = agentes.find(a => selectedPost.autor_nombre.toLowerCase().includes(a.nombre.toLowerCase()) || selectedPost.autor_nombre.toLowerCase().includes(a.nickname.toLowerCase()));
+                              if (ag) handleOpenProfile(ag);
+                              else handleOpenJefeProfile();
+                            }}
+                            className="w-9 h-9 rounded bg-black border border-white/10 flex-shrink-0 cursor-pointer hover:border-[#CCFF00] transition-all object-cover" 
+                            title="Ver perfil"
                             alt="" 
                           />
                           <div className="min-w-0">
@@ -1355,15 +1463,25 @@ Responde al usuario: ${userText}`;
                   // Resolver avatar del agente
                   const cleanName = post.autor_nombre.split('(')[0].trim().replace('@', '');
                   const agent = agentes.find(a => a.nickname.toLowerCase() === cleanName.toLowerCase() || a.nombre.toLowerCase() === cleanName.toLowerCase());
-                  const avatar = agent?.avatar_url || '/avatars/6.png';
+                  const avatar = agent?.avatar_url || '/avatars/jefe.png';
                   
                   return (
                     <div 
                       key={post.id} 
                       onClick={() => setSelectedPost(post)}
-                      className="p-5 rounded-xl bg-white/5 border border-white/10 hover:border-[#CCFF00]/30 transition-all flex gap-4 animate-in hover:bg-white/[0.02] cursor-pointer group"
+                      className="p-5 rounded-xl bg-white/5 border border-white/10 hover:border-[#CCFF00]/30 transition-all flex gap-4 animate-in hover:bg-white/[0.02] cursor-pointer group items-center"
                     >
-                      <img src={avatar} className="w-9 h-9 rounded bg-black flex-shrink-0 border border-white/10" alt="" />
+                      <img 
+                        src={avatar} 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (agent) handleOpenProfile(agent);
+                          else handleOpenJefeProfile();
+                        }}
+                        className="w-12 h-12 rounded bg-black flex-shrink-0 border border-white/10 cursor-pointer hover:border-[#CCFF00] transition-all object-cover" 
+                        title="Ver perfil"
+                        alt="" 
+                      />
                       <div className="flex-grow min-w-0">
                         <div className="flex items-center justify-between gap-4 mb-1">
                           <h3 className="font-bold text-[13px] text-white group-hover:text-[#CCFF00] transition-all truncate">{post.titulo}</h3>
@@ -1508,6 +1626,60 @@ Responde al usuario: ${userText}`;
                 <RefreshCw size={12} className={isResearching ? 'animate-spin' : ''} />
                 <span>{isResearching ? 'PROCESANDO...' : (researchAgent === 'all' ? 'INICIAR RONDA COMPLETA' : 'INICIAR INVESTIGACIÓN')}</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PERFIL DETALLADO DE AGENTE / JEFE */}
+      {profileToShow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in">
+          <div className="w-full max-w-lg bg-[#0A0A0A] border border-white/10 rounded-2xl overflow-hidden shadow-2xl relative flex flex-col md:flex-row">
+            {/* Botón Cerrar */}
+            <button 
+              onClick={() => setProfileToShow(null)} 
+              className="absolute top-4 right-4 z-10 text-white/40 hover:text-white transition-colors bg-black/60 p-1.5 rounded-full"
+            >
+              <X size={14}/>
+            </button>
+
+            {/* Panel Izquierdo: Avatar y Rol */}
+            <div className="md:w-2/5 bg-white/[0.02] border-b md:border-b-0 md:border-r border-white/10 p-6 flex flex-col items-center justify-center text-center">
+              <div className="relative mb-4 group">
+                <img 
+                  src={profileToShow.avatar_url} 
+                  className="w-24 h-24 rounded-2xl bg-black border border-white/15 shadow-[0_0_20px_rgba(204,255,0,0.15)] object-cover group-hover:scale-105 transition-all duration-300" 
+                  alt="" 
+                />
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#CCFF00] border-2 border-black" />
+              </div>
+              <h3 className="font-black text-sm text-white">@{profileToShow.nickname}</h3>
+              <p className="text-[10px] text-[#CCFF00] font-bold uppercase tracking-wider mt-1">{profileToShow.rol}</p>
+              <p className="text-[9px] text-white/40 mt-1 font-mono">{profileToShow.nombre}</p>
+            </div>
+
+            {/* Panel Derecho: Detalles */}
+            <div className="flex-1 p-6 md:p-8 space-y-4 max-h-[70vh] md:max-h-none overflow-y-auto scrollbar-hide text-left">
+              <h4 className="text-xs font-bold uppercase tracking-[0.15em] text-white border-b border-white/5 pb-2">Ficha de Especialista</h4>
+              
+              <div className="space-y-3.5 text-[11px] leading-relaxed">
+                <div>
+                  <span className="text-[8px] text-white/30 font-bold uppercase block tracking-wider">Habilidades y Skills</span>
+                  <p className="text-white/95 mt-0.5 font-mono">{profileToShow.skills}</p>
+                </div>
+                <div>
+                  <span className="text-[8px] text-white/30 font-bold uppercase block tracking-wider">A qué se dedica</span>
+                  <p className="text-white/80 mt-0.5">{profileToShow.dedicacion}</p>
+                </div>
+                <div>
+                  <span className="text-[8px] text-white/30 font-bold uppercase block tracking-wider">Cualidades Clave</span>
+                  <p className="text-white/80 mt-0.5">{profileToShow.cualidades}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-[#CCFF00]/5 border border-[#CCFF00]/15">
+                  <span className="text-[8px] text-[#CCFF00] font-black uppercase block tracking-wider">¿En qué suma para la empresa?</span>
+                  <p className="text-white/95 mt-1 italic">"{profileToShow.suma}"</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
