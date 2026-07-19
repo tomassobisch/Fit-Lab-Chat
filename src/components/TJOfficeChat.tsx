@@ -137,6 +137,11 @@ export const TJOfficeChat: React.FC = () => {
   const [researchStatus, setResearchStatus] = useState<string>('');
   const [researchProgress, setResearchProgress] = useState<number>(0);
 
+  // AUTOCOMPLETE MENCIONES (@)
+  const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
+  const [mentionFilter, setMentionFilter] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
   // ESTADO PARA MOSTRAR PERFIL DETALLADO DE AGENTES/JEFE
   const [profileToShow, setProfileToShow] = useState<{
     nombre: string;
@@ -222,6 +227,53 @@ export const TJOfficeChat: React.FC = () => {
       suma: 'Es el motor y la visión detrás de la compañía, alinea los objetivos del software con la visión comercial para liderar el sector fitness.'
     });
   };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInputText(val);
+
+    const selectionStart = e.target.selectionStart || 0;
+    const textBeforeCursor = val.slice(0, selectionStart);
+    const lastAtOffset = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtOffset !== -1) {
+      const textAfterAt = textBeforeCursor.slice(lastAtOffset + 1);
+      if (!textAfterAt.includes(' ')) {
+        setShowMentionSuggestions(true);
+        setMentionFilter(textAfterAt);
+        return;
+      }
+    }
+    
+    setShowMentionSuggestions(false);
+  };
+
+  const handleSelectMention = (nickname: string) => {
+    const selectionStart = inputRef.current?.selectionStart || 0;
+    const textBeforeCursor = inputText.slice(0, selectionStart);
+    const lastAtOffset = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtOffset !== -1) {
+      const beforeAt = inputText.slice(0, lastAtOffset);
+      const afterCursor = inputText.slice(selectionStart);
+      const newValue = `${beforeAt}@${nickname} ${afterCursor}`;
+      setInputText(newValue);
+      setShowMentionSuggestions(false);
+
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          const newPos = lastAtOffset + nickname.length + 2;
+          inputRef.current.setSelectionRange(newPos, newPos);
+        }
+      }, 50);
+    }
+  };
+
+  const filteredSuggestions = agentes.filter(a => 
+    a.nickname.toLowerCase().includes(mentionFilter.toLowerCase()) ||
+    a.rol.toLowerCase().includes(mentionFilter.toLowerCase())
+  );
 
   const speakMessage = (text: string, nickname: string) => {
     if (!isVoiceEnabled || !window.speechSynthesis) return;
@@ -656,9 +708,23 @@ Responde al usuario.`;
 
       if (data?.[0]) setMensajes(prev => [...prev, data[0] as Mensaje]);
 
-      if (isAutoActive) {
-        setIsTyping("ALL");
-        const agent = agentes[Math.floor(Math.random() * agentes.length)] || agentes[0];
+      // Detectar si se menciona a algún agente en particular (ej: @Programador)
+      const mentionRegex = /@([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_.]+)/i;
+      const mentionMatch = userText.match(mentionRegex);
+      let agentToReply = null;
+      
+      if (mentionMatch) {
+        let nick = mentionMatch[1].toLowerCase();
+        // Limpiar puntuación común del final del nickname si aplica
+        if (nick.endsWith('.') && nick !== 'tecnico deportivo.') {
+          nick = nick.slice(0, -1);
+        }
+        agentToReply = agentes.find(a => a.nickname.toLowerCase() === nick);
+      }
+
+      if (agentToReply || isAutoActive) {
+        const agent = agentToReply || agentes[Math.floor(Math.random() * agentes.length)] || agentes[0];
+        setIsTyping(agent.nickname);
         const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
         let aiText = "";
         let publishData: { titulo: string; contenido: string } | null = null;
@@ -1229,8 +1295,41 @@ Responde al usuario: ${userText}`;
             </div>
 
             <div className="p-4 md:p-6 bg-black border-t border-white/10">
-              <form onSubmit={handleSend} className="max-w-2xl mx-auto relative">
-                <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Instrucción inmediata..." disabled={isSending} className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-4 pr-12 text-base md:text-[12px] text-white focus:border-[#CCFF00]/50 outline-none" />
+               <form onSubmit={handleSend} className="max-w-2xl mx-auto relative">
+                {/* SUGERENCIAS DE MENCIÓN (@) */}
+                {showMentionSuggestions && filteredSuggestions.length > 0 && (
+                  <div className="absolute bottom-full left-0 mb-2 w-64 bg-[#0A0A0A] border border-white/10 rounded-xl overflow-hidden shadow-2xl z-30 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                    <div className="p-2 border-b border-white/5 bg-white/[0.02]">
+                      <span className="text-[8px] text-white/30 font-bold uppercase tracking-wider block">Mencionar Especialista</span>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto scrollbar-hide divide-y divide-white/5">
+                      {filteredSuggestions.map(a => (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => handleSelectMention(a.nickname)}
+                          className="w-full px-3 py-2 flex items-center gap-3.5 hover:bg-[#CCFF00]/5 text-left transition-all group animate-all"
+                        >
+                          <img src={a.avatar_url} className="w-6 h-6 rounded bg-black border border-white/10 group-hover:border-[#CCFF00] object-cover flex-shrink-0" alt="" />
+                          <div className="min-w-0 flex-grow">
+                            <p className="text-[10px] font-bold text-white group-hover:text-[#CCFF00]">@{a.nickname}</p>
+                            <p className="text-[8px] text-white/40 uppercase font-mono tracking-wide truncate">{a.rol}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <input 
+                  type="text" 
+                  ref={inputRef}
+                  value={inputText} 
+                  onChange={handleInputChange} 
+                  placeholder="Escribe tu mensaje... Usa @ para mencionar a un especialista" 
+                  disabled={isSending} 
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-4 pr-12 text-base md:text-[12px] text-white focus:border-[#CCFF00]/50 outline-none transition-all" 
+                />
                 <button type="submit" disabled={!inputText.trim() || isSending} className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-lg bg-[#CCFF00] text-black flex items-center justify-center transition-all"><Send size={16}/></button>
               </form>
             </div>
