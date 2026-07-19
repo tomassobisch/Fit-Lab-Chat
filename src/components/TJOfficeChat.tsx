@@ -690,6 +690,67 @@ Responde al usuario.`;
     }
   }, [reportMarkdown, forumActiveTab, activeView]);
 
+  const generateLocalResponse = (agent: Agente, userText: string) => {
+    const cleanText = userText.toLowerCase().trim();
+    
+    // 1. Detección de Intentos de saludo / presentación
+    const isGreeting = ['hola', 'buenas', 'presentate', 'quien eres', 'quién eres', 'buenos dias', 'buenos días', 'buenas tardes'].some(word => cleanText.includes(word));
+    
+    // 2. Detección de Intentos de investigación / foro / últimas novedades
+    const isResearchQuery = ['investigacion', 'investigación', 'foro', 'ultimo', 'último', 'novedad', 'noticias', 'tendencia', 'tendencias', 'estudio'].some(word => cleanText.includes(word));
+
+    if (isGreeting) {
+      return `¡Hola jefe! Soy @${agent.nickname} (${agent.nombre}), me especializo en **${agent.rol}**. Mis habilidades principales son: *${agent.skills}*. ¿Qué plan estratégico o duda técnica podríamos abordar hoy para TJ FITLAB?`;
+    }
+
+    if (isResearchQuery) {
+      // Obtener los títulos de los últimos posts del foro
+      const postTitles = forumPosts.slice(0, 3).map(p => `- **"${p.titulo}"** (por ${p.autor_nombre})`);
+      if (postTitles.length > 0) {
+        return `¡Hola jefe! He estado revisando nuestra base de datos local y el foro de discusión de TJ FITLAB. Lo último que hemos investigado en materia de fitness y tecnología es:\n\n${postTitles.join('\n')}\n\nActualmente el canal de IA está offline, pero podemos profundizar en cualquiera de estos temas con la información que ya tenemos recopilada.`;
+      } else {
+        return `¡Hola jefe! He intentado consultar el foro de investigación, pero aún no hay publicaciones registradas en local. En cuanto restablezcamos la conexión con la IA de Google Search Grounding, realizaré un nuevo escaneo completo.`;
+      }
+    }
+
+    // 3. Fallbacks temáticos específicos por rol
+    switch (agent.nickname.toLowerCase()) {
+      case 'programador':
+        return `¡Hola jefe! Como Ingeniero de Software, recibí tu mensaje: *"${userText}"*. 
+Actualmente el canal de IA está offline (límite de cuota o sin conexión). Sin embargo, en local puedo ayudarte a estructurar el código React, planificar rutas en Node/Express, configurar triggers en Supabase o depurar flujos en n8n. ¿Qué código revisamos?`;
+      
+      case 'communitymanager':
+        return `¡Hola jefe! Aquí @CommunityManager. Recibí tu consulta: *"${userText}"*. 
+La IA está temporalmente en mantenimiento, pero podemos trabajar con herramientas locales: redactar copys persuasivos para Instagram, planificar el calendario de publicaciones semanales o analizar estrategias orgánicas de TikTok. ¿Qué campaña lanzamos hoy?`;
+      
+      case 'legal':
+        return `¡Hola jefe! Reportando desde el departamento de Consultoría Legal. Sobre tu consulta de *"${userText}"*:
+El canal de IA en la nube está inactivo ahora. A nivel local, puedo revisar los términos y condiciones de la app de FITLAB, redactar contratos estándar de confidencialidad (NDA) o asesorarte sobre la legislación GDPR para el almacenamiento de datos biométricos.`;
+      
+      case 'data':
+        return `¡Hola jefe! Al habla tu Analista de Datos. Sobre: *"${userText}"*.
+No tengo conexión con la IA en la nube en este momento. Sin embargo, puedo ayudarte a optimizar consultas SQL locales, estructurar dashboards en Metabase o revisar las estadísticas de retención que tenemos guardadas en las tablas locales de Supabase.`;
+      
+      case 'strategist':
+        return `¡Hola jefe! @Strategist de vuelta. Mensaje recibido: *"${userText}"*.
+El servidor de IA externo está experimentando demoras, así que pasamos a plan local: podemos ordenar el Roadmap de FITLAB para el próximo sprint, definir KPIs de rendimiento del equipo o analizar la viabilidad de nuevos servicios premium boutique.`;
+      
+      case 'tecnico deportivo':
+      case 'tecnico deportivo.':
+        return `¡Hola jefe! Como Técnico Deportivo, he recibido tu duda: *"${userText}"*.
+Actualmente la IA está offline. Pero de forma local, puedo ayudarte a planificar rutinas clásicas de hipertrofia o fuerza, repasar principios de sobrecarga progresiva o estructurar las fases de descarga de entrenamiento. ¿Qué rutina diseñamos?`;
+      
+      case 'auditor deportivo data':
+      case 'auditor fitness':
+        return `¡Hola jefe! Aquí tu Auditor Fitness. He registrado la consulta: *"${userText}"*.
+El canal de IA en la nube no responde temporalmente. A nivel local, podemos revisar los registros de asesoría física para auditar la calidad del servicio de mensajería o planificar las normativas de seguridad de las salas.`;
+      
+      default:
+        return `¡Hola jefe! He recibido tu mensaje: *"${userText}"*. 
+El sistema de IA está offline en este momento debido a un límite de cuota o falta de red. Sin embargo, estoy a tu total disposición para ayudarte con mis conocimientos en **${agent.rol}** y mis habilidades en *${agent.skills}*. ¿Qué podemos hacer hoy?`;
+    }
+  };
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() || isSending) return;
@@ -731,7 +792,7 @@ Responde al usuario.`;
         let publishData: { titulo: string; contenido: string } | null = null;
 
         if (!apiKey) {
-           aiText = "¡Hola jefe! Recibido y procesando. (Aviso: No se detectó la clave VITE_GEMINI_API_KEY en las variables de entorno, por lo que el agente está respondiendo en modo local simulado. Por favor, asegúrate de configurar tu archivo .env y reiniciar el servidor de desarrollo).";
+           aiText = generateLocalResponse(agent, userText);
         } else {
             const promptText = `Eres ${agent.nombre} (rol: ${agent.rol}). 
 Tienes acceso a buscar en internet en tiempo real a través de Google Search. Utilízalo siempre que te pregunten sobre datos actuales, noticias, tendencias o estadísticas del fitness en 2026.
@@ -758,6 +819,9 @@ Si encuentras una tendencia importante de fitness, noticias o estudios científi
 Responde al usuario: ${userText}`;
 
             try {
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 8000);
+              
               // Intento 1: v1beta con gemini-2.5-flash y google_search
               let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
                 method: 'POST',
@@ -765,7 +829,8 @@ Responde al usuario: ${userText}`;
                 body: JSON.stringify({ 
                   contents: [{ parts: [{ text: promptText }] }],
                   tools: [{ google_search: {} }] 
-                })
+                }),
+                signal: controller.signal
               });
               
               // Intento 2: fallback a gemini-2.0-flash si la anterior falla
@@ -777,7 +842,8 @@ Responde al usuario: ${userText}`;
                   body: JSON.stringify({ 
                     contents: [{ parts: [{ text: promptText }] }],
                     tools: [{ google_search: {} }]
-                  })
+                  }),
+                  signal: controller.signal
                 });
               }
               
@@ -789,22 +855,24 @@ Responde al usuario: ${userText}`;
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ 
                     contents: [{ parts: [{ text: promptText }] }]
-                  })
+                  }),
+                  signal: controller.signal
                 });
               }
               
+              clearTimeout(timeoutId);
+
               const resJson = await res.json();
               if (res.ok && resJson.candidates?.[0]?.content?.parts?.[0]?.text) {
                  aiText = resJson.candidates[0].content.parts[0].text;
               } else {
-                 console.error("Gemini API Error details:", resJson);
-                 const errMsg = resJson.error?.message || "Error desconocido";
-                 aiText = `¡Hola jefe! Recibido y procesando. (Error en la respuesta de la API de Gemini: ${errMsg})`;
+                 console.error("Gemini API Error details, using local fallback:", resJson);
+                 aiText = generateLocalResponse(agent, userText);
               }
-           } catch (e: any) {
-              console.error("Gemini Fetch Exception:", e);
-              aiText = `¡Hola jefe! Recibido y procesando. (Error de red/conexión al llamar a Gemini: ${e.message})`;
-           }
+            } catch (e: any) {
+               console.error("Gemini Fetch Exception, using local fallback:", e);
+               aiText = generateLocalResponse(agent, userText);
+            }
         }
 
         // Analizar si el mensaje contiene una instrucción de publicación en el foro
