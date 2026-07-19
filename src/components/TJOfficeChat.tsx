@@ -180,6 +180,18 @@ export const TJOfficeChat: React.FC = () => {
         dedicacion = 'Coordina los sprints de desarrollo, planifica las fases del proyecto, valida la calidad de las entregas antes del lanzamiento y diseña la estrategia competitiva de FITLAB.';
         suma = 'Evita cuellos de botella en el equipo, asegura que el producto se entregue a tiempo con calidad prémium y alinea los objetivos del software con la visión comercial de la empresa.';
         break;
+      case 'tecnico deportivo':
+      case 'tecnico deportivo.':
+        cualidades = 'Pasión por el rendimiento físico, precisión metodológica en entrenamientos, analítico y práctico.';
+        dedicacion = 'Diseña rutinas físicas basadas en ciencia, realiza raspado de datos deportivos (scraping) de competidores y configura alertas de rendimiento.';
+        suma = 'Proporciona el sustento metodológico y científico del entrenamiento físico de FITLAB, aportando valor técnico inmediato a los usuarios.';
+        break;
+      case 'auditor deportivo data':
+      case 'auditor fitness':
+        cualidades = 'Disciplina absoluta, atención minuciosa al detalle, rigor analítico y excelente control de métricas.';
+        dedicacion = 'Realiza auditorías de rendimiento del software y de la calidad del servicio de asesoría física, asegurando el cumplimiento de los estándares establecidos.';
+        suma = 'Garantiza la máxima calidad y seguridad en las asesorías deportivas, evitando errores de planificación física y optimizando los procesos de mensajería interna.';
+        break;
       default:
         cualidades = 'Especialista proactivo enfocado en el crecimiento y optimización deportiva.';
         dedicacion = 'Aporta conocimientos de su área específica de deportes y salud para la mejora técnica.';
@@ -1634,7 +1646,7 @@ Responde al usuario: ${userText}`;
       {/* MODAL PERFIL DETALLADO DE AGENTE / JEFE */}
       {profileToShow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in">
-          <div className="w-full max-w-2xl bg-[#0A0A0A] border border-white/10 rounded-2xl overflow-hidden shadow-2xl relative flex flex-col md:flex-row">
+          <div className="w-full max-w-md bg-[#0A0A0A] border border-white/10 rounded-2xl overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh]">
             {/* Botón Cerrar */}
             <button 
               onClick={() => setProfileToShow(null)} 
@@ -1643,41 +1655,48 @@ Responde al usuario: ${userText}`;
               <X size={14}/>
             </button>
 
-            {/* Panel Izquierdo: Avatar y Rol (Agrandado) */}
-            <div className="md:w-[45%] bg-white/[0.02] border-b md:border-b-0 md:border-r border-white/10 p-8 flex flex-col items-center justify-center text-center">
-              <div className="relative mb-6 group">
-                <img 
-                  src={profileToShow.avatar_url} 
-                  className="w-36 h-36 md:w-52 md:h-52 rounded-2xl bg-black border border-white/15 shadow-[0_0_30px_rgba(204,255,0,0.25)] object-cover group-hover:scale-[1.02] transition-all duration-300" 
-                  alt="" 
-                />
-                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#CCFF00] border-2 border-black" />
+            {/* CONTENIDO SCROLLABLE DE LA FICHA */}
+            <div className="overflow-y-auto p-6 md:p-8 space-y-6 scrollbar-hide">
+              {/* Sección Superior: Imagen en Grande (Centrada) */}
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="relative group">
+                  <img 
+                    src={profileToShow.avatar_url} 
+                    className="w-56 h-56 md:w-72 md:h-72 rounded-2xl bg-black border border-white/15 shadow-[0_0_35px_rgba(204,255,0,0.25)] object-cover transition-transform duration-300" 
+                    alt="" 
+                  />
+                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#CCFF00] border-2 border-black flex items-center justify-center text-[10px] font-bold text-black shadow-lg">
+                    ✓
+                  </div>
+                </div>
+                <div>
+                  <h3 className="font-black text-lg text-white">@{profileToShow.nickname}</h3>
+                  <p className="text-[11px] text-[#CCFF00] font-bold uppercase tracking-wider mt-1">{profileToShow.rol}</p>
+                  <p className="text-[9px] text-white/40 mt-0.5 font-mono">{profileToShow.nombre}</p>
+                </div>
               </div>
-              <h3 className="font-black text-base text-white">@{profileToShow.nickname}</h3>
-              <p className="text-[10px] text-[#CCFF00] font-bold uppercase tracking-wider mt-1.5">{profileToShow.rol}</p>
-              <p className="text-[9px] text-white/40 mt-1 font-mono">{profileToShow.nombre}</p>
-            </div>
 
-            {/* Panel Derecho: Detalles */}
-            <div className="flex-1 p-6 md:p-8 space-y-4 max-h-[70vh] md:max-h-none overflow-y-auto scrollbar-hide text-left">
-              <h4 className="text-xs font-bold uppercase tracking-[0.15em] text-white border-b border-white/5 pb-2">Ficha de Especialista</h4>
-              
-              <div className="space-y-3.5 text-[11px] leading-relaxed">
-                <div>
-                  <span className="text-[8px] text-white/30 font-bold uppercase block tracking-wider">Habilidades y Skills</span>
-                  <p className="text-white/95 mt-0.5 font-mono">{profileToShow.skills}</p>
-                </div>
-                <div>
-                  <span className="text-[8px] text-white/30 font-bold uppercase block tracking-wider">A qué se dedica</span>
-                  <p className="text-white/80 mt-0.5">{profileToShow.dedicacion}</p>
-                </div>
-                <div>
-                  <span className="text-[8px] text-white/30 font-bold uppercase block tracking-wider">Cualidades Clave</span>
-                  <p className="text-white/80 mt-0.5">{profileToShow.cualidades}</p>
-                </div>
-                <div className="p-3 rounded-lg bg-[#CCFF00]/5 border border-[#CCFF00]/15">
-                  <span className="text-[8px] text-[#CCFF00] font-black uppercase block tracking-wider">¿En qué suma para la empresa?</span>
-                  <p className="text-white/95 mt-1 italic">"{profileToShow.suma}"</p>
+              {/* Sección Inferior: Ficha de Información */}
+              <div className="space-y-4 border-t border-white/5 pt-4 text-left">
+                <h4 className="text-xs font-bold uppercase tracking-[0.15em] text-white/80 border-b border-white/5 pb-2">Detalles del Colaborador</h4>
+                
+                <div className="space-y-4 text-[11px] leading-relaxed">
+                  <div>
+                    <span className="text-[8px] text-white/30 font-bold uppercase block tracking-wider">Habilidades y Skills</span>
+                    <p className="text-white/95 mt-0.5 font-mono">{profileToShow.skills}</p>
+                  </div>
+                  <div>
+                    <span className="text-[8px] text-white/30 font-bold uppercase block tracking-wider">A qué se dedica</span>
+                    <p className="text-white/85 mt-0.5">{profileToShow.dedicacion}</p>
+                  </div>
+                  <div>
+                    <span className="text-[8px] text-white/30 font-bold uppercase block tracking-wider">Cualidades Clave</span>
+                    <p className="text-white/85 mt-0.5">{profileToShow.cualidades}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-[#CCFF00]/5 border border-[#CCFF00]/15">
+                    <span className="text-[8px] text-[#CCFF00] font-black uppercase block tracking-wider">¿En qué suma para la empresa?</span>
+                    <p className="text-white/95 mt-1.5 italic">"{profileToShow.suma}"</p>
+                  </div>
                 </div>
               </div>
             </div>

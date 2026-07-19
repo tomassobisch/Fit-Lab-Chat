@@ -12,7 +12,9 @@ const mapping = [
   { nickname: 'CommunityManager', avatar_url: '/avatars/communitymanager.png' },
   { nickname: 'Legal', avatar_url: '/avatars/legal.png' },
   { nickname: 'Data', avatar_url: '/avatars/dataanalyst.png' },
-  { nickname: 'Strategist', avatar_url: '/avatars/strategist.png' }
+  { nickname: 'Strategist', avatar_url: '/avatars/strategist.png' },
+  { nickname: 'Tecnico Deportivo.', avatar_url: '/avatars/tecnicodeportivo.png' },
+  { nickname: 'Auditor Deportivo Data', avatar_url: '/avatars/auditordeportivo.png' }
 ];
 
 async function updateAvatars() {
