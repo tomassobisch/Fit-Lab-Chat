@@ -13,11 +13,11 @@ interface ForumPost {
 }
 
 const INITIAL_AGENTS: Agente[] = [
-  { id: '11111111-1111-1111-1111-111111111111', nombre: 'Senior Dev', nickname: 'Programador', rol: 'Ingeniero de Software', skills: 'React, Python, Supabase', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=code', estado_online: true, creado_en: '' },
-  { id: '22222222-2222-2222-2222-222222222222', nombre: 'Marketing Pro', nickname: 'CommunityManager', rol: 'Marketing', skills: 'Social Media, SEO', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=marketing', estado_online: true, creado_en: '' },
-  { id: '33333333-3333-3333-3333-333333333333', nombre: 'Legal Expert', nickname: 'Legal', rol: 'Consultoría', skills: 'Contratos, Privacidad', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=legal', estado_online: true, creado_en: '' },
-  { id: '44444444-4444-4444-4444-444444444444', nombre: 'Data Analyst', nickname: 'Data', rol: 'Análisis', skills: 'SQL, BI', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=data', estado_online: true, creado_en: '' },
-  { id: '55555555-5555-5555-5555-555555555555', nombre: 'Project Manager', nickname: 'Strategist', rol: 'Estrategia', skills: 'Planning, QA', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=strategy', estado_online: true, creado_en: '' }
+  { id: '11111111-1111-1111-1111-111111111111', nombre: 'Senior Dev', nickname: 'Programador', rol: 'Ingeniero de Software', skills: 'React, Python, Supabase', avatar_url: '/avatars/1.png', estado_online: true, creado_en: '' },
+  { id: '22222222-2222-2222-2222-222222222222', nombre: 'Marketing Pro', nickname: 'CommunityManager', rol: 'Marketing', skills: 'Social Media, SEO', avatar_url: '/avatars/2.png', estado_online: true, creado_en: '' },
+  { id: '33333333-3333-3333-3333-333333333333', nombre: 'Legal Expert', nickname: 'Legal', rol: 'Consultoría', skills: 'Contratos, Privacidad', avatar_url: '/avatars/3.png', estado_online: true, creado_en: '' },
+  { id: '44444444-4444-4444-4444-444444444444', nombre: 'Data Analyst', nickname: 'Data', rol: 'Análisis', skills: 'SQL, BI', avatar_url: '/avatars/4.png', estado_online: true, creado_en: '' },
+  { id: '55555555-5555-5555-5555-555555555555', nombre: 'Project Manager', nickname: 'Strategist', rol: 'Estrategia', skills: 'Planning, QA', avatar_url: '/avatars/5.png', estado_online: true, creado_en: '' }
 ];
 
 const INITIAL_FORUM_POSTS: ForumPost[] = [
@@ -1224,7 +1224,7 @@ Responde al usuario: ${userText}`;
                     <img 
                       src={
                         agentes.find(a => selectedPost.autor_nombre.toLowerCase().includes(a.nombre.toLowerCase()) || selectedPost.autor_nombre.toLowerCase().includes(a.nickname.toLowerCase()))?.avatar_url || 
-                        'https://api.dicebear.com/7.x/avataaars/svg?seed=jefe'
+                        '/avatars/6.png'
                       } 
                       className="w-12 h-12 rounded bg-black border border-white/10 shadow-[0_0_10px_#CCFF0011] flex-shrink-0" 
                       alt="" 
@@ -1261,7 +1261,7 @@ Responde al usuario: ${userText}`;
                           <img 
                             src={
                               agentes.find(a => selectedPost.autor_nombre.toLowerCase().includes(a.nombre.toLowerCase()) || selectedPost.autor_nombre.toLowerCase().includes(a.nickname.toLowerCase()))?.avatar_url || 
-                              'https://api.dicebear.com/7.x/avataaars/svg?seed=jefe'
+                              '/avatars/6.png'
                             } 
                             className="w-9 h-9 rounded bg-black border border-white/10 flex-shrink-0" 
                             alt="" 
@@ -1355,7 +1355,7 @@ Responde al usuario: ${userText}`;
                   // Resolver avatar del agente
                   const cleanName = post.autor_nombre.split('(')[0].trim().replace('@', '');
                   const agent = agentes.find(a => a.nickname.toLowerCase() === cleanName.toLowerCase() || a.nombre.toLowerCase() === cleanName.toLowerCase());
-                  const avatar = agent?.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=jefe';
+                  const avatar = agent?.avatar_url || '/avatars/6.png';
                   
                   return (
                     <div 
