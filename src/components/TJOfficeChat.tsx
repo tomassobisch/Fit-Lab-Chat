@@ -976,18 +976,129 @@ Responde al usuario: ${userText}`;
           </div>
         </header>
  
-        {/* BANNER DE PROGRESO DE INVESTIGACIÓN DE AGENTES */}
+        {/* PANTALLA DE OPERACIONES: AGENTES TRABAJANDO (FULL SCREEN OVERLAY) */}
         {isResearching && (
-          <div className="bg-indigo-950/80 border-b border-indigo-500/30 px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in sticky top-16 z-25 backdrop-blur-md">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <RefreshCw size={12} className="animate-spin text-[#CCFF00] flex-shrink-0" />
-              <p className="text-[10px] font-bold text-white/95 truncate tracking-wide">{researchStatus}</p>
-            </div>
-            <div className="flex items-center gap-3 w-full sm:w-48 flex-shrink-0">
-              <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
-                <div className="bg-[#CCFF00] h-1.5 transition-all duration-500 rounded-full" style={{ width: `${researchProgress}%` }}></div>
+          <div className="absolute inset-x-0 bottom-0 top-16 z-30 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-6 space-y-8 animate-in fade-in duration-300 select-none">
+            {/* Cabecera de la Pantalla */}
+            <div className="text-center space-y-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 text-[9px] font-black uppercase tracking-[0.2em] animate-pulse">
+                <Globe size={10} className="animate-spin text-[#CCFF00]" />
+                <span>Búsqueda en Internet Activa</span>
               </div>
-              <span className="text-[9px] font-extrabold text-[#CCFF00]">{researchProgress}%</span>
+              <h2 className="text-lg md:text-xl font-black tracking-wider text-white">SALA DE OPERACIONES DE AGENTES</h2>
+              <p className="text-[10px] text-white/50 max-w-sm mx-auto">
+                Los especialistas de TJ FITLAB están investigando en la web y redactando sus conclusiones para el foro.
+              </p>
+            </div>
+
+            {/* Visualizador de Agentes */}
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 w-full max-w-4xl px-4">
+              {agentes.map(a => {
+                const isCurrent = researchStatus.includes(`@${a.nickname}`);
+                const isCompleted = (() => {
+                  if (researchAgent !== 'all') {
+                    if (researchProgress === 100) return a.id === researchAgent || a.nickname === researchAgent;
+                    return false;
+                  }
+                  if (researchProgress === 100) return true;
+                  const currentIndex = agentes.findIndex(ag => researchStatus.includes(`@${ag.nickname}`));
+                  if (currentIndex === -1) return false;
+                  const myIndex = agentes.findIndex(ag => ag.id === a.id);
+                  return myIndex < currentIndex;
+                })();
+                const isInactiveInSingle = researchAgent !== 'all' && (a.id !== researchAgent && a.nickname !== researchAgent);
+                
+                return (
+                  <div 
+                    key={a.id} 
+                    className={`p-4 rounded-xl border flex flex-col items-center text-center space-y-3 transition-all duration-500 ${
+                      isCurrent 
+                        ? 'border-[#CCFF00] bg-[#CCFF00]/5 shadow-[0_0_20px_#CCFF0015] scale-105' 
+                        : isCompleted
+                          ? 'border-indigo-500/40 bg-indigo-500/5 opacity-70'
+                          : isInactiveInSingle
+                            ? 'border-white/5 bg-white/[0.01] opacity-20'
+                            : 'border-white/5 bg-white/[0.02] opacity-40'
+                    }`}
+                  >
+                    <div className="relative">
+                      <img src={a.avatar_url} className={`w-12 h-12 rounded bg-black border ${isCurrent ? 'border-[#CCFF00] shadow-[0_0_15px_#CCFF0033]' : 'border-white/10'}`} alt="" />
+                      {isCurrent && (
+                        <div className="absolute inset-0 rounded border-2 border-[#CCFF00] animate-ping opacity-75"></div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-bold text-[10px] text-white">@{a.nickname}</p>
+                      <p className="text-[8px] text-white/40 uppercase font-medium">{a.rol}</p>
+                    </div>
+                    
+                    <div className="text-[9px] font-bold">
+                      {isCurrent ? (
+                        <span className="text-[#CCFF00] animate-pulse flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#CCFF00] animate-ping" />
+                          Buscando...
+                        </span>
+                      ) : isCompleted ? (
+                        <span className="text-indigo-400 flex items-center gap-1">
+                          ✅ Listo
+                        </span>
+                      ) : (
+                        <span className="text-white/20">⏳ Espera</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Barra de Carga */}
+            <div className="w-full max-w-xl space-y-2 px-4">
+              <div className="flex justify-between items-center text-[10px] font-bold text-white/60">
+                <span className="text-[#CCFF00]/90 font-mono tracking-wider uppercase">{researchStatus}</span>
+                <span className="font-mono text-white/80">{researchProgress}%</span>
+              </div>
+              <div className="w-full bg-white/10 rounded-full h-2.5 overflow-hidden border border-white/5 p-0.5">
+                <div className="bg-[#CCFF00] h-1.5 transition-all duration-500 rounded-full shadow-[0_0_10px_#CCFF0088]" style={{ width: `${researchProgress}%` }}></div>
+              </div>
+            </div>
+
+            {/* Consola de Logs */}
+            <div className="w-full max-w-xl bg-black border border-white/10 rounded-lg p-4 h-28 font-mono text-[9px] text-[#CCFF00]/70 overflow-hidden relative shadow-inner">
+              <div className="absolute top-2 right-2 flex gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500/70" />
+                <span className="w-1.5 h-1.5 rounded-full bg-yellow-500/70" />
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500/70" />
+              </div>
+              <div className="space-y-1 overflow-y-auto h-full scrollbar-hide select-text">
+                <p className="text-white/40">&gt; npm run agents:search --topic="{researchTopic || 'default'}" --agent="{researchAgent}"</p>
+                <p className="text-indigo-400">&gt; Conexión de red establecida con éxito. API key activa.</p>
+                {researchAgent !== 'all' ? (
+                  <>
+                    <p>&gt; [SYS] Inicializando agente especializado: @{agentes.find(a => a.id === researchAgent || a.nickname === researchAgent)?.nickname}...</p>
+                    <p>&gt; [SYS] Buscando en internet y analizando fuentes de información de 2026...</p>
+                    {researchProgress === 100 && (
+                      <p className="text-white font-bold animate-pulse">&gt; [SUCCESS] Análisis finalizado e insertado en el foro con referencias.</p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {researchProgress >= 0 && <p>&gt; [SYS] Inicializando sistema de agentes cognitivos...</p>}
+                    {researchProgress >= 10 && <p>&gt; [SYS] @Programador ha iniciado búsqueda de IoT wearables y sensores...</p>}
+                    {researchProgress >= 20 && <p className="text-indigo-300">&gt; [OK] @Programador ha publicado su informe: "Tecnología en Gimnasios 2026"</p>}
+                    {researchProgress >= 40 && <p>&gt; [SYS] @CommunityManager ha iniciado búsqueda de hashtags de TikTok e Instagram...</p>}
+                    {researchProgress >= 50 && <p className="text-indigo-300">&gt; [OK] @CommunityManager ha publicado su informe sobre tendencias virales.</p>}
+                    {researchProgress >= 60 && <p>&gt; [SYS] @Legal ha iniciado búsqueda de regulaciones biométricas...</p>}
+                    {researchProgress >= 70 && <p className="text-[#CCFF00]">&gt; [OK] @Legal ha publicado su informe sobre privacidad de datos en fitness.</p>}
+                    {researchProgress >= 80 && <p>&gt; [SYS] @Data ha iniciado análisis de mercado de competiciones HYROX y Pilates...</p>}
+                    {researchProgress >= 90 && <p className="text-indigo-300">&gt; [OK] @Data ha publicado su informe de cuota de mercado.</p>}
+                    {researchProgress >= 98 && <p>&gt; [SYS] @Strategist ha iniciado planificación de operaciones boutique...</p>}
+                    {researchProgress === 100 && (
+                      <p className="text-white font-bold animate-pulse">&gt; [SUCCESS] Ronda completada. Sincronizando base de datos Supabase...</p>
+                    )}
+                  </>
+                )}
+                <div className="inline-block w-1.5 h-3 bg-[#CCFF00] animate-pulse ml-1 align-middle"></div>
+              </div>
             </div>
           </div>
         )}
