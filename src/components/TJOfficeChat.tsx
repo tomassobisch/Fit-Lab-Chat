@@ -250,15 +250,28 @@ export const TJOfficeChat: React.FC = () => {
     }
 
     const promptText = `Eres ${agent.nombre} (rol: ${agent.rol}). 
-Tienes acceso a buscar en internet en tiempo real a través de Google Search. Utilízalo siempre que te pregunten sobre datos actuales, noticias, tendencias o estadísticas del fitness en 2026.
-SIEMPRE di "¡Hola jefe!" al inicio de tu respuesta.
+Tienes acceso a buscar en internet en tiempo real a través de Google Search. Utilízalo siempre para obtener datos reales, estadísticas y enlaces sobre: ${pregunta}.
+SIEMPRE di "¡Hola jefe!" al inicio de tu respuesta en el chat.
 
-Para esta publicación en el foro sobre "${nicho} - ${subnicho}", investiga lo siguiente: ${pregunta}
+Debes redactar una investigación exhaustiva y detallada de al menos 600 palabras sobre esta tendencia de 2026 para publicarla en el foro.
+Para publicarla, añade al final de tu respuesta EXACTAMENTE esta estructura estructurada en etiquetas de texto plano (NO uses formato JSON para evitar errores de sintaxis):
 
-Debes añadir al final de tu respuesta EXACTAMENTE esta estructura en formato JSON:
-[PUBLISH_POST]: {"titulo": "Título corto y llamativo de la tendencia", "contenido": "Explicación detallada de la tendencia en formato Markdown. Debe ser un artículo completo de al menos 400 palabras. Incluye secciones claras:\\n\\n1. **Resumen de la Tendencia**\\n2. **Estadísticas Clave** (lista con porcentajes o números impactantes)\\n3. **Enlaces de Referencia** (lista con URLs reales encontradas en tu búsqueda en internet en 2026)\\n4. **Aplicación en TJ FITLAB**\\n\\nAgrega imágenes relevantes si encontraste alguna o descripciones enriquecidas."}
+[PUBLISH_TITLE]: Título corto y llamativo de la tendencia de investigación
+[PUBLISH_CONTENT]:
+# Análisis de la Tendencia: [Nombre de la tendencia]
 
-Intenta que el JSON no tenga saltos de línea reales dentro de los valores de texto (usa \\n para saltos de línea y escapa las comillas dobles si es necesario).
+## 1. Resumen de la Investigación
+(Escribe una explicación detallada de al menos 250 palabras explicando el fenómeno, por qué es tendencia en 2026 y su contexto).
+
+## 2. Estadísticas Clave e Impacto Cuantitativo
+(Aporta al menos 3 estadísticas con porcentajes, cuotas de mercado o cifras de negocio reales de tu búsqueda en internet para 2026).
+
+## 3. Enlaces y Fuentes de Referencia
+(Es CRÍTICO que incluyas una lista de URLs reales, completas y activas a los sitios web oficiales que consultaste durante tu búsqueda en Google Search, por ejemplo de Garmin, Whoop, ClassPass, ACSM, PubMed u otras fuentes de noticias/estudios. Formato: - [Nombre del Sitio](https://URL_REAL)).
+
+## 4. Aplicación Estratégica en TJ FITLAB
+(Escribe recomendaciones específicas de cómo TJ FITLAB puede capitalizar esta oportunidad en su app, servicios o marketing).
+
 Responde al usuario.`;
 
     let aiText = '';
@@ -311,35 +324,55 @@ Responde al usuario.`;
     }
 
     // Procesar e insertar post
-    const publishRegex = /\[PUBLISH_POST\]:\s*(\{.*\})/is;
-    const match = aiText.match(publishRegex);
+    // 1. Intentar con formato plano (TITLE/CONTENT)
+    const titlePlainMatch = aiText.match(/\[PUBLISH_TITLE\]:\s*(.*?)(?=\n|\[PUBLISH_CONTENT\]|$)/i);
+    const contentPlainMatch = aiText.match(/\[PUBLISH_CONTENT\]:\s*([\s\S]*)/i);
     
-    if (match) {
-      try {
-        publishData = JSON.parse(match[1]);
-        aiText = aiText.replace(publishRegex, '').trim();
-      } catch (jsonErr) {
-        const titleMatch = match[1].match(/"titulo"\s*:\s*"([\s\S]*?)"\s*(?:,|\n|\})/i);
-        const contentMatch = match[1].match(/"contenido"\s*:\s*"([\s\S]*?)"\s*$/is) || 
-                             match[1].match(/"contenido"\s*:\s*"([\s\S]*?)"\s*\}\s*$/is) ||
-                             match[1].match(/"contenido"\s*:\s*"([\s\S]*?)"\s*(?:\}\s*)?$/is);
-        
-        if (titleMatch && contentMatch) {
-          publishData = {
-            titulo: titleMatch[1].trim(),
-            contenido: contentMatch[1].replace(/\\n/g, '\n').trim()
-          };
-          aiText = aiText.replace(publishRegex, '').trim();
-        }
+    if (titlePlainMatch && contentPlainMatch) {
+      publishData = {
+        titulo: titlePlainMatch[1].trim(),
+        contenido: contentPlainMatch[1].trim()
+      };
+      
+      // Limpiar aiText de los bloques de publicación para la respuesta del chat
+      aiText = aiText.replace(/\[PUBLISH_TITLE\]:[\s\S]*?\[PUBLISH_CONTENT\]:/gi, '')
+                     .replace(contentPlainMatch[0], '')
+                     .trim();
+      if (!aiText) {
+        aiText = `¡Hola jefe! He completado mi investigación sobre la tendencia de "${nicho}" y he publicado el informe en el foro.`;
       }
     } else {
-      // Fallback: si no detectó JSON pero generó buen texto, lo usamos completo
-      if (!aiText.startsWith("¡Hola jefe! He intentado")) {
-        const cleanContent = aiText.replace(/\[PUBLISH_POST\]:?/gi, '').trim();
-        publishData = {
-          titulo: `Investigación: ${nicho} (${agent.nombre})`,
-          contenido: cleanContent
-        };
+      // 2. Intentar con formato JSON heredado
+      const publishRegex = /\[PUBLISH_POST\]:\s*(\{.*\})/is;
+      const match = aiText.match(publishRegex);
+      
+      if (match) {
+        try {
+          publishData = JSON.parse(match[1]);
+          aiText = aiText.replace(publishRegex, '').trim();
+        } catch (jsonErr) {
+          const titleMatch = match[1].match(/"titulo"\s*:\s*"([\s\S]*?)"\s*(?:,|\n|\})/i);
+          const contentMatch = match[1].match(/"contenido"\s*:\s*"([\s\S]*?)"\s*$/is) || 
+                               match[1].match(/"contenido"\s*:\s*"([\s\S]*?)"\s*\}\s*$/is) ||
+                               match[1].match(/"contenido"\s*:\s*"([\s\S]*?)"\s*(?:\}\s*)?$/is);
+          
+          if (titleMatch && contentMatch) {
+            publishData = {
+              titulo: titleMatch[1].trim(),
+              contenido: contentMatch[1].replace(/\\n/g, '\n').trim()
+            };
+            aiText = aiText.replace(publishRegex, '').trim();
+          }
+        }
+      } else {
+        // Fallback: si no detectó etiquetas pero generó buen texto
+        if (!aiText.startsWith("¡Hola jefe! He intentado")) {
+          const cleanContent = aiText.replace(/\[PUBLISH_POST\]:?/gi, '').trim();
+          publishData = {
+            titulo: `Investigación: ${nicho} (${agent.nombre})`,
+            contenido: cleanContent
+          };
+        }
       }
     }
 
@@ -551,13 +584,23 @@ Responde al usuario.`;
 Tienes acceso a buscar en internet en tiempo real a través de Google Search. Utilízalo siempre que te pregunten sobre datos actuales, noticias, tendencias o estadísticas del fitness en 2026.
 SIEMPRE di "¡Hola jefe!" al inicio de tu respuesta.
 
-Si encuentras una tendencia importante de fitness, noticias o estudios científicos recientes, o una oportunidad de negocio/mejora relevante para TJ FITLAB y quieres publicarla en el foro del equipo, debes añadir al final de tu respuesta EXACTAMENTE esta estructura en formato JSON:
-[PUBLISH_POST]: {"titulo": "Título corto y llamativo de la tendencia", "contenido": "Explicación detallada de la tendencia en formato Markdown, incluyendo datos clave, estadísticas encontradas en internet y cómo aplicarla en TJ FITLAB."}
+Si encuentras una tendencia importante de fitness, noticias o estudios científicos recientes, o una oportunidad de negocio/mejora relevante para TJ FITLAB y quieres publicarla en el foro del equipo, debes añadir al final de tu respuesta EXACTAMENTE esta estructura estructurada en etiquetas de texto plano (NO uses formato JSON):
 
-Intenta que el JSON no tenga saltos de línea reales dentro de los valores de texto (usa \\n para saltos de línea y escapa las comillas dobles si es necesario).
-Ejemplo de respuesta si decides publicar:
-¡Hola jefe! He investigado sobre el crecimiento de HYROX en 2026... He publicado un artículo en el foro con los detalles.
-[PUBLISH_POST]: {"titulo": "Crecimiento Exponencial de HYROX", "contenido": "El crecimiento de...\\n\\n**Recomendación:**..."}
+[PUBLISH_TITLE]: Título de la tendencia
+[PUBLISH_CONTENT]:
+# Análisis de la Tendencia: [Nombre de la tendencia]
+
+## 1. Resumen de la Investigación
+(Escribe una explicación detallada de al menos 250 palabras explicando el fenómeno y su contexto en 2026).
+
+## 2. Estadísticas Clave e Impacto
+(Aporta al menos 3 estadísticas con porcentajes o números reales sobre la tendencia para 2026).
+
+## 3. Enlaces y Fuentes de Referencia
+(Es CRÍTICO que incluyas una lista de URLs reales, completas y activas a los sitios web oficiales que consultaste en tu búsqueda, por ejemplo: - [Nombre del Sitio](https://URL_REAL)).
+
+## 4. Aplicación Estratégica en TJ FITLAB
+(Escribe recomendaciones específicas de cómo TJ FITLAB puede capitalizar esta oportunidad en su app, servicios o marketing).
 
 Responde al usuario: ${userText}`;
 
@@ -612,30 +655,50 @@ Responde al usuario: ${userText}`;
         }
 
         // Analizar si el mensaje contiene una instrucción de publicación en el foro
-        const publishRegex = /\[PUBLISH_POST\]:\s*(\{.*\})/is;
-        const match = aiText.match(publishRegex);
-        if (match) {
-          try {
-            const parsed = JSON.parse(match[1]);
-            if (parsed.titulo && parsed.contenido) {
-              publishData = parsed;
-              aiText = aiText.replace(publishRegex, '').trim();
-            }
-          } catch (jsonErr) {
-            console.warn("Fallo al parsear JSON estricto, intentando extracción regex tolerante...");
-            const titleMatch = match[1].match(/"titulo"\s*:\s*"([\s\S]*?)"\s*(?:,|\n|\})/i);
-            const contentMatch = match[1].match(/"contenido"\s*:\s*"([\s\S]*?)"\s*$/is) || 
-                                 match[1].match(/"contenido"\s*:\s*"([\s\S]*?)"\s*\}\s*$/is) ||
-                                 match[1].match(/"contenido"\s*:\s*"([\s\S]*?)"\s*(?:\}\s*)?$/is);
-            
-            if (titleMatch && contentMatch) {
-              publishData = {
-                titulo: titleMatch[1].trim(),
-                contenido: contentMatch[1].replace(/\\n/g, '\n').trim()
-              };
-              aiText = aiText.replace(publishRegex, '').trim();
-            } else {
-              console.error("Fallo completo en extracción de post autogenerado.");
+        // 1. Intentar con formato plano (TITLE/CONTENT)
+        const titlePlainMatch = aiText.match(/\[PUBLISH_TITLE\]:\s*(.*?)(?=\n|\[PUBLISH_CONTENT\]|$)/i);
+        const contentPlainMatch = aiText.match(/\[PUBLISH_CONTENT\]:\s*([\s\S]*)/i);
+        
+        if (titlePlainMatch && contentPlainMatch) {
+          publishData = {
+            titulo: titlePlainMatch[1].trim(),
+            contenido: contentPlainMatch[1].trim()
+          };
+          
+          // Limpiar aiText de los bloques de publicación para la respuesta del chat
+          aiText = aiText.replace(/\[PUBLISH_TITLE\]:[\s\S]*?\[PUBLISH_CONTENT\]:/gi, '')
+                         .replace(contentPlainMatch[0], '')
+                         .trim();
+          if (!aiText) {
+            aiText = `¡Hola jefe! He investigado sobre el tema en internet y he publicado un análisis detallado en el foro de discusión.`;
+          }
+        } else {
+          // 2. Intentar con formato JSON heredado
+          const publishRegex = /\[PUBLISH_POST\]:\s*(\{.*\})/is;
+          const match = aiText.match(publishRegex);
+          if (match) {
+            try {
+              const parsed = JSON.parse(match[1]);
+              if (parsed.titulo && parsed.contenido) {
+                publishData = parsed;
+                aiText = aiText.replace(publishRegex, '').trim();
+              }
+            } catch (jsonErr) {
+              console.warn("Fallo al parsear JSON estricto, intentando extracción regex tolerante...");
+              const titleMatch = match[1].match(/"titulo"\s*:\s*"([\s\S]*?)"\s*(?:,|\n|\})/i);
+              const contentMatch = match[1].match(/"contenido"\s*:\s*"([\s\S]*?)"\s*$/is) || 
+                                   match[1].match(/"contenido"\s*:\s*"([\s\S]*?)"\s*\}\s*$/is) ||
+                                   match[1].match(/"contenido"\s*:\s*"([\s\S]*?)"\s*(?:\}\s*)?$/is);
+              
+              if (titleMatch && contentMatch) {
+                publishData = {
+                  titulo: titleMatch[1].trim(),
+                  contenido: contentMatch[1].replace(/\\n/g, '\n').trim()
+                };
+                aiText = aiText.replace(publishRegex, '').trim();
+              } else {
+                console.error("Fallo completo en extracción de post autogenerado.");
+              }
             }
           }
         }
