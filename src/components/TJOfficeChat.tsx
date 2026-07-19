@@ -722,8 +722,9 @@ Responde al usuario.`;
         agentToReply = agentes.find(a => a.nickname.toLowerCase() === nick);
       }
 
-      if (agentToReply || isAutoActive) {
-        const agent = agentToReply || agentes[Math.floor(Math.random() * agentes.length)] || agentes[0];
+      // Siempre responder al mensaje del usuario (si hay mención responde el mencionado, si no uno aleatorio)
+      const agent = agentToReply || agentes[Math.floor(Math.random() * agentes.length)] || agentes[0];
+      if (agent) {
         setIsTyping(agent.nickname);
         const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
         let aiText = "";
