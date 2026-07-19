@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Edit3, Activity, MessageSquare, Settings2, X, Menu, RefreshCw, Search, Printer, PlusCircle } from 'lucide-react';
+import { Send, Edit3, Activity, MessageSquare, Settings2, X, Menu, RefreshCw, Search, Printer, PlusCircle, Globe } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Agente, Mensaje, ReporteGym } from '../types';
 
@@ -129,6 +129,13 @@ export const TJOfficeChat: React.FC = () => {
   const [newPostContent, setNewPostContent] = useState('');
   const [newPostAuthor, setNewPostAuthor] = useState('');
 
+  // NUEVOS ESTADOS PARA INVESTIGACIÓN Y RONDAS
+  const [isResearching, setIsResearching] = useState(false);
+  const [researchTopic, setResearchTopic] = useState('');
+  const [showResearchModal, setShowResearchModal] = useState(false);
+  const [researchStatus, setResearchStatus] = useState<string>('');
+  const [researchProgress, setResearchProgress] = useState<number>(0);
+
   const speakMessage = (text: string, nickname: string) => {
     if (!isVoiceEnabled || !window.speechSynthesis) return;
     try {
@@ -159,6 +166,280 @@ export const TJOfficeChat: React.FC = () => {
       }
     } catch (err) { console.warn("DB offline, using mock data"); }
     finally { setIsSyncing(false); }
+  };
+
+  const executeSingleAgentResearch = async (agent: Agente, customTopic?: string) => {
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+      alert("No se detectó VITE_GEMINI_API_KEY en las variables de entorno. Por favor, configúrala en tu archivo .env para realizar búsquedas reales.");
+      return;
+    }
+
+    setIsTyping(agent.nickname);
+    
+    // Configurar tema y pregunta
+    let nicho = '';
+    let subnicho = '';
+    let pregunta = '';
+    
+    if (customTopic && customTopic.trim()) {
+      const topicClean = customTopic.trim();
+      if (agent.nickname === 'Programador') {
+        nicho = 'Tecnología y Monitoreo';
+        subnicho = `Monitoreo digital y tracking para: ${topicClean} en 2026`;
+        pregunta = `Investiga sobre wearables, apps móviles y sensores de bio-tracking que estén monitoreando el impacto de: ${topicClean} en 2026. Proporciona estadísticas de adopción, enlaces reales a estudios o webs de marcas del sector y recomendaciones prácticas para TJ FITLAB.`;
+      } else if (agent.nickname === 'CommunityManager') {
+        nicho = 'Marketing y Redes Sociales';
+        subnicho = `Tendencias en redes y contenido sobre: ${topicClean} en 2026`;
+        pregunta = `Investiga qué sub-nichos de creadores, hashtags y formatos están dominando en TikTok e Instagram con respecto a: ${topicClean} en 2026. Queremos estadísticas de crecimiento, enlaces a tendencias sociales y formatos de video recomendados para TJ FITLAB.`;
+      } else if (agent.nickname === 'Legal') {
+        nicho = 'Salud, Regulación y Seguridad';
+        subnicho = `Normativas y legalidad de: ${topicClean} en 2026`;
+        pregunta = `Investiga la regulación legal actual, normativas de salud y aspectos de privacidad aplicables en 2026 a: ${topicClean}. Proporciona estadísticas de cumplimiento de normas, enlaces a agencias oficiales y directrices para entrenadores de TJ FITLAB.`;
+      } else if (agent.nickname === 'Data') {
+        nicho = 'Análisis de Mercado y Datos';
+        subnicho = `Estudios científicos y cuotas de mercado sobre: ${topicClean} en 2026`;
+        pregunta = `Investiga estadísticas cuantitativas, cifras de consumo del mercado y estudios clínicos recientes de 2026 sobre: ${topicClean}. Queremos porcentajes clave de beneficio y enlaces a fuentes académicas o de mercado.`;
+      } else if (agent.nickname === 'Strategist') {
+        nicho = 'Operaciones y Nuevos Programas';
+        subnicho = `Modelos de negocio e integración comercial de: ${topicClean} en 2026`;
+        pregunta = `Investiga cómo los centros boutique y coaches premium están integrando programas específicos de: ${topicClean} en 2026. Aporta datos sobre el ticket promedio de estos servicios y recomendaciones operativas para TJ FITLAB.`;
+      } else {
+        nicho = 'Tendencias Generales';
+        subnicho = `Análisis de: ${topicClean} en 2026`;
+        pregunta = `Investiga las principales tendencias, datos de mercado y referencias científicas recientes de 2026 sobre: ${topicClean}. Proporciona estadísticas claras y enlaces a fuentes.`;
+      }
+    } else {
+      // Usar temas por defecto
+      const defaultTopics: Record<string, { nicho: string; subnicho: string; pregunta: string }> = {
+        'Programador': {
+          nicho: 'Tecnología en Gimnasios',
+          subnicho: 'Wearables, sensores de rendimiento en tiempo real y conectividad en 2026',
+          pregunta: 'Investiga las últimas tecnologías de wearables de fitness, anillos inteligentes y sensores IoT en máquinas de gimnasio para este año 2026. Queremos estadísticas de adopción, enlaces reales de referencia a sitios como Garmin, Whoop u otros y recomendaciones prácticas.'
+        },
+        'CommunityManager': {
+          nicho: 'Marketing y Redes Sociales de Fitness',
+          subnicho: 'Influencers, desafíos interactivos y sub-nichos virales en Instagram/TikTok en 2026',
+          pregunta: 'Investiga qué sub-nichos de entrenamiento están dominando en TikTok e Instagram esta semana en 2026. Queremos estadísticas de crecimiento, enlaces de referencia a tendencias en redes sociales y qué tipo de contenido multimedia atrae más.'
+        },
+        'Legal': {
+          nicho: 'Salud, Regulación y Longevidad',
+          subnicho: 'Normativas de suplementos de antienvejecimiento, péptidos y privacidad de datos de salud en 2026',
+          pregunta: 'Investiga las regulaciones y tendencias legales vigentes en 2026 sobre el uso de suplementos de longevidad en gimnasios y la protección de datos biométricos recopilados por apps de fitness. Proporciona estadísticas de cumplimiento y enlaces a fuentes.'
+        },
+        'Data': {
+          nicho: 'Análisis de Mercado Fitness',
+          subnicho: 'Pilates Reformer tecnológico y el fenómeno global de HYROX en 2026',
+          pregunta: 'Investiga estadísticas cuantitativas actualizadas sobre el crecimiento y cuotas de mercado del Pilates Reformer inteligente y las competiciones híbridas tipo HYROX en 2026. Cifras de negocio globales y enlaces de referencia.'
+        },
+        'Strategist': {
+          nicho: 'Operación y Modelos Híbridos',
+          subnicho: 'Gimnasios boutique híbridos y entrenamiento grupal de fuerza enfocado en longevidad en 2026',
+          pregunta: 'Investiga el auge de los gimnasios boutique que combinan entrenamiento outdoor e indoor, y el entrenamiento de fuerza grupal centrado en Zone 2 y longevidad en 2026. Estadísticas operativas y enlaces de referencia.'
+        }
+      };
+      const info = defaultTopics[agent.nickname] || {
+        nicho: 'Tendencias Generales del Fitness',
+        subnicho: 'Fitness regenerativo y entrenamiento funcional en 2026',
+        pregunta: 'Investiga las principales tendencias de fitness regenerativo, crioterapia, saunas de infrarrojos y recuperación activa en 2026. Estadísticas de crecimiento y enlaces de referencia.'
+      };
+      nicho = info.nicho;
+      subnicho = info.subnicho;
+      pregunta = info.pregunta;
+    }
+
+    const promptText = `Eres ${agent.nombre} (rol: ${agent.rol}). 
+Tienes acceso a buscar en internet en tiempo real a través de Google Search. Utilízalo siempre que te pregunten sobre datos actuales, noticias, tendencias o estadísticas del fitness en 2026.
+SIEMPRE di "¡Hola jefe!" al inicio de tu respuesta.
+
+Para esta publicación en el foro sobre "${nicho} - ${subnicho}", investiga lo siguiente: ${pregunta}
+
+Debes añadir al final de tu respuesta EXACTAMENTE esta estructura en formato JSON:
+[PUBLISH_POST]: {"titulo": "Título corto y llamativo de la tendencia", "contenido": "Explicación detallada de la tendencia en formato Markdown. Debe ser un artículo completo de al menos 400 palabras. Incluye secciones claras:\\n\\n1. **Resumen de la Tendencia**\\n2. **Estadísticas Clave** (lista con porcentajes o números impactantes)\\n3. **Enlaces de Referencia** (lista con URLs reales encontradas en tu búsqueda en internet en 2026)\\n4. **Aplicación en TJ FITLAB**\\n\\nAgrega imágenes relevantes si encontraste alguna o descripciones enriquecidas."}
+
+Intenta que el JSON no tenga saltos de línea reales dentro de los valores de texto (usa \\n para saltos de línea y escapa las comillas dobles si es necesario).
+Responde al usuario.`;
+
+    let aiText = '';
+    let publishData: { titulo: string; contenido: string } | null = null;
+
+    try {
+      // Llamada API con Google Search
+      let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          contents: [{ parts: [{ text: promptText }] }],
+          tools: [{ google_search: {} }] 
+        })
+      });
+      
+      if (!res.ok) {
+        // Fallback a gemini-2.0-flash
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            contents: [{ parts: [{ text: promptText }] }],
+            tools: [{ google_search: {} }]
+          })
+        });
+      }
+
+      if (!res.ok) {
+        // Fallback sin herramientas
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            contents: [{ parts: [{ text: promptText }] }]
+          })
+        });
+      }
+
+      const resJson = await res.json();
+      if (res.ok && resJson.candidates?.[0]?.content?.parts?.[0]?.text) {
+        aiText = resJson.candidates[0].content.parts[0].text;
+      } else {
+        const errMsg = resJson.error?.message || "Error desconocido en Gemini";
+        throw new Error(errMsg);
+      }
+    } catch (e: any) {
+      console.error("Fallo llamada Gemini en investigación:", e);
+      aiText = `¡Hola jefe! He intentado buscar información sobre "${nicho}" en internet, pero encontré un error al consultar el sistema de IA: ${e.message}`;
+    }
+
+    // Procesar e insertar post
+    const publishRegex = /\[PUBLISH_POST\]:\s*(\{.*\})/is;
+    const match = aiText.match(publishRegex);
+    
+    if (match) {
+      try {
+        publishData = JSON.parse(match[1]);
+        aiText = aiText.replace(publishRegex, '').trim();
+      } catch (jsonErr) {
+        const titleMatch = match[1].match(/"titulo"\s*:\s*"([\s\S]*?)"\s*(?:,|\n|\})/i);
+        const contentMatch = match[1].match(/"contenido"\s*:\s*"([\s\S]*?)"\s*$/is) || 
+                             match[1].match(/"contenido"\s*:\s*"([\s\S]*?)"\s*\}\s*$/is) ||
+                             match[1].match(/"contenido"\s*:\s*"([\s\S]*?)"\s*(?:\}\s*)?$/is);
+        
+        if (titleMatch && contentMatch) {
+          publishData = {
+            titulo: titleMatch[1].trim(),
+            contenido: contentMatch[1].replace(/\\n/g, '\n').trim()
+          };
+          aiText = aiText.replace(publishRegex, '').trim();
+        }
+      }
+    } else {
+      // Fallback: si no detectó JSON pero generó buen texto, lo usamos completo
+      if (!aiText.startsWith("¡Hola jefe! He intentado")) {
+        const cleanContent = aiText.replace(/\[PUBLISH_POST\]:?/gi, '').trim();
+        publishData = {
+          titulo: `Investigación: ${nicho} (${agent.nombre})`,
+          contenido: cleanContent
+        };
+      }
+    }
+
+    // Insertar chat message informando al jefe
+    const statusMsgText = publishData 
+      ? `¡Hola jefe! He completado mi investigación en internet sobre **"${nicho}"** (${subnicho}). He publicado el artículo de tendencias titulado: **"${publishData.titulo}"** en el foro de discusión con enlaces reales y estadísticas de 2026.`
+      : aiText;
+
+    try {
+      await supabase.from('tj_mensajes').insert([{
+        remitente_tipo: 'agente',
+        remitente_id: agent.id,
+        texto: statusMsgText,
+        canal: '#general'
+      }]);
+    } catch(err){}
+
+    if (publishData) {
+      const newPost = {
+        titulo: publishData.titulo,
+        autor_nombre: `${agent.nombre} (@${agent.nickname})`,
+        autor_rol: agent.rol,
+        contenido: publishData.contenido
+      };
+
+      try {
+        const { data: inserted, error: insErr } = await supabase.from('tj_foro_posts').insert([newPost]).select();
+        if (insErr) {
+          const localPost: ForumPost = {
+            id: `post-${Date.now()}`,
+            ...newPost,
+            creado_en: new Date().toISOString()
+          };
+          setForumPosts(prev => [localPost, ...prev]);
+        } else if (inserted && inserted[0]) {
+          setForumPosts(prev => [inserted[0], ...prev]);
+        }
+      } catch (dbErr) {
+        const localPost: ForumPost = {
+          id: `post-${Date.now()}`,
+          ...newPost,
+          creado_en: new Date().toISOString()
+        };
+        setForumPosts(prev => [localPost, ...prev]);
+      }
+    }
+
+    setIsTyping(null);
+  };
+
+  const runAllAgentsResearchRound = async () => {
+    if (isResearching) return;
+    setIsResearching(true);
+    setResearchProgress(0);
+    setResearchStatus('Inicializando la ronda de agentes...');
+    
+    // Publicar un mensaje de sistema en el chat
+    const topicDisplay = researchTopic.trim() ? `"${researchTopic.trim()}"` : 'temas asignados por especialidad';
+    try {
+      await supabase.from('tj_mensajes').insert([{
+        remitente_tipo: 'usuario',
+        remitente_id: '00000000-0000-0000-0000-000000000000',
+        texto: `[SISTEMA]: Iniciando Ronda de Investigación y Publicación de Foros. Los agentes buscarán en internet sobre ${topicDisplay} en 2026.`,
+        canal: '#general'
+      }]);
+    } catch(e){}
+
+    // Ejecutar agentes en secuencia
+    for (let i = 0; i < agentes.length; i++) {
+      const agent = agentes[i];
+      const prog = Math.round((i / agentes.length) * 100);
+      setResearchProgress(prog);
+      setResearchStatus(`Investigando: @${agent.nickname} (${agent.rol}) buscando en internet...`);
+      
+      try {
+        await executeSingleAgentResearch(agent, researchTopic);
+      } catch (err: any) {
+        console.error(`Error en investigación de @${agent.nickname}:`, err);
+      }
+      // Pequeño descanso entre agentes para evitar rate-limits
+      await new Promise(r => setTimeout(r, 2000));
+    }
+
+    setResearchProgress(100);
+    setResearchStatus('¡Ronda de investigación finalizada!');
+    
+    try {
+      await supabase.from('tj_mensajes').insert([{
+        remitente_tipo: 'usuario',
+        remitente_id: '00000000-0000-0000-0000-000000000000',
+        texto: `[SISTEMA]: Ronda finalizada. Se han publicado nuevos análisis e informes detallados en el Foro de Tendencias.`,
+        canal: '#general'
+      }]);
+    } catch(e){}
+
+    setTimeout(() => {
+      setIsResearching(false);
+      setShowResearchModal(false);
+      setResearchTopic('');
+      fetchData(); // Recargar todo
+    }, 2000);
   };
 
   useEffect(() => {
@@ -539,7 +820,7 @@ Responde al usuario: ${userText}`;
         <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
           <span className="text-[9px] font-bold text-white/40 tracking-widest uppercase">Especialistas IA</span>
           {agentes.map(a => (
-            <div key={a.id} className="flex items-center gap-3 p-2.5 rounded bg-white/5 border border-white/5">
+            <div key={a.id} className="flex items-center gap-3 p-2.5 rounded bg-white/5 border border-white/5 relative group/agent">
               <div className="relative">
                 <img src={a.avatar_url} className="w-7 h-7 rounded bg-black" alt="" />
                 <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#CCFF00]" />
@@ -548,13 +829,31 @@ Responde al usuario: ${userText}`;
                 <p className="font-bold text-[10px] truncate">@{a.nickname}</p>
                 <p className="text-[8px] text-white/40 truncate uppercase">{a.rol}</p>
               </div>
-              <button onClick={() => setEditingAgente(a)} className="text-white/20 hover:text-[#CCFF00] transition-colors"><Edit3 size={12}/></button>
+              <div className="flex items-center gap-1.5 opacity-40 group-hover/agent:opacity-100 transition-opacity">
+                <button 
+                  onClick={() => executeSingleAgentResearch(a, '')}
+                  disabled={isResearching || isSending || isTyping !== null}
+                  className="text-white hover:text-[#CCFF00] transition-colors disabled:opacity-30 disabled:hover:text-white/40"
+                  title="Buscar en internet y publicar"
+                >
+                  <Globe size={11} />
+                </button>
+                <button onClick={() => setEditingAgente(a)} className="text-white hover:text-[#CCFF00] transition-colors" title="Editar"><Edit3 size={11}/></button>
+              </div>
             </div>
           ))}
         </div>
-        <div className="p-4 border-t border-white/10">
+        <div className="p-4 border-t border-white/10 space-y-2">
           <button onClick={() => setIsAutoActive(!isAutoActive)} className={`w-full py-3 rounded text-[10px] font-bold border transition-all ${isAutoActive ? 'bg-[#CCFF00] text-black border-[#CCFF00] shadow-[0_0_10px_#CCFF0044]' : 'bg-white/5 text-white/40'}`}>
             {isAutoActive ? 'AGENTS_ACTIVE' : 'ACTIVATE_AGENTS'}
+          </button>
+          <button 
+            onClick={() => setShowResearchModal(true)} 
+            disabled={isResearching}
+            className="w-full py-3 rounded text-[10px] font-bold border border-indigo-500/30 bg-indigo-500/10 text-indigo-200 hover:bg-indigo-500 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            <Globe size={11} className={isResearching ? 'animate-spin' : ''} />
+            <span>{isResearching ? 'Investigando...' : 'Ronda de Investigación IA'}</span>
           </button>
         </div>
       </aside>
@@ -589,7 +888,23 @@ Responde al usuario: ${userText}`;
             <button onClick={() => setIsVoiceEnabled(!isVoiceEnabled)} className={`p-2 rounded-full border ${isVoiceEnabled ? 'border-[#CCFF00] text-[#CCFF00]' : 'border-white/10 text-white/20'}`}><Activity size={14}/></button>
           </div>
         </header>
-
+ 
+        {/* BANNER DE PROGRESO DE INVESTIGACIÓN DE AGENTES */}
+        {isResearching && (
+          <div className="bg-indigo-950/80 border-b border-indigo-500/30 px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in sticky top-16 z-25 backdrop-blur-md">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <RefreshCw size={12} className="animate-spin text-[#CCFF00] flex-shrink-0" />
+              <p className="text-[10px] font-bold text-white/95 truncate tracking-wide">{researchStatus}</p>
+            </div>
+            <div className="flex items-center gap-3 w-full sm:w-48 flex-shrink-0">
+              <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                <div className="bg-[#CCFF00] h-1.5 transition-all duration-500 rounded-full" style={{ width: `${researchProgress}%` }}></div>
+              </div>
+              <span className="text-[9px] font-extrabold text-[#CCFF00]">{researchProgress}%</span>
+            </div>
+          </div>
+        )}
+ 
         {/* CONTENIDO INTERNO EN BASE A LA VISTA */}
         {activeView === 'chat' ? (
           // CONTENIDO CHAT DE AGENTES (VISTA ORIGINAL)
@@ -662,18 +977,28 @@ Responde al usuario: ${userText}`;
                   </button>
                 </div>
               ) : (
-                <button 
-                  onClick={() => {
-                    setIsCreatingPost(true);
-                    if (agentes.length > 0) {
-                      setNewPostAuthor(agentes[0].id);
-                    }
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#CCFF00] text-black font-bold text-[9px] tracking-wider uppercase hover:bg-white transition-all shadow-[0_0_10px_#CCFF0022]"
-                >
-                  <PlusCircle size={12} />
-                  <span>Publicar Tendencia</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setShowResearchModal(true)}
+                    disabled={isResearching}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[9px] tracking-wider uppercase transition-all shadow-[0_0_10px_#6366F133] disabled:opacity-50"
+                  >
+                    <Globe size={12} className={isResearching ? 'animate-spin' : ''} />
+                    <span>{isResearching ? 'Investigando...' : 'Ronda de Investigación IA'}</span>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setIsCreatingPost(true);
+                      if (agentes.length > 0) {
+                        setNewPostAuthor(agentes[0].id);
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#CCFF00] text-black font-bold text-[9px] tracking-wider uppercase hover:bg-white transition-all shadow-[0_0_10px_#CCFF0022]"
+                  >
+                    <PlusCircle size={12} />
+                    <span>Publicar Tendencia</span>
+                  </button>
+                </div>
               )}
             </div>
 
@@ -935,6 +1260,43 @@ Responde al usuario: ${userText}`;
                 Publicar en el Foro
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONFIGURACIÓN TEMA DE INVESTIGACIÓN DE AGENTES */}
+      {showResearchModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-in">
+          <div className="w-full max-w-md bg-[#0A0A0A] border border-white/10 rounded-xl p-8 shadow-2xl relative">
+            <button onClick={() => setShowResearchModal(false)} className="absolute top-4 right-4 text-white/40 hover:text-white" disabled={isResearching}><X size={16}/></button>
+            <div className="flex items-center gap-3 mb-6">
+              <Globe size={16} className="text-[#CCFF00]" />
+              <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-white">Investigación en Internet</h2>
+            </div>
+            <div className="space-y-4">
+              <p className="text-[11px] text-white/60 leading-relaxed">
+                Los 5 agentes colaboradores buscarán en tiempo real en internet usando <strong>Google Search Grounding</strong>. Escribe un tema para enfocar la investigación o déjalo en blanco para usar sus temas predeterminados.
+              </p>
+              <div>
+                <label className="text-[8px] text-white/30 font-bold block mb-1.5 uppercase tracking-widest">Tema de Investigación Especializada (Opcional)</label>
+                <input 
+                  type="text" 
+                  value={researchTopic} 
+                  onChange={(e) => setResearchTopic(e.target.value)} 
+                  placeholder="Ej: Crioterapia y longevidad, HYROX 2026, suplementación..."
+                  disabled={isResearching}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3.5 text-base md:text-xs text-white focus:border-[#CCFF00]/40 outline-none" 
+                />
+              </div>
+              <button 
+                onClick={runAllAgentsResearchRound}
+                disabled={isResearching}
+                className="w-full bg-indigo-600 text-white font-black py-4 rounded text-[10px] tracking-widest hover:bg-indigo-500 transition-all uppercase flex items-center justify-center gap-2 shadow-[0_0_15px_#6366F122] disabled:opacity-50"
+              >
+                <RefreshCw size={12} className={isResearching ? 'animate-spin' : ''} />
+                <span>INICIAR RONDA DE AGENTES</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
