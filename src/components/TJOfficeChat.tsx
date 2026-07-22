@@ -1288,52 +1288,52 @@ Responde al usuario: ${userText}`;
         }}
         className="flex-1 flex flex-col bg-[#050505] overflow-hidden relative"
       >
-        <header className="h-16 flex items-center justify-between px-6 border-b border-white/10 bg-black sticky top-0 z-20">
-          <div className="flex items-center gap-3">
+        <header className="h-14 md:h-16 flex items-center justify-between px-2.5 md:px-6 border-b border-white/10 bg-black sticky top-0 z-20">
+          <div className="flex items-center gap-1.5 md:gap-3">
             <button 
               onClick={(e) => {
                 e.stopPropagation();
                 setIsSidebarCollapsed(!isSidebarCollapsed);
               }} 
-              className="lg:hidden text-white/60 hover:text-white transition-colors"
+              className="lg:hidden text-white/60 hover:text-white transition-colors p-1"
               title="Alternar barra lateral"
             >
-              <Menu size={18}/>
+              <Menu size={16}/>
             </button>
-            <MessageSquare size={14} className="text-[#CCFF00]" />
-            <span className="text-[10px] font-bold uppercase tracking-widest">Mainframe</span>
+            <MessageSquare size={12} className="text-[#CCFF00] hidden md:inline" />
+            <span className="text-[10px] font-bold uppercase tracking-widest hidden sm:inline">Mainframe</span>
           </div>
 
           {/* NAVEGACIÓN: CHAT VS FORO */}
           <div className="flex bg-white/5 rounded-lg p-0.5 border border-white/10">
             <button 
               onClick={() => setActiveView('chat')} 
-              className={`px-3 py-1.5 rounded-md text-[9px] font-bold tracking-widest uppercase transition-all ${activeView === 'chat' ? 'bg-[#CCFF00] text-black shadow-[0_0_8px_#CCFF0022]' : 'text-white/60 hover:text-white'}`}
+              className={`px-2 py-1 md:px-3 md:py-1.5 rounded-md text-[8px] md:text-[9px] font-bold tracking-widest uppercase transition-all ${activeView === 'chat' ? 'bg-[#CCFF00] text-black shadow-[0_0_8px_#CCFF0022]' : 'text-white/60 hover:text-white'}`}
             >
               💬 CHAT
             </button>
             <button 
               onClick={() => setActiveView('forum')} 
-              className={`px-3 py-1.5 rounded-md text-[9px] font-bold tracking-widest uppercase transition-all ${activeView === 'forum' ? 'bg-[#CCFF00] text-black shadow-[0_0_8px_#CCFF0022]' : 'text-white/60 hover:text-white'}`}
+              className={`px-2 py-1 md:px-3 md:py-1.5 rounded-md text-[8px] md:text-[9px] font-bold tracking-widest uppercase transition-all ${activeView === 'forum' ? 'bg-[#CCFF00] text-black shadow-[0_0_8px_#CCFF0022]' : 'text-white/60 hover:text-white'}`}
             >
-              📈 FORO TENDENCIAS
+              📈 FORO <span className="hidden md:inline">TENDENCIAS</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 md:gap-2">
             <select
               value={geminiModel}
               onChange={(e) => setGeminiModel(e.target.value)}
-              className="bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-[9px] font-bold text-white/70 hover:text-white outline-none focus:border-[#CCFF00]/40 tracking-wider cursor-pointer uppercase font-mono transition-all"
+              className="bg-white/5 border border-white/10 rounded px-1.5 py-1 md:px-2.5 md:py-1.5 text-[7.5px] md:text-[9px] font-bold text-white/70 hover:text-white outline-none focus:border-[#CCFF00]/40 tracking-wider cursor-pointer uppercase font-mono transition-all max-w-[70px] md:max-w-none"
               title="Seleccionar Modelo Gemini"
             >
-              <option value="gemini-2.5-flash" className="bg-[#0A0A0A]">Gemini 2.5 Flash</option>
-              <option value="gemini-2.5-pro" className="bg-[#0A0A0A]">Gemini 2.5 Pro</option>
-              <option value="gemini-1.5-pro" className="bg-[#0A0A0A]">Gemini 1.5 Pro</option>
-              <option value="gemini-1.5-flash" className="bg-[#0A0A0A]">Gemini 1.5 Flash</option>
+              <option value="gemini-2.5-flash" className="bg-[#0A0A0A]">2.5 Flash</option>
+              <option value="gemini-2.5-pro" className="bg-[#0A0A0A]">2.5 Pro</option>
+              <option value="gemini-1.5-pro" className="bg-[#0A0A0A]">1.5 Pro</option>
+              <option value="gemini-1.5-flash" className="bg-[#0A0A0A]">1.5 Flash</option>
             </select>
-            <button onClick={fetchData} className={`p-2 ${isSyncing ? 'animate-spin text-[#CCFF00]' : 'text-white/40'}`}><RefreshCw size={14}/></button>
-            <button onClick={() => setIsVoiceEnabled(!isVoiceEnabled)} className={`p-2 rounded-full border ${isVoiceEnabled ? 'border-[#CCFF00] text-[#CCFF00]' : 'border-white/10 text-white/20'}`}><Activity size={14}/></button>
+            <button onClick={fetchData} className={`p-1.5 md:p-2 ${isSyncing ? 'animate-spin text-[#CCFF00]' : 'text-white/40'}`}><RefreshCw size={12}/></button>
+            <button onClick={() => setIsVoiceEnabled(!isVoiceEnabled)} className={`p-1.5 md:p-2 rounded-full border ${isVoiceEnabled ? 'border-[#CCFF00] text-[#CCFF00]' : 'border-white/10 text-white/20'}`}><Activity size={12}/></button>
           </div>
         </header>
  
@@ -1468,7 +1468,7 @@ Responde al usuario: ${userText}`;
         {activeView === 'chat' ? (
           // CONTENIDO CHAT DE AGENTES (VISTA ORIGINAL)
           <>
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-8 space-y-4 scrollbar-hide">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-2.5 md:p-8 space-y-4 scrollbar-hide">
               {mensajes.map(m => (
                 <div key={m.id} className={`flex gap-3 max-w-3xl mx-auto animate-in items-start ${m.remitente_tipo === 'agente' ? 'bg-white/5 border border-white/5 p-3.5 rounded-lg' : ''}`}>
                   <img 
@@ -1503,7 +1503,7 @@ Responde al usuario: ${userText}`;
               )}
             </div>
 
-            <div className="p-4 md:p-6 bg-black border-t border-white/10">
+            <div className="p-2.5 md:p-6 bg-black border-t border-white/10">
                <form onSubmit={handleSend} className="max-w-2xl mx-auto relative">
                 {/* SUGERENCIAS DE MENCIÓN (@) */}
                 {showMentionSuggestions && filteredSuggestions.length > 0 && (
@@ -1537,9 +1537,9 @@ Responde al usuario: ${userText}`;
                   onChange={handleInputChange} 
                   placeholder="Escribe tu mensaje... Usa @ para mencionar a un especialista" 
                   disabled={isSending} 
-                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-4 pr-12 text-base md:text-[12px] text-white focus:border-[#CCFF00]/50 outline-none transition-all" 
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 md:py-3.5 pl-4 pr-12 text-base md:text-[12px] text-white focus:border-[#CCFF00]/50 outline-none transition-all" 
                 />
-                <button type="submit" disabled={!inputText.trim() || isSending} className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-lg bg-[#CCFF00] text-black flex items-center justify-center transition-all"><Send size={16}/></button>
+                <button type="submit" disabled={!inputText.trim() || isSending} className="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-[#CCFF00] text-black flex items-center justify-center transition-all"><Send size={14}/></button>
               </form>
             </div>
           </>
