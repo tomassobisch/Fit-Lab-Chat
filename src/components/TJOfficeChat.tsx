@@ -157,6 +157,9 @@ export const TJOfficeChat: React.FC = () => {
   } | null>(null);
 
   const handleOpenProfile = (agent: Agente) => {
+    if (window.innerWidth < 1024) {
+      setIsSidebarCollapsed(true);
+    }
     let cualidades = '';
     let dedicacion = '';
     let suma = '';
@@ -421,29 +424,30 @@ export const TJOfficeChat: React.FC = () => {
     }
 
     const promptText = `Eres ${agent.nombre} (rol: ${agent.rol}). 
-Tienes acceso a buscar en internet en tiempo real a través de Google Search. Utilízalo siempre para obtener datos reales, estadísticas y enlaces sobre: ${pregunta}.
-SIEMPRE di "¡Hola jefe!" al inicio de tu respuesta en el chat.
+Tienes acceso a buscar en internet en tiempo real a través de Google Search. Tu objetivo es realizar una investigación exhaustiva y recopilar datos reales, estadísticas de 2026 y referencias de internet sobre: ${pregunta}.
 
-Debes redactar una investigación exhaustiva y detallada de al menos 600 palabras sobre esta tendencia de 2026 para publicarla en el foro.
-Para publicarla, añade al final de tu respuesta EXACTAMENTE esta estructura estructurada en etiquetas de texto plano (NO uses formato JSON para evitar errores de sintaxis):
+Es OBLIGATORIO que redactes un informe de investigación sumamente detallado, técnico y extenso (de al menos 800 palabras). No resumas nada y desarrolla los conceptos en profundidad.
+Al inicio de tu respuesta en el chat, debes saludar diciendo únicamente "¡Hola jefe!".
 
-[PUBLISH_TITLE]: Título corto y llamativo de la tendencia de investigación
+Luego, a continuación, debes añadir EXACTAMENTE esta estructura estructurada en etiquetas de texto plano para que el sistema publique tu investigación en el foro de discusión. Rellena cada sección con párrafos largos, datos cuantitativos reales obtenidos de tu búsqueda en Google Search, enlaces y análisis estratégico profundo. NO uses formato JSON:
+
+[PUBLISH_TITLE]: Título llamativo y profesional de tu investigación
 [PUBLISH_CONTENT]:
-# Análisis de la Tendencia: [Nombre de la tendencia]
+# Análisis de la Tendencia: [Nombre de la tendencia en 2026]
 
 ## 1. Resumen de la Investigación
-(Escribe una explicación detallada de al menos 250 palabras explicando el fenómeno, por qué es tendencia en 2026 y su contexto).
+(Escribe una explicación detallada de al menos 350 palabras explicando el fenómeno, por qué es tendencia este año 2026 y su contexto actual).
 
 ## 2. Estadísticas Clave e Impacto Cuantitativo
-(Aporta al menos 3 estadísticas con porcentajes, cuotas de mercado o cifras de negocio reales de tu búsqueda en internet para 2026).
+(Proporciona al menos 3 datos estadísticos con porcentajes, cuotas de mercado o cifras financieras concretas de 2026 obtenidas de tu búsqueda en Google Search).
 
 ## 3. Enlaces y Fuentes de Referencia
-(Es CRÍTICO que incluyas una lista de URLs reales, completas y activas a los sitios web oficiales que consultaste durante tu búsqueda en Google Search, por ejemplo de Garmin, Whoop, ClassPass, ACSM, PubMed u otras fuentes de noticias/estudios. Formato: - [Nombre del Sitio](https://URL_REAL)).
+(Es OBLIGATORIO que incluyas enlaces web reales, completos y activos a los sitios oficiales que consultaste durante tu búsqueda en Google Search, por ejemplo: - [Nombre del Sitio](https://URL_REAL)).
 
 ## 4. Aplicación Estratégica en TJ FITLAB
-(Escribe recomendaciones específicas de cómo TJ FITLAB puede capitalizar esta oportunidad en su app, servicios o marketing).
+(Aporta al menos 2 recomendaciones operativas y de marketing detalladas para que TJ FITLAB implemente esta tendencia en sus servicios o aplicación).
 
-Responde al usuario.`;
+Es de suma importancia empresarial que el contenido de cada sección sea completo, profesional y largo. No dejes secciones vacías ni uses textos de prueba.`;
 
     let aiText = '';
     let publishData: { titulo: string; contenido: string } | null = null;
@@ -496,9 +500,16 @@ Responde al usuario.`;
     }
 
     // Procesar e insertar post
+    // Limpiar posibles variaciones de markdown que el modelo pueda agregar alrededor de las etiquetas obligatorias
+    const cleanAiText = aiText
+      .replace(/\*\*\[PUBLISH_TITLE\]\*\*:/gi, '[PUBLISH_TITLE]:')
+      .replace(/\[PUBLISH_TITLE\]\s*:/gi, '[PUBLISH_TITLE]:')
+      .replace(/\*\*\[PUBLISH_CONTENT\]\*\*:/gi, '[PUBLISH_CONTENT]:')
+      .replace(/\[PUBLISH_CONTENT\]\s*:/gi, '[PUBLISH_CONTENT]:');
+
     // 1. Intentar con formato plano (TITLE/CONTENT)
-    const titlePlainMatch = aiText.match(/\[PUBLISH_TITLE\]:\s*(.*?)(?=\n|\[PUBLISH_CONTENT\]|$)/i);
-    const contentPlainMatch = aiText.match(/\[PUBLISH_CONTENT\]:\s*([\s\S]*)/i);
+    const titlePlainMatch = cleanAiText.match(/\[PUBLISH_TITLE\]:\s*(.*?)(?=\n|\[PUBLISH_CONTENT\]|$)/i);
+    const contentPlainMatch = cleanAiText.match(/\[PUBLISH_CONTENT\]:\s*([\s\S]*)/i);
     
     if (titlePlainMatch && contentPlainMatch) {
       publishData = {
@@ -507,7 +518,7 @@ Responde al usuario.`;
       };
       
       // Limpiar aiText de los bloques de publicación para la respuesta del chat
-      aiText = aiText.replace(/\[PUBLISH_TITLE\]:[\s\S]*?\[PUBLISH_CONTENT\]:/gi, '')
+      aiText = cleanAiText.replace(/\[PUBLISH_TITLE\]:[\s\S]*?\[PUBLISH_CONTENT\]:/gi, '')
                      .replace(contentPlainMatch[0], '')
                      .trim();
       if (!aiText) {
@@ -903,9 +914,16 @@ Responde al usuario: ${userText}`;
         }
 
         // Analizar si el mensaje contiene una instrucción de publicación en el foro
+        // Limpiar posibles variaciones de markdown que el modelo pueda agregar alrededor de las etiquetas obligatorias
+        const cleanAiText = aiText
+          .replace(/\*\*\[PUBLISH_TITLE\]\*\*:/gi, '[PUBLISH_TITLE]:')
+          .replace(/\[PUBLISH_TITLE\]\s*:/gi, '[PUBLISH_TITLE]:')
+          .replace(/\*\*\[PUBLISH_CONTENT\]\*\*:/gi, '[PUBLISH_CONTENT]:')
+          .replace(/\[PUBLISH_CONTENT\]\s*:/gi, '[PUBLISH_CONTENT]:');
+
         // 1. Intentar con formato plano (TITLE/CONTENT)
-        const titlePlainMatch = aiText.match(/\[PUBLISH_TITLE\]:\s*(.*?)(?=\n|\[PUBLISH_CONTENT\]|$)/i);
-        const contentPlainMatch = aiText.match(/\[PUBLISH_CONTENT\]:\s*([\s\S]*)/i);
+        const titlePlainMatch = cleanAiText.match(/\[PUBLISH_TITLE\]:\s*(.*?)(?=\n|\[PUBLISH_CONTENT\]|$)/i);
+        const contentPlainMatch = cleanAiText.match(/\[PUBLISH_CONTENT\]:\s*([\s\S]*)/i);
         
         if (titlePlainMatch && contentPlainMatch) {
           publishData = {
@@ -914,7 +932,7 @@ Responde al usuario: ${userText}`;
           };
           
           // Limpiar aiText de los bloques de publicación para la respuesta del chat
-          aiText = aiText.replace(/\[PUBLISH_TITLE\]:[\s\S]*?\[PUBLISH_CONTENT\]:/gi, '')
+          aiText = cleanAiText.replace(/\[PUBLISH_TITLE\]:[\s\S]*?\[PUBLISH_CONTENT\]:/gi, '')
                          .replace(contentPlainMatch[0], '')
                          .trim();
           if (!aiText) {
@@ -1262,11 +1280,21 @@ Responde al usuario: ${userText}`;
       </aside>
 
       {/* PANEL CENTRAL PRINCIPAL */}
-      <main className="flex-1 flex flex-col bg-[#050505] overflow-hidden relative">
+      <main 
+        onClick={() => {
+          if (window.innerWidth < 1024 && !isSidebarCollapsed) {
+            setIsSidebarCollapsed(true);
+          }
+        }}
+        className="flex-1 flex flex-col bg-[#050505] overflow-hidden relative"
+      >
         <header className="h-16 flex items-center justify-between px-6 border-b border-white/10 bg-black sticky top-0 z-20">
           <div className="flex items-center gap-3">
             <button 
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} 
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsSidebarCollapsed(!isSidebarCollapsed);
+              }} 
               className="lg:hidden text-white/60 hover:text-white transition-colors"
               title="Alternar barra lateral"
             >
@@ -1882,42 +1910,77 @@ Responde al usuario: ${userText}`;
               <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-white">Investigación en Internet</h2>
             </div>
             <div className="space-y-4">
-              <p className="text-[11px] text-white/60 leading-relaxed">
-                Los agentes colaboradores buscarán en tiempo real en internet usando <strong>Google Search Grounding</strong>. Elige si quieres consultar a todos o a un especialista específico.
-              </p>
-              <div>
-                <label className="text-[8px] text-white/30 font-bold block mb-1.5 uppercase tracking-widest">Agente Investigador</label>
-                <select 
-                  value={researchAgent}
-                  onChange={(e) => setResearchAgent(e.target.value)}
-                  disabled={isResearching}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3.5 text-base md:text-xs text-white focus:border-[#CCFF00]/40 outline-none"
-                >
-                  <option value="all" className="bg-[#0A0A0A]">Todos los agentes (Ronda completa)</option>
-                  {agentes.map(a => (
-                    <option key={a.id} value={a.id} className="bg-[#0A0A0A]">@{a.nickname} — {a.rol}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-[8px] text-white/30 font-bold block mb-1.5 uppercase tracking-widest">Tema de Investigación Especializada (Opcional)</label>
-                <input 
-                  type="text" 
-                  value={researchTopic} 
-                  onChange={(e) => setResearchTopic(e.target.value)} 
-                  placeholder="Ej: Crioterapia y longevidad, HYROX 2026, suplementación..."
-                  disabled={isResearching}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3.5 text-base md:text-xs text-white focus:border-[#CCFF00]/40 outline-none" 
-                />
-              </div>
-              <button 
-                onClick={runAllAgentsResearchRound}
-                disabled={isResearching}
-                className="w-full bg-indigo-600 text-white font-black py-4 rounded text-[10px] tracking-widest hover:bg-indigo-500 transition-all uppercase flex items-center justify-center gap-2 shadow-[0_0_15px_#6366F122] disabled:opacity-50"
-              >
-                <RefreshCw size={12} className={isResearching ? 'animate-spin' : ''} />
-                <span>{isResearching ? 'PROCESANDO...' : (researchAgent === 'all' ? 'INICIAR RONDA COMPLETA' : 'INICIAR INVESTIGACIÓN')}</span>
-              </button>
+              {isResearching ? (
+                /* MOSTRAR ESTADO DE LA INVESTIGACIÓN EN EL MISMO DESPLEGABLE */
+                <div className="space-y-6 py-4">
+                  <div className="text-center space-y-2">
+                    <p className="text-[10px] text-[#CCFF00] font-black uppercase tracking-widest animate-pulse">
+                      Ejecutando escaneo en internet...
+                    </p>
+                    <p className="text-[11px] text-white/80 font-medium truncate font-mono">
+                      {researchStatus}
+                    </p>
+                  </div>
+
+                  {/* Barra de progreso */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-[8px] text-white/40 font-mono">
+                      <span>PROGRESO</span>
+                      <span>{researchProgress}%</span>
+                    </div>
+                    <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden border border-white/10 relative">
+                      <div 
+                        className="h-full bg-gradient-to-r from-indigo-500 via-[#CCFF00] to-green-400 transition-all duration-500 rounded-full shadow-[0_0_10px_#CCFF00]" 
+                        style={{ width: `${researchProgress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Detalle visual / Micro-animación */}
+                  <div className="p-3 bg-white/[0.02] border border-white/5 rounded-lg text-[9px] font-mono text-white/40 space-y-1.5 max-h-24 overflow-hidden">
+                    <p className="text-white/60">⚡ Conectado a Gemini API ({geminiModel})</p>
+                    <p className="text-white/60">🔎 Google Search Grounding activo</p>
+                    <p className="text-[#CCFF00]/80">&gt; Escribiendo y publicando informe en el foro...</p>
+                  </div>
+                </div>
+              ) : (
+                /* CONTROLES DE CONFIGURACIÓN */
+                <>
+                  <p className="text-[11px] text-white/60 leading-relaxed">
+                    Los agentes colaboradores buscarán en tiempo real en internet usando <strong>Google Search Grounding</strong>. Elige si quieres consultar a todos o a un especialista específico.
+                  </p>
+                  <div>
+                    <label className="text-[8px] text-white/30 font-bold block mb-1.5 uppercase tracking-widest">Agente Investigador</label>
+                    <select 
+                      value={researchAgent}
+                      onChange={(e) => setResearchAgent(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg p-3.5 text-base md:text-xs text-white focus:border-[#CCFF00]/40 outline-none"
+                    >
+                      <option value="all" className="bg-[#0A0A0A]">Todos los agentes (Ronda completa)</option>
+                      {agentes.map(a => (
+                        <option key={a.id} value={a.id} className="bg-[#0A0A0A]">@{a.nickname} — {a.rol}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[8px] text-white/30 font-bold block mb-1.5 uppercase tracking-widest">Tema de Investigación Especializada (Opcional)</label>
+                    <input 
+                      type="text" 
+                      value={researchTopic} 
+                      onChange={(e) => setResearchTopic(e.target.value)} 
+                      placeholder="Ej: Crioterapia y longevidad, HYROX 2026, suplementación..."
+                      className="w-full bg-white/5 border border-white/10 rounded-lg p-3.5 text-base md:text-xs text-white focus:border-[#CCFF00]/40 outline-none" 
+                    />
+                  </div>
+                  <button 
+                    onClick={runAllAgentsResearchRound}
+                    className="w-full bg-indigo-600 text-white font-black py-4 rounded text-[10px] tracking-widest hover:bg-indigo-500 transition-all uppercase flex items-center justify-center gap-2 shadow-[0_0_15px_#6366F122]"
+                  >
+                    <RefreshCw size={12} />
+                    <span>{researchAgent === 'all' ? 'INICIAR RONDA COMPLETA' : 'INICIAR INVESTIGACIÓN'}</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
