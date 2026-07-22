@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Edit3, Activity, MessageSquare, Settings2, X, Menu, RefreshCw, Search, Printer, PlusCircle, Globe } from 'lucide-react';
+import { Send, Edit3, Activity, MessageSquare, Settings2, X, Menu, RefreshCw, Search, Printer, PlusCircle, Globe, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Agente, Mensaje, ReporteGym } from '../types';
 
@@ -141,6 +141,8 @@ export const TJOfficeChat: React.FC = () => {
   const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
   const [mentionFilter, setMentionFilter] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(window.innerWidth < 1024);
+  const [geminiModel, setGeminiModel] = useState<string>('gemini-2.5-flash');
 
   // ESTADO PARA MOSTRAR PERFIL DETALLADO DE AGENTES/JEFE
   const [profileToShow, setProfileToShow] = useState<{
@@ -448,7 +450,8 @@ Responde al usuario.`;
 
     try {
       // Llamada API con Google Search
-      let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      const fallbackModel = geminiModel === 'gemini-2.5-flash' ? 'gemini-1.5-flash' : 'gemini-2.5-flash';
+      let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -458,8 +461,8 @@ Responde al usuario.`;
       });
       
       if (!res.ok) {
-        // Fallback a gemini-2.0-flash
-        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+        // Fallback
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -471,7 +474,7 @@ Responde al usuario.`;
 
       if (!res.ok) {
         // Fallback sin herramientas
-        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -845,8 +848,9 @@ Responde al usuario: ${userText}`;
               const controller = new AbortController();
               const timeoutId = setTimeout(() => controller.abort(), 8000);
               
-              // Intento 1: v1beta con gemini-2.5-flash y google_search
-              let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+              // Intento 1: v1beta con modelo seleccionado y google_search
+              const fallbackModel = geminiModel === 'gemini-2.5-flash' ? 'gemini-1.5-flash' : 'gemini-2.5-flash';
+              let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -856,10 +860,10 @@ Responde al usuario: ${userText}`;
                 signal: controller.signal
               });
               
-              // Intento 2: fallback a gemini-2.0-flash si la anterior falla
+              // Intento 2: fallback
               if (!res.ok) {
-                console.warn("Fallo con gemini-2.5-flash, intentando con gemini-2.0-flash...");
-                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+                console.warn(`Fallo con ${geminiModel}, intentando con ${fallbackModel}...`);
+                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${apiKey}`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ 
@@ -873,7 +877,7 @@ Responde al usuario: ${userText}`;
               // Intento 3: fallback sin herramientas si sigue fallando
               if (!res.ok) {
                 console.warn("Fallo con herramientas, ejecutando llamada simple...");
-                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ 
@@ -1162,52 +1166,98 @@ Responde al usuario: ${userText}`;
     <div className="flex h-screen w-full bg-black text-white font-sans overflow-hidden text-[12px]">
       
       {/* SIDEBAR IZQUIERDA: AGENTES */}
-      <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#0A0A0A] border-r border-white/10 flex flex-col lg:static ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} transition-transform`}>
-        <div className="h-16 flex items-center gap-3 px-5 border-b border-white/10">
-          <img src="/logo-tjo.jpg" className="w-8 h-8 rounded border border-[#CCFF00]/30 shadow-[0_0_10px_#CCFF0044]" alt="" />
-          <span className="font-black italic uppercase">TJ<span className="text-[#CCFF00]">OFFICE</span></span>
+      <aside className={`
+        ${isSidebarCollapsed 
+          ? 'w-16 static flex' 
+          : 'w-64 absolute lg:static left-0 inset-y-0 z-40 flex shadow-2xl lg:shadow-none'
+        } 
+        flex-shrink-0 bg-[#0A0A0A] border-r border-white/10 flex-col transition-all duration-300
+      `}>
+        <div className="h-16 flex items-center justify-between px-3 border-b border-white/10">
+          {!isSidebarCollapsed ? (
+            <div className="flex items-center gap-2.5">
+              <img src="/logo-tjo.jpg" className="w-8 h-8 rounded border border-[#CCFF00]/30 shadow-[0_0_10px_#CCFF0044]" alt="" />
+              <span className="font-black italic uppercase">TJ<span className="text-[#CCFF00]">OFFICE</span></span>
+            </div>
+          ) : (
+            <img src="/logo-tjo.jpg" className="w-8 h-8 rounded border border-[#CCFF00]/30 shadow-[0_0_10px_#CCFF0044] mx-auto" alt="" />
+          )}
+          <button 
+            type="button"
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className="text-white/40 hover:text-white transition-colors p-1.5 rounded hover:bg-white/5"
+            title={isSidebarCollapsed ? "Expandir" : "Contraer"}
+          >
+            {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
-          <span className="text-[9px] font-bold text-white/40 tracking-widest uppercase">Especialistas IA</span>
+        <div className="flex-1 overflow-y-auto p-3 space-y-4 scrollbar-hide">
+          {!isSidebarCollapsed && <span className="text-[9px] font-bold text-white/40 tracking-widest uppercase block mb-1">Especialistas IA</span>}
           {agentes.map(a => (
-            <div key={a.id} className="flex items-center gap-3 p-2.5 rounded bg-white/5 border border-white/5 relative group/agent">
-              <div className="relative cursor-pointer" onClick={() => handleOpenProfile(a)} title="Ver perfil del especialista">
+            <div key={a.id} className={`flex items-center gap-3 ${isSidebarCollapsed ? 'justify-center p-1.5' : 'p-2.5'} rounded bg-white/5 border border-white/5 relative group/agent`}>
+              <div className="relative cursor-pointer flex-shrink-0" onClick={() => handleOpenProfile(a)} title="Ver perfil del especialista">
                 <img src={a.avatar_url} className="w-10 h-10 rounded bg-black border border-white/10 hover:border-[#CCFF00] transition-all object-cover" alt="" />
                 <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#CCFF00] border border-black" />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-[10px] truncate">@{a.nickname}</p>
-                <p className="text-[8px] text-white/40 truncate uppercase">{a.rol}</p>
-              </div>
-              <div className="flex items-center gap-1.5 opacity-40 group-hover/agent:opacity-100 transition-opacity">
-                <button 
-                  onClick={() => {
-                    setResearchAgent(a.id);
-                    setShowResearchModal(true);
-                  }}
-                  disabled={isResearching || isSending || isTyping !== null}
-                  className="text-white hover:text-[#CCFF00] transition-colors disabled:opacity-30 disabled:hover:text-white/40"
-                  title="Buscar en internet y publicar"
-                >
-                  <Globe size={11} />
-                </button>
-                <button onClick={() => setEditingAgente(a)} className="text-white hover:text-[#CCFF00] transition-colors" title="Editar"><Edit3 size={11}/></button>
-              </div>
+              {!isSidebarCollapsed && (
+                <>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-[10px] truncate">@{a.nickname}</p>
+                    <p className="text-[8px] text-white/40 truncate uppercase">{a.rol}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 opacity-40 group-hover/agent:opacity-100 transition-opacity">
+                    <button 
+                      onClick={() => {
+                        setResearchAgent(a.id);
+                        setShowResearchModal(true);
+                      }}
+                      disabled={isResearching || isSending || isTyping !== null}
+                      className="text-white hover:text-[#CCFF00] transition-colors disabled:opacity-30 disabled:hover:text-white/40"
+                      title="Buscar en internet y publicar"
+                    >
+                      <Globe size={11} />
+                    </button>
+                    <button onClick={() => setEditingAgente(a)} className="text-white hover:text-[#CCFF00] transition-colors" title="Editar"><Edit3 size={11}/></button>
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>
-        <div className="p-4 border-t border-white/10 space-y-2">
-          <button onClick={() => setIsAutoActive(!isAutoActive)} className={`w-full py-3 rounded text-[10px] font-bold border transition-all ${isAutoActive ? 'bg-[#CCFF00] text-black border-[#CCFF00] shadow-[0_0_10px_#CCFF0044]' : 'bg-white/5 text-white/40'}`}>
-            {isAutoActive ? 'AGENTS_ACTIVE' : 'ACTIVATE_AGENTS'}
-          </button>
-          <button 
-            onClick={() => setShowResearchModal(true)} 
-            disabled={isResearching}
-            className="w-full py-3 rounded text-[10px] font-bold border border-indigo-500/30 bg-indigo-500/10 text-indigo-200 hover:bg-indigo-500 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            <Globe size={11} className={isResearching ? 'animate-spin' : ''} />
-            <span>{isResearching ? 'Investigando...' : 'Ronda de Investigación IA'}</span>
-          </button>
+        <div className="p-3 border-t border-white/10 space-y-2 flex flex-col items-center">
+          {isSidebarCollapsed ? (
+            <>
+              <button 
+                onClick={() => setIsAutoActive(!isAutoActive)} 
+                className={`w-9 h-9 rounded-lg flex items-center justify-center border transition-all ${isAutoActive ? 'bg-[#CCFF00] text-black border-[#CCFF00] shadow-[0_0_10px_#CCFF0044]' : 'bg-white/5 text-white/40 border-white/5'}`}
+                title={isAutoActive ? "Desactivar agentes automáticos" : "Activar agentes automáticos"}
+              >
+                <Activity size={14} />
+              </button>
+              <button 
+                onClick={() => setShowResearchModal(true)} 
+                disabled={isResearching}
+                className="w-9 h-9 rounded-lg flex items-center justify-center border border-indigo-500/30 bg-indigo-500/10 text-indigo-200 hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-50"
+                title="Ronda de Investigación IA"
+              >
+                <Globe size={14} className={isResearching ? 'animate-spin' : ''} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => setIsAutoActive(!isAutoActive)} className={`w-full py-3 rounded text-[10px] font-bold border transition-all ${isAutoActive ? 'bg-[#CCFF00] text-black border-[#CCFF00] shadow-[0_0_10px_#CCFF0044]' : 'bg-white/5 text-white/40'}`}>
+                {isAutoActive ? 'AGENTS_ACTIVE' : 'ACTIVATE_AGENTS'}
+              </button>
+              <button 
+                onClick={() => setShowResearchModal(true)} 
+                disabled={isResearching}
+                className="w-full py-3 rounded text-[10px] font-bold border border-indigo-500/30 bg-indigo-500/10 text-indigo-200 hover:bg-indigo-500 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <Globe size={11} className={isResearching ? 'animate-spin' : ''} />
+                <span>{isResearching ? 'Investigando...' : 'Ronda de Investigación IA'}</span>
+              </button>
+            </>
+          )}
         </div>
       </aside>
 
@@ -1215,7 +1265,13 @@ Responde al usuario: ${userText}`;
       <main className="flex-1 flex flex-col bg-[#050505] overflow-hidden relative">
         <header className="h-16 flex items-center justify-between px-6 border-b border-white/10 bg-black sticky top-0 z-20">
           <div className="flex items-center gap-3">
-            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden"><Menu size={18}/></button>
+            <button 
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} 
+              className="lg:hidden text-white/60 hover:text-white transition-colors"
+              title="Alternar barra lateral"
+            >
+              <Menu size={18}/>
+            </button>
             <MessageSquare size={14} className="text-[#CCFF00]" />
             <span className="text-[10px] font-bold uppercase tracking-widest">Mainframe</span>
           </div>
@@ -1237,6 +1293,17 @@ Responde al usuario: ${userText}`;
           </div>
 
           <div className="flex items-center gap-2">
+            <select
+              value={geminiModel}
+              onChange={(e) => setGeminiModel(e.target.value)}
+              className="bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-[9px] font-bold text-white/70 hover:text-white outline-none focus:border-[#CCFF00]/40 tracking-wider cursor-pointer uppercase font-mono transition-all"
+              title="Seleccionar Modelo Gemini"
+            >
+              <option value="gemini-2.5-flash" className="bg-[#0A0A0A]">Gemini 2.5 Flash</option>
+              <option value="gemini-2.5-pro" className="bg-[#0A0A0A]">Gemini 2.5 Pro</option>
+              <option value="gemini-1.5-pro" className="bg-[#0A0A0A]">Gemini 1.5 Pro</option>
+              <option value="gemini-1.5-flash" className="bg-[#0A0A0A]">Gemini 1.5 Flash</option>
+            </select>
             <button onClick={fetchData} className={`p-2 ${isSyncing ? 'animate-spin text-[#CCFF00]' : 'text-white/40'}`}><RefreshCw size={14}/></button>
             <button onClick={() => setIsVoiceEnabled(!isVoiceEnabled)} className={`p-2 rounded-full border ${isVoiceEnabled ? 'border-[#CCFF00] text-[#CCFF00]' : 'border-white/10 text-white/20'}`}><Activity size={14}/></button>
           </div>
