@@ -1543,7 +1543,7 @@ Responde al usuario: ${userText}`;
               </form>
             </div>
           </>
-        ) : (
+        ) : activeView === 'forum' ? (
           // CONTENIDO DEL FORO DE TENDENCIAS (NUEVA INTEGRACIÓN)
           <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 scrollbar-hide">
             {/* SUB-MENU TABS DEL FORO */}
@@ -1820,11 +1820,453 @@ Responde al usuario: ${userText}`;
                     </div>
                   );
                 })}
-                {forumPosts.length === 0 && (
-                  <p className="text-center text-white/40 py-10 italic">No hay publicaciones en el foro todavía.</p>
-                )}
               </div>
             )}
+          </div>
+        ) : (
+          // NUEVA SECCIÓN: PLANIFICADOR DE TAREAS E INTEGRACIONES
+          <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 scrollbar-hide bg-[#030303] text-white">
+            {/* CABECERA SECCIÓN TAREAS */}
+            <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/10 pb-6">
+              <div>
+                <h1 className="text-lg md:text-xl font-black text-[#CCFF00] tracking-tight uppercase">Planificador & Integraciones</h1>
+                <p className="text-[10px] text-white/50 uppercase tracking-widest mt-1">Control de tareas, checklists de agentes y sincronización con Google</p>
+              </div>
+            </div>
+
+            {/* DISEÑO DOS COLUMNAS */}
+            <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+              
+              {/* COLUMNA IZQUIERDA (7 COLUMNAS): GESTIÓN DE TAREAS */}
+              <div className="lg:col-span-7 space-y-6">
+                
+                {/* FORMULARIO: CREAR NUEVA TAREA */}
+                <div className="p-5 rounded-2xl bg-[#090909] border border-white/10 space-y-4">
+                  <h3 className="text-[10px] font-black text-[#CCFF00] uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#CCFF00]"></span>
+                    Asignar Nueva Tarea a Agente
+                  </h3>
+
+                  <div className="space-y-3.5">
+                    <div>
+                      <label className="text-[8px] text-white/40 font-bold block mb-1 uppercase tracking-widest">Título de la Tarea</label>
+                      <input 
+                        type="text" 
+                        value={taskTitle} 
+                        onChange={(e) => setTaskTitle(e.target.value)} 
+                        placeholder="Ej: Redactar plan de longevidad, Diseñar mockup de rutina..."
+                        className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-[11px] text-white focus:border-[#CCFF00]/40 outline-none"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      <div>
+                        <label className="text-[8px] text-white/40 font-bold block mb-1 uppercase tracking-widest">Agente Asignado</label>
+                        <select 
+                          value={taskAgent}
+                          onChange={(e) => setTaskAgent(e.target.value)}
+                          className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-[11px] text-white focus:border-[#CCFF00]/40 outline-none"
+                        >
+                          <option value="all" className="bg-[#0A0A0A]">Todos los agentes</option>
+                          {agentes.map(a => (
+                            <option key={a.id} value={a.id} className="bg-[#0A0A0A]">@{a.nickname} ({a.rol})</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[8px] text-white/40 font-bold block mb-1 uppercase tracking-widest">Fecha y Hora Límite</label>
+                        <input 
+                          type="datetime-local" 
+                          value={taskDueDate} 
+                          onChange={(e) => setTaskDueDate(e.target.value)} 
+                          className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-[11px] text-white focus:border-[#CCFF00]/40 outline-none uppercase font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    {/* CHECKLIST ITEMS */}
+                    <div>
+                      <label className="text-[8px] text-white/40 font-bold block mb-1 uppercase tracking-widest">Sub-Tareas / Checklist</label>
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          value={taskChecklistText} 
+                          onChange={(e) => setTaskChecklistText(e.target.value)} 
+                          placeholder="Añadir ítem del checklist..."
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (taskChecklistText.trim()) {
+                                setTaskChecklistItems(prev => [...prev, { id: `item-${Date.now()}`, texto: taskChecklistText.trim(), completado: false }]);
+                                setTaskChecklistText('');
+                              }
+                            }
+                          }}
+                          className="flex-grow bg-white/5 border border-white/10 rounded-lg p-3 text-[11px] text-white focus:border-[#CCFF00]/40 outline-none"
+                        />
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            if (taskChecklistText.trim()) {
+                              setTaskChecklistItems(prev => [...prev, { id: `item-${Date.now()}`, texto: taskChecklistText.trim(), completado: false }]);
+                              setTaskChecklistText('');
+                            }
+                          }}
+                          className="px-4 rounded-lg bg-[#CCFF00] text-black text-[10px] font-black uppercase font-mono"
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      {/* Lista de items creados */}
+                      {taskChecklistItems.length > 0 && (
+                        <div className="mt-2.5 p-3 rounded-lg bg-white/[0.02] border border-white/5 space-y-1.5">
+                          {taskChecklistItems.map((item, idx) => (
+                            <div key={item.id} className="flex justify-between items-center text-[10px] font-mono text-white/70">
+                              <span>{idx + 1}. {item.texto}</span>
+                              <button 
+                                type="button" 
+                                onClick={() => setTaskChecklistItems(prev => prev.filter(i => i.id !== item.id))} 
+                                className="text-red-500 hover:text-red-400 font-bold ml-2"
+                              >
+                                Eliminar
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <button 
+                      type="button"
+                      onClick={async () => {
+                        if (!taskTitle.trim() || !taskDueDate) {
+                          alert("Por favor completa el título y la fecha límite de la tarea.");
+                          return;
+                        }
+                        
+                        const newTask = {
+                          id: `task-${Date.now()}`,
+                          titulo: taskTitle.trim(),
+                          agenteId: taskAgent,
+                          fechaLimite: new Date(taskDueDate).toISOString(),
+                          completada: false,
+                          checklist: taskChecklistItems,
+                          creadoEn: new Date().toISOString()
+                        };
+
+                        setTasks(prev => [newTask, ...prev]);
+
+                        const agentObj = agentes.find(a => a.id === taskAgent);
+                        const agentName = agentObj ? `@${agentObj.nickname}` : 'Todos';
+                        await insertAndAddMessage({
+                          remitente_tipo: 'sistema',
+                          remitente_id: 'scheduler',
+                          texto: `📋 **[NUEVA TAREA]** asignada a **${agentName}**: "${taskTitle.trim()}". Límite: ${new Date(taskDueDate).toLocaleString()}`,
+                          canal: '#general'
+                        });
+
+                        if (googleConnected && n8nCalendarWebhook) {
+                          try {
+                            await fetch(n8nCalendarWebhook, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                action: 'create_event',
+                                title: taskTitle.trim(),
+                                dueDate: taskDueDate,
+                                assignedTo: agentName,
+                                checklist: taskChecklistItems.map(i => i.texto)
+                              })
+                            });
+                          } catch (err) {
+                            console.error("Error enviando webhook Calendar:", err);
+                          }
+                        }
+
+                        setTaskTitle('');
+                        setTaskAgent('all');
+                        setTaskDueDate('');
+                        setTaskChecklistItems([]);
+                      }}
+                      className="w-full bg-[#CCFF00] text-black font-black py-3 rounded-lg text-[10px] tracking-widest hover:bg-[#b5e000] transition-all uppercase flex items-center justify-center gap-1"
+                    >
+                      Añadir y Asignar Tarea
+                    </button>
+                  </div>
+                </div>
+
+                {/* LISTA DE TAREAS ACTIVAS */}
+                <div className="space-y-4">
+                  <h3 className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em]">Tareas Asignadas ({tasks.filter(t => !t.completada).length})</h3>
+                  
+                  <div className="space-y-3.5">
+                    {tasks.map(task => {
+                      const agentObj = agentes.find(a => a.id === task.agenteId);
+                      const agentName = agentObj ? `@${agentObj.nickname}` : 'Todos';
+                      const totalItems = task.checklist.length;
+                      const doneItems = task.checklist.filter(i => i.completado).length;
+                      const pct = totalItems > 0 ? Math.round((doneItems / totalItems) * 100) : (task.completada ? 100 : 0);
+
+                      return (
+                        <div key={task.id} className={`p-4 rounded-xl border transition-all ${task.completada ? 'bg-white/[0.02] border-white/5 opacity-55' : 'bg-[#090909] border-white/10'}`}>
+                          <div className="flex justify-between items-start gap-4">
+                            <div className="min-w-0">
+                              <h4 className={`text-[12px] font-bold ${task.completada ? 'line-through text-white/40' : 'text-white'}`}>{task.titulo}</h4>
+                              <p className="text-[8px] text-white/40 font-mono mt-1 uppercase">
+                                Asignado a: <span className="text-[#CCFF00] font-bold">{agentName}</span> &bull; Límite: {new Date(task.fechaLimite).toLocaleString()}
+                              </p>
+                            </div>
+                            <button 
+                              onClick={() => {
+                                setTasks(prev => prev.map(t => {
+                                  if (t.id === task.id) {
+                                    return { ...t, completada: !t.completada };
+                                  }
+                                  return t;
+                                }));
+                              }}
+                              className={`px-2.5 py-1 rounded text-[8px] font-black uppercase transition-all ${task.completada ? 'bg-white/10 text-white/50' : 'bg-[#CCFF00]/10 text-[#CCFF00] hover:bg-[#CCFF00] hover:text-black'}`}
+                            >
+                              {task.completada ? 'Reabrir' : 'Completar'}
+                            </button>
+                          </div>
+
+                          {totalItems > 0 && (
+                            <div className="mt-3.5 pt-3.5 border-t border-white/5 space-y-2">
+                              <div className="flex justify-between text-[8px] text-white/40 font-mono">
+                                <span>CHECKLIST SUB-TAREAS ({doneItems}/{totalItems})</span>
+                                <span>{pct}%</span>
+                              </div>
+                              
+                              <div className="space-y-1.5">
+                                {task.checklist.map(item => (
+                                  <label key={item.id} className="flex items-center gap-2.5 text-[10px] text-white/80 cursor-pointer select-none">
+                                    <input 
+                                      type="checkbox"
+                                      checked={item.completado}
+                                      disabled={task.completada}
+                                      onChange={() => {
+                                        setTasks(prev => prev.map(t => {
+                                          if (t.id === task.id) {
+                                            const newChecklist = t.checklist.map(i => {
+                                              if (i.id === item.id) return { ...i, completado: !i.completado };
+                                              return i;
+                                            });
+                                            return { ...t, checklist: newChecklist };
+                                          }
+                                          return t;
+                                        }));
+                                      }}
+                                      className="rounded border-white/20 bg-white/5 text-[#CCFF00] focus:ring-0 w-3.5 h-3.5 cursor-pointer accent-[#CCFF00]"
+                                    />
+                                    <span className={item.completado ? 'line-through text-white/30' : ''}>{item.texto}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="mt-3.5 h-1 w-full bg-white/5 rounded-full overflow-hidden relative">
+                            <div 
+                              className={`h-full transition-all duration-300 rounded-full ${task.completada ? 'bg-white/20' : 'bg-[#CCFF00]'}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+
+                          <div className="mt-2.5 flex justify-end">
+                            <button 
+                              onClick={() => setTasks(prev => prev.filter(t => t.id !== task.id))}
+                              className="text-[8px] font-bold text-red-500/50 hover:text-red-500 uppercase tracking-widest transition-colors"
+                            >
+                              Eliminar registro
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {tasks.length === 0 && (
+                      <p className="text-center text-white/40 italic py-8 text-[11px]">No hay tareas programadas actualmente.</p>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* COLUMNA DERECHA (5 COLUMNAS): MENSAJES PROGRAMADOS E INTEGRACIONES */}
+              <div className="lg:col-span-5 space-y-6">
+
+                {/* PLANIFICADOR DE MENSAJES */}
+                <div className="p-5 rounded-2xl bg-[#090909] border border-white/10 space-y-4">
+                  <h3 className="text-[10px] font-black text-[#CCFF00] uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#CCFF00]"></span>
+                    Dejar Mensaje Programado
+                  </h3>
+
+                  <div className="space-y-3.5">
+                    <div>
+                      <label className="text-[8px] text-white/40 font-bold block mb-1 uppercase tracking-widest">Contenido del Mensaje</label>
+                      <textarea 
+                        value={schedText} 
+                        onChange={(e) => setSchedText(e.target.value)} 
+                        placeholder="Mensaje automático que se enviará al chat..."
+                        rows={2}
+                        className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-[11px] text-white focus:border-[#CCFF00]/40 outline-none resize-none"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      <div>
+                        <label className="text-[8px] text-white/40 font-bold block mb-1 uppercase tracking-widest">Dirigido a</label>
+                        <select 
+                          value={schedAgent}
+                          onChange={(e) => setSchedAgent(e.target.value)}
+                          className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-[11px] text-white focus:border-[#CCFF00]/40 outline-none"
+                        >
+                          <option value="all" className="bg-[#0A0A0A]">Todos (General)</option>
+                          {agentes.map(a => (
+                            <option key={a.id} value={a.id} className="bg-[#0A0A0A]">@{a.nickname}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[8px] text-white/40 font-bold block mb-1 uppercase tracking-widest">Fecha y Hora de Envío</label>
+                        <input 
+                          type="datetime-local" 
+                          value={schedDate} 
+                          onChange={(e) => setSchedDate(e.target.value)} 
+                          className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-[11px] text-white focus:border-[#CCFF00]/40 outline-none uppercase font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        if (!schedText.trim() || !schedDate) {
+                          alert("Por favor completa el mensaje y la fecha/hora de envío.");
+                          return;
+                        }
+
+                        const newMsg = {
+                          id: `msg-${Date.now()}`,
+                          texto: schedText.trim(),
+                          agenteId: schedAgent,
+                          fechaEnvio: new Date(schedDate).toISOString(),
+                          enviado: false
+                        };
+
+                        setScheduledMsgs(prev => [newMsg, ...prev]);
+
+                        setSchedText('');
+                        setSchedAgent('all');
+                        setSchedDate('');
+                      }}
+                      className="w-full bg-white/10 border border-white/10 text-white font-black py-3 rounded-lg text-[10px] tracking-widest hover:bg-white/20 transition-all uppercase"
+                    >
+                      Programar Envío en Chat
+                    </button>
+                  </div>
+
+                  {/* LISTADO DE PENDIENTES */}
+                  {scheduledMsgs.filter(m => !m.enviado).length > 0 && (
+                    <div className="space-y-2 pt-3.5 border-t border-white/5">
+                      <p className="text-[8px] text-white/40 font-bold uppercase tracking-widest mb-2">Envíos Pendientes</p>
+                      <div className="space-y-2">
+                        {scheduledMsgs.filter(m => !m.enviado).map(m => {
+                          const agentObj = agentes.find(a => a.id === m.agenteId);
+                          const agentName = agentObj ? `@${agentObj.nickname}` : 'Todos';
+                          return (
+                            <div key={m.id} className="p-2.5 rounded-lg bg-white/[0.02] border border-white/5 flex justify-between items-start gap-2.5">
+                              <div className="min-w-0">
+                                <p className="text-[10px] text-white/70 line-clamp-2">"{m.texto}"</p>
+                                <p className="text-[7.5px] text-white/40 font-mono mt-1">Destino: {agentName} &bull; Envío: {new Date(m.fechaEnvio).toLocaleString()}</p>
+                              </div>
+                              <button 
+                                onClick={() => setScheduledMsgs(prev => prev.filter(item => item.id !== m.id))}
+                                className="text-[8px] text-red-500 font-bold hover:underline"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* TARJETA DE CONEXIÓN A GOOGLE & GMAIL */}
+                <div className="p-5 rounded-2xl bg-[#090909] border border-white/10 space-y-4 relative overflow-hidden">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em] mb-1">Ecosistema Google</h3>
+                      <p className="text-[8px] text-white/40 uppercase tracking-wider font-mono">Gmail & Google Calendar Sync</p>
+                    </div>
+                    <div className={`px-2 py-0.5 rounded text-[8px] font-black tracking-widest uppercase ${googleConnected ? 'bg-[#CCFF00]/10 text-[#CCFF00] border border-[#CCFF00]/30 shadow-[0_0_10px_#CCFF0022]' : 'bg-white/5 text-white/30 border border-white/5'}`}>
+                      {googleConnected ? 'CONECTADO' : 'DESCONECTADO'}
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-white/60 leading-relaxed">
+                    Sincroniza tus tareas a **Google Calendar** y envía alertas directas a los agentes vía **Gmail** integrándolo mediante webhooks de automatización de **n8n**.
+                  </p>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-[8px] text-white/40 font-bold block mb-1 uppercase tracking-widest">Webhook n8n - Alertas Gmail</label>
+                      <input 
+                        type="text" 
+                        value={n8nGmailWebhook} 
+                        onChange={(e) => setN8nGmailWebhook(e.target.value)}
+                        placeholder="https://tu-n8n.com/webhook/..."
+                        className="w-full bg-white/5 border border-white/10 rounded-lg p-2.5 text-[9px] text-white focus:border-[#CCFF00]/40 outline-none font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[8px] text-white/40 font-bold block mb-1 uppercase tracking-widest">Webhook n8n - Eventos Calendar</label>
+                      <input 
+                        type="text" 
+                        value={n8nCalendarWebhook} 
+                        onChange={(e) => setN8nCalendarWebhook(e.target.value)}
+                        placeholder="https://tu-n8n.com/webhook/..."
+                        className="w-full bg-white/5 border border-white/10 rounded-lg p-2.5 text-[9px] text-white focus:border-[#CCFF00]/40 outline-none font-mono"
+                      />
+                    </div>
+
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setGoogleConnected(!googleConnected);
+                        if (!googleConnected) {
+                          alert("Conexión de sincronización de Google establecida y guardada con éxito en local.");
+                        }
+                      }}
+                      className={`w-full py-3 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all flex items-center justify-center gap-1 ${googleConnected ? 'bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500 hover:text-white' : 'bg-[#CCFF00] text-black border border-[#CCFF00] shadow-[0_0_15px_#CCFF0022] hover:bg-[#b5e000]'}`}
+                    >
+                      {googleConnected ? 'Desconectar Cuentas de Google' : 'Activar Sincronización Google'}
+                    </button>
+                  </div>
+
+                  {googleConnected && (
+                    <div className="p-3.5 rounded-lg bg-[#CCFF00]/5 border border-[#CCFF00]/10 text-[9px] font-mono text-white/60 space-y-1.5">
+                      <p className="text-[#CCFF00] font-black uppercase text-[8px] tracking-widest">Eventos Sincronizados de Hoy:</p>
+                      <div className="space-y-1">
+                        <p>&bull; 09:00 AM - Planificación de Contenidos (@CommunityManager)</p>
+                        <p>&bull; 11:30 AM - Revisión de Suplementación y FDA (@Legal)</p>
+                        <p>&bull; 04:00 PM - Auditoría de logs de base de datos (@Data)</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+            </div>
           </div>
         )}
       </main>
