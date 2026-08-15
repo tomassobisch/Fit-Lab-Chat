@@ -255,20 +255,38 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
           <div>
             <div className="flex items-center gap-2.5">
               <h1 className="text-lg md:text-xl font-black uppercase tracking-tight text-white">
-                Instagram <span className="text-[#CCFF00]">CRM & Growth</span>
+                Instagram <span className="text-[#CCFF00]">CRM & Growth Hub</span>
               </h1>
-              <span className={`px-2.5 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-widest ${data?.isConnectedRealApi ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'}`}>
-                {data?.isConnectedRealApi ? '● Meta API 100% Conectada' : '○ Modo Simulación TJ FITLAB'}
+              <a 
+                href="https://www.instagram.com/tsteam.fit/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="px-2.5 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-widest bg-pink-500/20 text-pink-300 border border-pink-500/30 hover:bg-pink-500/30 hover:text-white transition-all flex items-center gap-1"
+                title="Abrir perfil oficial @tsteam.fit"
+              >
+                <span>@tsteam.fit</span>
+                <ExternalLink size={9} />
+              </a>
+              <span className={`px-2.5 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-widest ${data?.isConnectedRealApi ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-white/5 text-white/50 border border-white/10'}`}>
+                {data?.isConnectedRealApi ? '● Meta API 100% Conectada' : '○ Modo @tsteam.fit'}
               </span>
             </div>
             <p className="text-[10px] text-white/50 font-mono mt-0.5">
-              Gestión de prospectos de DMs, embudos de conversión y analítica avanzada con @InstaAnalyst
+              Gestión de prospectos de DMs, embudos de conversión y analítica integral 360° con @InstaAnalyst
             </p>
           </div>
         </div>
 
         {/* ACCIONES DE CABECERA */}
         <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+          <button
+            onClick={() => onAskBot("@InstaAnalyst Realiza una AUDITORÍA INTEGRAL 360° de la cuenta @tsteam.fit (https://www.instagram.com/tsteam.fit/): analiza salud de seguidores, ratio de engagement, rendimiento de los últimos Reels/Posts, retención en los primeros 3 segundos, conversión de DMs a clientes agendados y entrega un plan de acción estratégico de 7 días con 3 ganchos virales.")}
+            className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:opacity-90 text-white font-black text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-[0_0_15px_rgba(221,42,123,0.3)] border border-pink-400/30"
+          >
+            <Sparkles size={13} className="text-[#CCFF00]" />
+            <span>Auditar @tsteam.fit con IA</span>
+          </button>
+
           <button
             onClick={() => setShowApiConfig(!showApiConfig)}
             className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 border ${showApiConfig ? 'bg-[#CCFF00] text-black border-[#CCFF00]' : 'bg-white/5 text-white/80 border-white/10 hover:text-white hover:bg-white/10'}`}
@@ -655,12 +673,18 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
               />
               <div>
                 <div className="flex items-center gap-2.5">
-                  <h2 className="text-lg font-black text-white">@{ov?.username || 'tjfitlab_oficial'}</h2>
-                  <span className="px-2 py-0.5 rounded bg-[#CCFF00]/10 border border-[#CCFF00]/30 text-[#CCFF00] text-[9px] font-black font-mono">
-                    VERIFICADO FITLAB
-                  </span>
+                  <h2 className="text-lg font-black text-white">@{ov?.username || 'tsteam.fit'}</h2>
+                  <a 
+                    href="https://www.instagram.com/tsteam.fit/" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="px-2 py-0.5 rounded bg-pink-500/20 border border-pink-500/30 text-pink-300 hover:text-white text-[9px] font-black font-mono flex items-center gap-1"
+                  >
+                    <span>OFICIAL @tsteam.fit</span>
+                    <ExternalLink size={9} />
+                  </a>
                 </div>
-                <p className="text-xs text-white/70 font-medium mt-0.5">{ov?.name || 'TJ FITLAB | Alto Rendimiento'}</p>
+                <p className="text-xs text-white/70 font-medium mt-0.5">{ov?.name || 'TS TEAM FIT | Entrenamiento & Rendimiento'}</p>
                 <div className="flex items-center gap-4 text-[10px] text-white/40 font-mono mt-1.5">
                   <span>👥 {ov?.followersCount.toLocaleString()} Seguidores</span>
                   <span>•</span>
@@ -673,18 +697,18 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
 
             <div className="flex flex-wrap gap-2.5">
               <button
-                onClick={() => onAskBot("@InstaAnalyst Dame un análisis detallado del desglose demográfico de nuestra audiencia en Instagram y qué tipo de contenido convierte mejor en el grupo de 25-34 años.")}
+                onClick={() => onAskBot("@InstaAnalyst Realiza un análisis profundo de la audiencia de @tsteam.fit: qué porcentaje representa el grupo de 25-34 años, qué contenido de entrenamiento de hipertrofia y fuerza retiene mejor y cómo optimizar la biografía y enlace para captar más clientes.")}
                 className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-[9px] font-bold uppercase tracking-wider transition-all flex items-center gap-2"
               >
                 <Target size={13} className="text-[#CCFF00]" />
-                <span>Auditar Audiencia 25-34</span>
+                <span>Auditar Audiencia @tsteam.fit</span>
               </button>
               <button
-                onClick={() => onAskBot("@InstaAnalyst ¿Cuáles son los mejores horarios y días de la semana para publicar Reels de entrenamiento de fuerza en España para maximizar la tasa de guardados?")}
+                onClick={() => onAskBot("@InstaAnalyst ¿Cuáles son los mejores horarios y días de la semana para publicar Reels de fuerza y rendimiento en la cuenta @tsteam.fit para maximizar el ratio de guardados y compartidos en España?")}
                 className="px-4 py-2 rounded-xl bg-[#CCFF00] text-black font-black text-[9px] uppercase tracking-wider hover:bg-white transition-all shadow-[0_0_12px_#CCFF0033] flex items-center gap-1.5"
               >
                 <Clock size={13} />
-                <span>Horarios Óptimos</span>
+                <span>Horarios @tsteam.fit</span>
               </button>
             </div>
           </div>

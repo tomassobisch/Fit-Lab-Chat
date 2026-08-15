@@ -786,17 +786,17 @@ Es de suma importancia empresarial que el contenido de cada sección sea complet
     switch (agent.nickname.toLowerCase()) {
       case 'instaanalyst':
       case 'instametrics':
-        return `¡Hola jefe! Aquí @InstaAnalyst, tu especialista en Analítica de Instagram & Growth de TJ FITLAB. He recibido tu mensaje: *"${userText}"*.
+        return `¡Hola jefe! Aquí @InstaAnalyst, tu especialista en Analítica de Instagram & Growth de TJ FITLAB y TS TEAM FIT (@tsteam.fit). He recibido tu mensaje: *"${userText}"*.
 ${userText.toLowerCase().includes('conectar') || userText.toLowerCase().includes('api') || userText.toLowerCase().includes('token') 
   ? `Para conectar la **Instagram Graph API de Meta** en tiempo real:
-1. Abre el botón superior **INSTAGRAM HUB**.
-2. Haz clic en **Configurar API** e ingresa tu *User/Page Access Token* (con permisos \`instagram_basic\` e \`instagram_manage_insights\`) y tu *Instagram Business Account ID*.
-3. Pulsa en **"Probar y Guardar Conexión"** para sincronizar automáticamente el alcance, impresiones, guardados y reproducciones de Reels.` 
-  : `Actualmente la IA está operando en modo local. De acuerdo a nuestras métricas base en TJ FITLAB (@tjfitlab_oficial):
-- **Engagement Rate**: 4.92% (superando el 1.9% del promedio del sector).
-- **KPI Crítico 2026**: Los posts con formato Carrusel de Longevidad y Reels de Fuerza con sobrecarga progresiva tienen un ratio de guardados del **12.8%**, que es el detonante principal del algoritmo de Meta para explorar nuevos usuarios.
-- **Mejor ventana de publicación**: Lunes a Jueves de 19:30 a 21:00 CET.
-¿Quieres que preparemos el guión de 3 Reels con ganchos de alta retención o revisemos las credenciales de la API?`}`;
+1. Abre el botón superior **API** o ve a la pestaña **CRM INSTAGRAM**.
+2. Haz clic en **Configurar Token API** e ingresa tu *User/Page Access Token* (con permisos \`instagram_basic\` e \`instagram_manage_insights\`) y tu *Instagram Business Account ID*.
+3. Pulsa en **"Probar y Guardar Conexión"** para sincronizar automáticamente el alcance, impresiones, guardados y reproducciones de Reels de @tsteam.fit.` 
+  : `Actualmente la IA está operando en modo local. De acuerdo a nuestras métricas base en @tsteam.fit:
+- **Engagement Rate**: 4.92% (superando con creces el 1.9% del promedio del sector fitness).
+- **KPI Crítico 2026**: Los Reels técnicos de sobrecarga progresiva y carruseles explicativos registran un ratio de guardados del **12.8%**, que es el motor principal del algoritmo de Meta para atraer nuevos clientes potenciales por DM.
+- **Mejor ventana de publicación**: Lunes a Viernes de 19:30 a 21:00 CET.
+¿Quieres que preparemos el guión de 3 Reels virales con ganchos de alta retención o auditemos el embudo de conversión de prospectos en el CRM?`}`;
 
       case 'programador':
         return `¡Hola jefe! Como Ingeniero de Software, recibí tu mensaje: *"${userText}"*. 
