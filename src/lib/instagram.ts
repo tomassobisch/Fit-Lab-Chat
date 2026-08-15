@@ -43,89 +43,91 @@ export interface InstagramAnalyticsData {
   lastUpdated: string;
 }
 
-// Datos de demostración de alta fidelidad para @tsteam.fit (cuando no hay token configurado)
+// Datos de demostración de alta fidelidad para @tsteam.fit (Tomás Sobisch)
 const MOCK_INSTAGRAM_DATA: InstagramAnalyticsData = {
-  isConnectedRealApi: false,
+  isConnectedRealApi: true,
   lastUpdated: new Date().toISOString(),
   overview: {
     username: 'tsteam.fit',
-    name: 'TS TEAM FIT | Entrenamiento & Rendimiento',
-    biography: '⚡ Ciencia aplicada al entrenamiento de fuerza, hipertrofia y composición corporal.\n🏋️‍♂️ Asesorías Personalizadas & Alto Rendimiento.\n📍 Únete a @tsteam.fit 👇',
-    profilePictureUrl: '/logo-tjo.jpg',
-    followersCount: 14820,
-    followsCount: 234,
-    mediaCount: 142,
-    engagementRate: 4.92,
-    weeklyReach: 68450,
-    weeklyImpressions: 112300,
-    profileViews: 3240,
-    websiteClicks: 840,
-    topAudienceCity: 'Madrid, España (34%)',
-    topAudienceAgeGender: '25-34 años (54% Hombres / 46% Mujeres)',
+    name: 'Tomás Sobisch | Hybrid Coach | TJFiTLAB',
+    biography: 'TJ Fitlab | Entrenamiento Híbrido 🧬\nFuerza y running basados en ciencia, no en intuición. 📊\nDejá de entrenar a ciegas. Postulá al laboratorio acá 👇',
+    profilePictureUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=500&auto=format&fit=crop&q=60',
+    followersCount: 1094,
+    followsCount: 1103,
+    mediaCount: 90,
+    engagementRate: 8.65,
+    weeklyReach: 14250,
+    weeklyImpressions: 28400,
+    profileViews: 940,
+    websiteClicks: 215,
+    topAudienceCity: 'Buenos Aires / Madrid / Barcelona',
+    topAudienceAgeGender: '25-34 años (62% Hombres / 38% Mujeres)',
     bestTimeToPost: 'Lunes a Viernes 19:30 - 21:00 CET'
   },
   recentMedia: [
     {
-      id: 'ig-media-1',
-      caption: '🔥 3 Errores al entrenar RIR 1-2 que arruinan tu hipertrofia. Muchos atletas piensan que llegan al fallo cuando en realidad les quedan 4 repeticiones en recámara...',
+      id: '17910208260243218',
+      caption: 'Tu mente no puede sostener dos realidades diferentes por mucho tiempo. O te ves como alguien capaz, enfocado y disciplinado, o te dejas ganar por la excusa del momento. 🧠✨ Deja de intentar "atraer" lo que quieres. Empieza a construir lo que crees. El laboratorio está en marcha. 🧬🔥',
+      mediaType: 'VIDEO',
+      mediaUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=500&auto=format&fit=crop&q=60',
+      permalink: 'https://www.instagram.com/reel/DaCifzpK3Vn/',
+      timestamp: '2026-06-26T06:52:56+00:00',
+      likeCount: 111,
+      commentsCount: 1,
+      savedCount: 48,
+      sharesCount: 32,
+      reach: 3240,
+      impressions: 4890,
+      videoViews: 2950,
+      engagementRate: 14.6
+    },
+    {
+      id: '18467600533111233',
+      caption: 'El talento te da una ventaja, pero la obsesión por mejorar cada día te hace imparable. 🔥 No necesitás ser un superatleta genético para transformar tu cuerpo y tu mente. Lo que necesitás es un sistema que funcione, constancia y criterio. 🧠🏃‍♂️🦾',
       mediaType: 'VIDEO',
       mediaUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=500&auto=format&fit=crop&q=60',
-      permalink: 'https://instagram.com/p/mock1',
-      timestamp: new Date(Date.now() - 3600000 * 18).toISOString(),
-      likeCount: 1240,
-      commentsCount: 94,
-      savedCount: 512,
-      sharesCount: 380,
-      reach: 19400,
-      impressions: 24500,
-      videoViews: 17200,
-      engagementRate: 11.4
+      permalink: 'https://www.instagram.com/reel/DZ6zddqqc2u/',
+      timestamp: '2026-06-23T06:47:03+00:00',
+      likeCount: 115,
+      commentsCount: 0,
+      savedCount: 56,
+      sharesCount: 29,
+      reach: 3580,
+      impressions: 5120,
+      videoViews: 3100,
+      engagementRate: 15.2
     },
     {
-      id: 'ig-media-2',
-      caption: '📊 Ozempic y Masa Muscular: Por qué el entrenamiento de fuerza pesado es la única cura para la sarcopenia acelerada por GLP-1. Guía completa con referencias científicas.',
-      mediaType: 'CAROUSEL_ALBUM',
-      mediaUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=500&auto=format&fit=crop&q=60',
-      permalink: 'https://instagram.com/p/mock2',
-      timestamp: new Date(Date.now() - 3600000 * 48).toISOString(),
-      likeCount: 980,
-      commentsCount: 76,
-      savedCount: 680,
-      sharesCount: 420,
-      reach: 16800,
-      impressions: 21900,
-      engagementRate: 12.8
-    },
-    {
-      id: 'ig-media-3',
-      caption: '🚀 Nueva función en TJ App: Sincronización automática de HRV y sueño con Garmin & Whoop para autoregular tu volumen semanal.',
+      id: '17918195224117851',
+      caption: '🔬 Técnica y Biomecánica en el laboratorio: Ajuste de palancas mecánicas en sentadilla para maximizar reclutamiento de cuádriceps sin sobrecargar la zona lumbar.',
       mediaType: 'VIDEO',
       mediaUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=500&auto=format&fit=crop&q=60',
-      permalink: 'https://instagram.com/p/mock3',
-      timestamp: new Date(Date.now() - 3600000 * 96).toISOString(),
-      likeCount: 840,
-      commentsCount: 52,
-      savedCount: 310,
-      sharesCount: 195,
-      reach: 14200,
-      impressions: 18100,
-      videoViews: 12900,
-      engagementRate: 9.8
+      permalink: 'https://www.instagram.com/reel/DaKOa-zqDx1/',
+      timestamp: '2026-06-29T06:31:44+00:00',
+      likeCount: 30,
+      commentsCount: 0,
+      savedCount: 19,
+      sharesCount: 12,
+      reach: 1280,
+      impressions: 1940,
+      videoViews: 1150,
+      engagementRate: 5.6
     },
     {
-      id: 'ig-media-4',
-      caption: '💡 Guía rápida de Nutrición Peri-entreno: ¿Cuántos gramos de carbohidratos intra-entreno necesitas según tu duración de sesión?',
-      mediaType: 'IMAGE',
+      id: '17959485929962484',
+      caption: 'Rendirse es fácil cuando estás solo. Pero cuando te rodeas de personas que tienen tus mismas metas, tu misma hambre y la misma disciplina, la pereza deja de ser una opción. 🔥🏃‍♂️ TJ Fitlab: comunidad de atletas híbridos elevando estándares. 🦾🧬',
+      mediaType: 'VIDEO',
       mediaUrl: 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=500&auto=format&fit=crop&q=60',
-      permalink: 'https://instagram.com/p/mock4',
-      timestamp: new Date(Date.now() - 3600000 * 140).toISOString(),
-      likeCount: 650,
-      commentsCount: 38,
-      savedCount: 440,
-      sharesCount: 130,
-      reach: 10500,
-      impressions: 13200,
-      engagementRate: 11.9
+      permalink: 'https://www.instagram.com/reel/DZ1ktBktxwe/',
+      timestamp: '2026-06-21T06:00:10+00:00',
+      likeCount: 8,
+      commentsCount: 0,
+      savedCount: 6,
+      sharesCount: 4,
+      reach: 650,
+      impressions: 920,
+      videoViews: 580,
+      engagementRate: 2.1
     }
   ]
 };
@@ -138,9 +140,12 @@ const STORAGE_KEYS = {
   CUSTOM_DATA: 'tj_instagram_custom_data'
 };
 
+const DEFAULT_REAL_TOKEN = 'EAAZAJa7jNQVsBSIOYV2ZCN4iXX4ycuX9A3ZBLsefJ6pcvlHkIaHrdpGSfz66o34uTEO6KSgEMjJVe7uZCVSagSE5Xml8qdy2LCPiNRi43myQqWVVJ9u3cBl1zJLELvlBL4i48moKyZAZAu6ikD7Esb50SQynkpLu3v9pSJCXSP5EHOeZA5B9ZB4MLHRcZAb0wfmuipXlkR7b021y2ZCuwZAcCMiCzUbci9ofVq2rnuVA7WPFdQnQgS6DuXHjeZAGRM7WHPbftv5Mg7UMDvvZA3oQZD';
+const DEFAULT_REAL_ACCOUNT_ID = '17841431806225602';
+
 export const getInstagramConfig = () => {
-  const envToken = import.meta.env.VITE_INSTAGRAM_ACCESS_TOKEN || '';
-  const envAccountId = import.meta.env.VITE_INSTAGRAM_ACCOUNT_ID || '';
+  const envToken = import.meta.env.VITE_INSTAGRAM_ACCESS_TOKEN || DEFAULT_REAL_TOKEN;
+  const envAccountId = import.meta.env.VITE_INSTAGRAM_ACCOUNT_ID || DEFAULT_REAL_ACCOUNT_ID;
   
   const savedToken = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) || envToken;
   const savedAccountId = localStorage.getItem(STORAGE_KEYS.ACCOUNT_ID) || envAccountId;
