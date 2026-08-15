@@ -1387,36 +1387,50 @@ Responde al usuario: ${userText}`;
             <span className="text-[10px] font-bold uppercase tracking-widest hidden sm:inline">Mainframe</span>
           </div>
 
-          {/* NAVEGACIÓN: CHAT VS FORO VS CRM INSTAGRAM */}
-          <div className="flex items-center gap-1.5 md:gap-2">
-            <div className="flex bg-white/5 rounded-lg p-0.5 border border-white/10">
-              <button 
-                onClick={() => setActiveView('chat')} 
-                className={`px-2 py-1 md:px-3 md:py-1.5 rounded-md text-[8px] md:text-[9px] font-bold tracking-widest uppercase transition-all ${activeView === 'chat' ? 'bg-[#CCFF00] text-black shadow-[0_0_8px_#CCFF0022]' : 'text-white/60 hover:text-white'}`}
-              >
-                💬 CHAT
-              </button>
-              <button 
-                onClick={() => setActiveView('forum')} 
-                className={`px-2 py-1 md:px-3 md:py-1.5 rounded-md text-[8px] md:text-[9px] font-bold tracking-widest uppercase transition-all ${activeView === 'forum' ? 'bg-[#CCFF00] text-black shadow-[0_0_8px_#CCFF0022]' : 'text-white/60 hover:text-white'}`}
-              >
-                📈 FORO <span className="hidden md:inline">TENDENCIAS</span>
-              </button>
-              <button 
-                onClick={() => setActiveView('crm')} 
-                className={`px-2 py-1 md:px-3 md:py-1.5 rounded-md text-[8px] md:text-[9px] font-bold tracking-widest uppercase transition-all ${activeView === 'crm' ? 'bg-[#CCFF00] text-black shadow-[0_0_8px_#CCFF0022]' : 'text-pink-300 hover:text-white'}`}
-              >
-                🎯 CRM <span className="hidden md:inline">INSTAGRAM</span>
-              </button>
-            </div>
+          {/* NAVEGACIÓN PRINCIPAL UNIFICADA: CHAT | FORO | CRM INSTAGRAM | API HUB */}
+          <div className="flex bg-white/5 rounded-xl p-1 border border-white/10 items-center gap-1 shadow-inner">
+            <button 
+              onClick={() => setActiveView('chat')} 
+              className={`px-2.5 py-1.5 md:px-3.5 md:py-1.5 rounded-lg text-[8.5px] md:text-[9.5px] font-black tracking-widest uppercase transition-all flex items-center gap-1.5 ${
+                activeView === 'chat' 
+                  ? 'bg-[#CCFF00] text-black shadow-[0_0_12px_#CCFF0044]' 
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <span>💬 CHAT</span>
+            </button>
+
+            <button 
+              onClick={() => setActiveView('forum')} 
+              className={`px-2.5 py-1.5 md:px-3.5 md:py-1.5 rounded-lg text-[8.5px] md:text-[9.5px] font-black tracking-widest uppercase transition-all flex items-center gap-1.5 ${
+                activeView === 'forum' 
+                  ? 'bg-[#CCFF00] text-black shadow-[0_0_12px_#CCFF0044]' 
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <span>📈 FORO</span>
+              <span className="hidden lg:inline text-[7.5px] opacity-70">TENDENCIAS</span>
+            </button>
+
+            <button 
+              onClick={() => setActiveView('crm')} 
+              className={`px-2.5 py-1.5 md:px-3.5 md:py-1.5 rounded-lg text-[8.5px] md:text-[9.5px] font-black tracking-widest uppercase transition-all flex items-center gap-1.5 ${
+                activeView === 'crm' 
+                  ? 'bg-[#CCFF00] text-black shadow-[0_0_12px_#CCFF0044]' 
+                  : 'text-pink-300 hover:text-white hover:bg-pink-500/10'
+              }`}
+            >
+              <span>🎯 CRM</span>
+              <span className="hidden sm:inline">INSTAGRAM</span>
+            </button>
 
             <button 
               onClick={() => setShowInstagramModal(true)} 
-              className="px-2 py-1 md:px-2.5 md:py-1.5 rounded-md text-[8px] md:text-[9px] font-bold tracking-widest uppercase transition-all bg-gradient-to-r from-[#F58529]/20 via-[#DD2A7B]/20 to-[#8134AF]/20 border border-pink-500/30 text-pink-300 hover:text-white flex items-center gap-1.5 shadow-[0_0_10px_rgba(221,42,123,0.15)] hover:border-pink-400"
-              title="Abrir Instagram Analytics & Meta API Hub"
+              className="px-2 py-1.5 md:px-2.5 md:py-1.5 rounded-lg text-[8px] md:text-[9px] font-bold tracking-wider uppercase transition-all text-white/50 hover:text-pink-300 hover:bg-white/5 flex items-center gap-1 border-l border-white/10 pl-2"
+              title="Abrir configuración y analítica de Instagram Graph API"
             >
               <Instagram size={12} className="text-pink-400" />
-              <span className="hidden sm:inline">INSTA HUB</span>
+              <span className="hidden md:inline">API</span>
             </button>
           </div>
 
