@@ -43,14 +43,14 @@ export interface InstagramAnalyticsData {
   lastUpdated: string;
 }
 
-// Datos de demostración de alta fidelidad para TJ FITLAB (cuando no hay token configurado)
+// Datos de demostración de alta fidelidad para @tsteam.fit (cuando no hay token configurado)
 const MOCK_INSTAGRAM_DATA: InstagramAnalyticsData = {
   isConnectedRealApi: false,
   lastUpdated: new Date().toISOString(),
   overview: {
-    username: 'tjfitlab_oficial',
-    name: 'TJ FITLAB | Entrenamiento & Longevidad',
-    biography: '⚡ Ciencia aplicada al entrenamiento de fuerza, hipertrofia y longevidad.\n🏋️‍♂️ App Oficial & Asesorías de Alto Rendimiento.\n📍 Únete a la comunidad de atletas inteligentes 👇',
+    username: 'tsteam.fit',
+    name: 'TS TEAM FIT | Entrenamiento & Rendimiento',
+    biography: '⚡ Ciencia aplicada al entrenamiento de fuerza, hipertrofia y composición corporal.\n🏋️‍♂️ Asesorías Personalizadas & Alto Rendimiento.\n📍 Únete a @tsteam.fit 👇',
     profilePictureUrl: '/logo-tjo.jpg',
     followersCount: 14820,
     followsCount: 234,
@@ -156,6 +156,95 @@ export const saveInstagramConfig = (token: string, accountId: string, graphVersi
   localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, token.trim());
   localStorage.setItem(STORAGE_KEYS.ACCOUNT_ID, accountId.trim());
   localStorage.setItem(STORAGE_KEYS.GRAPH_VERSION, graphVersion.trim());
+};
+
+export const autoDetectInstagramAccount = async (token: string): Promise<{ 
+  success: boolean; 
+  message: string; 
+  accounts?: Array<{
+    pageId: string;
+    pageName: string;
+    igAccountId: string;
+    igUsername?: string;
+  }> 
+}> => {
+  if (!token.trim()) {
+    return {
+      success: false,
+      message: 'Por favor ingresa un Access Token de usuario de Meta.'
+    };
+  }
+
+  try {
+    // Paso 4: Obtener páginas del usuario
+    const accountsRes = await fetch(`https://graph.facebook.com/v19.0/me/accounts?access_token=${token.trim()}`);
+    const accountsData = await accountsRes.json();
+
+    if (!accountsRes.ok || accountsData.error) {
+      const errDetail = accountsData.error?.message || 'Token inválido o sin permisos.';
+      return {
+        success: false,
+        message: `Error al consultar /me/accounts: ${errDetail}`
+      };
+    }
+
+    if (!accountsData.data || accountsData.data.length === 0) {
+      return {
+        success: false,
+        message: 'No se encontraron Páginas de Facebook vinculadas a este token. Asegúrate de que tu usuario tenga permisos de administrador en la Página.'
+      };
+    }
+
+    const detected: Array<{ pageId: string; pageName: string; igAccountId: string; igUsername?: string }> = [];
+
+    // Paso 5: Consultar cada página para obtener su instagram_business_account
+    for (const page of accountsData.data) {
+      try {
+        const igRes = await fetch(`https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account&access_token=${token.trim()}`);
+        const igData = await igRes.json();
+        
+        if (igData.instagram_business_account?.id) {
+          const igId = igData.instagram_business_account.id;
+          
+          // Obtener nombre de usuario
+          let igUser = '';
+          try {
+            const userRes = await fetch(`https://graph.facebook.com/v19.0/${igId}?fields=username&access_token=${token.trim()}`);
+            const userData = await userRes.json();
+            igUser = userData.username || '';
+          } catch {}
+
+          detected.push({
+            pageId: page.id,
+            pageName: page.name,
+            igAccountId: igId,
+            igUsername: igUser
+          });
+        }
+      } catch (e) {
+        console.warn(`Error al consultar cuenta IG para la página ${page.id}:`, e);
+      }
+    }
+
+    if (detected.length === 0) {
+      return {
+        success: false,
+        message: `Se encontraron ${accountsData.data.length} página(s) de Facebook (${accountsData.data.map((p: any) => p.name).join(', ')}), pero ninguna tiene una Cuenta Comercial de Instagram vinculada en su configuración.`
+      };
+    }
+
+    return {
+      success: true,
+      message: `¡Se detectó automáticamente la cuenta @${detected[0].igUsername || detected[0].igAccountId} vinculada a "${detected[0].pageName}"!`,
+      accounts: detected
+    };
+
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `Error de conexión: ${err.message || err.toString()}`
+    };
+  }
 };
 
 export const testInstagramConnection = async (token: string, accountId: string): Promise<{ success: boolean; message: string; username?: string }> => {
