@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Edit3, Activity, MessageSquare, Settings2, X, Menu, RefreshCw, Search, Printer, PlusCircle, Globe, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Send, Edit3, Activity, MessageSquare, Settings2, X, Menu, RefreshCw, Search, Printer, PlusCircle, Globe, ChevronLeft, ChevronRight, Instagram } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Agente, Mensaje, ReporteGym } from '../types';
+import { InstagramAnalyticsModal } from './InstagramAnalyticsModal';
+import { InstagramCRMView } from './InstagramCRMView';
+import { fetchInstagramMetrics, buildInstagramAiContext } from '../lib/instagram';
 
 interface ForumPost {
   id: string;
@@ -13,14 +16,25 @@ interface ForumPost {
 }
 
 const INITIAL_AGENTS: Agente[] = [
-  { id: '11111111-1111-1111-1111-111111111111', nombre: 'Senior Dev', nickname: 'Programador', rol: 'Ingeniero de Software', skills: 'React, Python, Supabase', avatar_url: '/avatars/1.png', estado_online: true, creado_en: '' },
-  { id: '22222222-2222-2222-2222-222222222222', nombre: 'Marketing Pro', nickname: 'CommunityManager', rol: 'Marketing', skills: 'Social Media, SEO', avatar_url: '/avatars/2.png', estado_online: true, creado_en: '' },
-  { id: '33333333-3333-3333-3333-333333333333', nombre: 'Legal Expert', nickname: 'Legal', rol: 'Consultoría', skills: 'Contratos, Privacidad', avatar_url: '/avatars/3.png', estado_online: true, creado_en: '' },
-  { id: '44444444-4444-4444-4444-444444444444', nombre: 'Data Analyst', nickname: 'Data', rol: 'Análisis', skills: 'SQL, BI', avatar_url: '/avatars/4.png', estado_online: true, creado_en: '' },
-  { id: '55555555-5555-5555-5555-555555555555', nombre: 'Project Manager', nickname: 'Strategist', rol: 'Estrategia', skills: 'Planning, QA', avatar_url: '/avatars/5.png', estado_online: true, creado_en: '' }
+  { id: '56495e75-d7f8-4df9-b8d0-8434727039df', nombre: 'Senior Dev', nickname: 'Programador', rol: 'Ingeniero de Software', skills: 'React, Python, Supabase, n8n', avatar_url: '/avatars/programador.png', estado_online: true, creado_en: '' },
+  { id: 'd8804865-ef92-4af9-99c5-abf8f6323cee', nombre: 'Marketing Pro', nickname: 'CommunityManager', rol: 'Marketing y Contenido', skills: 'Social Media, SEO, Copywriting', avatar_url: '/avatars/communitymanager.png', estado_online: true, creado_en: '' },
+  { id: '9b51f99f-4408-46d0-a0ed-bd70803b7fab', nombre: 'InstaMetrics Pro', nickname: 'InstaAnalyst', rol: 'Analista Métricas Instagram & Growth', skills: 'Instagram Graph API, Reels Analytics, Audiencias, Conversión', avatar_url: '/avatars/instaanalyst.png', estado_online: true, creado_en: '' },
+  { id: '5653eb5d-1251-412e-a6d2-37d261679cfd', nombre: 'Legal Expert', nickname: 'Legal', rol: 'Consultoría Legal', skills: 'Compliance, Contratos, Privacidad', avatar_url: '/avatars/legal.png', estado_online: true, creado_en: '' },
+  { id: '1939aaa3-719d-4dde-96e6-46559524f832', nombre: 'Data Analyst', nickname: 'Data', rol: 'Análisis de Datos', skills: 'SQL, Metabase, Predicción', avatar_url: '/avatars/dataanalyst.png', estado_online: true, creado_en: '' },
+  { id: '8417871e-c4dc-41b8-84af-2d7c7c1ab7bb', nombre: 'Project Manager', nickname: 'Strategist', rol: 'Estrategia y QA', skills: 'Planificación, Gestión de Equipos', avatar_url: '/avatars/strategist.png', estado_online: true, creado_en: '' },
+  { id: '547a95c6-3679-4d13-a6b6-9daadb9b0498', nombre: 'Tecnico en Actividad Fisica', nickname: 'Tecnico Deportivo.', rol: 'INVESTIGACION Y DEPORTE.', skills: 'Scraping, Alertas, Evolt', avatar_url: '/avatars/tecnicodeportivo.png', estado_online: true, creado_en: '' },
+  { id: 'e8a21fa3-a733-4619-99f0-5680cec4dac0', nombre: 'Auditor fitness', nickname: 'Auditor Deportivo Data', rol: 'Analista de Rendimiento deportivo', skills: 'Auditoría, Cumplimiento, Mensajería', avatar_url: '/avatars/auditordeportivo.png', estado_online: true, creado_en: '' }
 ];
 
 const INITIAL_FORUM_POSTS: ForumPost[] = [
+  {
+    id: 'post-ig-1',
+    titulo: 'Meta Graph API & Algoritmo Reels 2026: El Ratio Guardados/Compartidos como Motor de Conversión',
+    autor_nombre: 'InstaMetrics Pro (InstaAnalyst)',
+    autor_rol: 'Analista Métricas Instagram & Growth',
+    contenido: 'El último informe de Meta for Creators para 2026 confirma un cambio decisivo: el algoritmo de Instagram premia las publicaciones con alta tasa de "Save-to-Reach" (>4%) y "Share-to-DM" (>3%) sobre los likes tradicionales. Para TJ FITLAB, los Reels de demostración técnica con desgloses paso a paso y carruseles con infografías de sobrecarga progresiva son los que registran un 12.8% de engagement rate y generan el 64% de los clics a la web oficial.',
+    creado_en: new Date(Date.now() - 3600000 * 4).toISOString()
+  },
   {
     id: 'post-1',
     titulo: 'Ozempic y la Masa Muscular: Oportunidad de Fuerza Sarcopénica',
@@ -110,8 +124,8 @@ export const TJOfficeChat: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // VISTA ACTIVA: CHAT O FORO DE TENDENCIAS
-  const [activeView, setActiveView] = useState<'chat' | 'forum'>('chat');
+  // VISTA ACTIVA: CHAT, FORO DE TENDENCIAS O CRM INSTAGRAM
+  const [activeView, setActiveView] = useState<'chat' | 'forum' | 'crm'>('chat');
   const [forumActiveTab, setForumActiveTab] = useState<'trends' | 'proposal' | 'discussion'>('trends');
   const [reportMarkdown, setReportMarkdown] = useState<string>('');
   const [reportSearch, setReportSearch] = useState<string>('');
@@ -144,6 +158,9 @@ export const TJOfficeChat: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(window.innerWidth < 1024);
   const [geminiModel, setGeminiModel] = useState<string>('gemini-2.5-flash');
 
+  // ESTADO MODAL INSTAGRAM ANALYTICS & API
+  const [showInstagramModal, setShowInstagramModal] = useState(false);
+
   // ESTADO PARA MOSTRAR PERFIL DETALLADO DE AGENTES/JEFE
   const [profileToShow, setProfileToShow] = useState<{
     nombre: string;
@@ -165,6 +182,12 @@ export const TJOfficeChat: React.FC = () => {
     let suma = '';
 
     switch (agent.nickname.toLowerCase()) {
+      case 'instaanalyst':
+      case 'instametrics':
+        cualidades = 'Lectura analítica del algoritmo de Meta/Instagram en tiempo real, detección de hooks virales, optimización de ratios de guardados/compartidos y conversión a app.';
+        dedicacion = 'Conecta con Instagram Graph API para analizar el rendimiento de Reels, Stories y publicaciones, evalúa el comportamiento de la audiencia y audita embudos de captación de clientes para TJ FITLAB.';
+        suma = 'Transforma seguidores en clientes de pago, detecta qué contenidos generan mayor ROI y optimiza el crecimiento orgánico sin depender de publicidad costosa.';
+        break;
       case 'programador':
         cualidades = 'Lógica implacable, velocidad de desarrollo extrema, resolutivo frente a bugs complejos y orientado a rendimiento de sistemas.';
         dedicacion = 'Diseña e implementa el código base del ecosistema, integraciones de IA (Gemini API), automatizaciones con n8n y persistencia en bases de datos.';
@@ -359,7 +382,11 @@ export const TJOfficeChat: React.FC = () => {
     
     if (customTopic && customTopic.trim()) {
       const topicClean = customTopic.trim();
-      if (agent.nickname === 'Programador') {
+      if (agent.nickname === 'InstaAnalyst') {
+        nicho = 'Métricas Instagram & Algoritmo Meta 2026';
+        subnicho = `Estrategias de engagement, Reels retention y conversión en Instagram para: ${topicClean} en 2026`;
+        pregunta = `Investiga las últimas actualizaciones del algoritmo de Instagram/Meta Graph API en 2026, métricas clave de retención en Reels, estrategias de conversión de seguidores a clientes y benchmarks de engagement para: ${topicClean}. Aporta estadísticas de retención, tasas de guardados/compartidos y enlaces a estudios de Meta for Creators.`;
+      } else if (agent.nickname === 'Programador') {
         nicho = 'Tecnología y Monitoreo';
         subnicho = `Monitoreo digital y tracking para: ${topicClean} en 2026`;
         pregunta = `Investiga sobre wearables, apps móviles y sensores de bio-tracking que estén monitoreando el impacto de: ${topicClean} en 2026. Proporciona estadísticas de adopción, enlaces reales a estudios o webs de marcas del sector y recomendaciones prácticas para TJ FITLAB.`;
@@ -387,6 +414,11 @@ export const TJOfficeChat: React.FC = () => {
     } else {
       // Usar temas por defecto
       const defaultTopics: Record<string, { nicho: string; subnicho: string; pregunta: string }> = {
+        'InstaAnalyst': {
+          nicho: 'Algoritmo Instagram & Retención 2026',
+          subnicho: 'Rendimiento de Reels, métricas de retención, tasa de guardados y conversión en 2026',
+          pregunta: 'Investiga los cambios recientes en el algoritmo de distribución de Instagram Reels y Meta Graph API en 2026. Queremos estadísticas de retención de video, benchmarks de engagement rate en el sector fitness y estrategias para maximizar guardados y compartidos orgánicos.'
+        },
         'Programador': {
           nicho: 'Tecnología en Gimnasios',
           subnicho: 'Wearables, sensores de rendimiento en tiempo real y conectividad en 2026',
@@ -750,8 +782,20 @@ Es de suma importancia empresarial que el contenido de cada sección sea complet
       }
     }
 
-    // 3. Fallbacks temáticos específicos por rol
-    switch (agent.nickname.toLowerCase()) {
+      case 'instaanalyst':
+      case 'instametrics':
+        return `¡Hola jefe! Aquí @InstaAnalyst, tu especialista en Analítica de Instagram & Growth de TJ FITLAB. He recibido tu mensaje: *"${userText}"*.
+${userText.toLowerCase().includes('conectar') || userText.toLowerCase().includes('api') || userText.toLowerCase().includes('token') 
+  ? `Para conectar la **Instagram Graph API de Meta** en tiempo real:
+1. Abre el botón superior **INSTAGRAM HUB**.
+2. Haz clic en **Configurar API** e ingresa tu *User/Page Access Token* (con permisos \`instagram_basic\` e \`instagram_manage_insights\`) y tu *Instagram Business Account ID*.
+3. Pulsa en **"Probar y Guardar Conexión"** para sincronizar automáticamente el alcance, impresiones, guardados y reproducciones de Reels.` 
+  : `Actualmente la IA está operando en modo local. De acuerdo a nuestras métricas base en TJ FITLAB (@tjfitlab_oficial):
+- **Engagement Rate**: 4.92% (superando el 1.9% del promedio del sector).
+- **KPI Crítico 2026**: Los posts con formato Carrusel de Longevidad y Reels de Fuerza con sobrecarga progresiva tienen un ratio de guardados del **12.8%**, que es el detonante principal del algoritmo de Meta para explorar nuevos usuarios.
+- **Mejor ventana de publicación**: Lunes a Jueves de 19:30 a 21:00 CET.
+¿Quieres que preparemos el guión de 3 Reels con ganchos de alta retención o revisemos las credenciales de la API?`}`;
+
       case 'programador':
         return `¡Hola jefe! Como Ingeniero de Software, recibí tu mensaje: *"${userText}"*. 
 Actualmente el canal de IA está offline (límite de cuota o sin conexión). Sin embargo, en local puedo ayudarte a estructurar el código React, planificar rutas en Node/Express, configurar triggers en Supabase o depurar flujos en n8n. ¿Qué código revisamos?`;
@@ -806,7 +850,7 @@ El sistema de IA está offline en este momento debido a un límite de cuota o fa
       canal: '#general'
     });
 
-      // Detectar si se menciona a algún agente en particular (ej: @Programador)
+      // Detectar si se menciona a algún agente en particular (ej: @InstaAnalyst o @Programador)
       const mentionRegex = /@([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_.]+)/i;
       const mentionMatch = userText.match(mentionRegex);
       let agentToReply = null;
@@ -820,6 +864,11 @@ El sistema de IA está offline en este momento debido a un límite de cuota o fa
         agentToReply = agentes.find(a => a.nickname.toLowerCase() === nick);
       }
 
+      // Si el mensaje habla de instagram, métricas o api, y no hay mención explícita, priorizar @InstaAnalyst
+      if (!agentToReply && (userText.toLowerCase().includes('instagram') || userText.toLowerCase().includes('insta') || userText.toLowerCase().includes('reels') || userText.toLowerCase().includes('engagement'))) {
+        agentToReply = agentes.find(a => a.nickname.toLowerCase() === 'instaanalyst');
+      }
+
       // Siempre responder al mensaje del usuario (si hay mención responde el mencionado, si no uno aleatorio)
       const agent = agentToReply || agentes[Math.floor(Math.random() * agentes.length)] || agentes[0];
       if (agent) {
@@ -831,8 +880,19 @@ El sistema de IA está offline en este momento debido a un límite de cuota o fa
         if (!apiKey) {
            aiText = generateLocalResponse(agent, userText);
         } else {
-            const promptText = `Eres ${agent.nombre} (rol: ${agent.rol}). 
+            let instagramContext = '';
+            if (agent.nickname.toLowerCase() === 'instaanalyst' || userText.toLowerCase().includes('instagram') || userText.toLowerCase().includes('insta') || userText.toLowerCase().includes('métrica') || userText.toLowerCase().includes('api')) {
+              try {
+                const igData = await fetchInstagramMetrics();
+                instagramContext = buildInstagramAiContext(igData);
+              } catch (err) {
+                console.warn("No se pudo cargar contexto de Instagram:", err);
+              }
+            }
+
+            const promptText = `Eres ${agent.nombre} (rol: ${agent.rol}, nickname: @${agent.nickname}). 
 Tienes acceso a buscar en internet en tiempo real a través de Google Search. Utilízalo siempre que te pregunten sobre datos actuales, noticias, tendencias o estadísticas del fitness en 2026.
+${instagramContext ? `\n${instagramContext}\nUsa estos datos exactos de Instagram para responder al usuario con un criterio analítico experto, citando métricas clave (ER, Guardados, Shares, Conversión a app).\n` : ''}
 SIEMPRE di "¡Hola jefe!" al inicio de tu respuesta.
 
 Si encuentras una tendencia importante de fitness, noticias o estudios científicos recientes, o una oportunidad de negocio/mejora relevante para TJ FITLAB y quieres publicarla en el foro del equipo, debes añadir al final de tu respuesta EXACTAMENTE esta estructura estructurada en etiquetas de texto plano (NO uses formato JSON):
@@ -1224,6 +1284,15 @@ Responde al usuario: ${userText}`;
                     <p className="text-[8px] text-white/40 truncate uppercase">{a.rol}</p>
                   </div>
                   <div className="flex items-center gap-1.5 opacity-40 group-hover/agent:opacity-100 transition-opacity">
+                    {a.nickname.toLowerCase() === 'instaanalyst' && (
+                      <button 
+                        onClick={() => setShowInstagramModal(true)} 
+                        className="text-pink-400 hover:text-white transition-colors"
+                        title="Abrir Instagram Analytics Hub & API"
+                      >
+                        <Instagram size={11} />
+                      </button>
+                    )}
                     <button 
                       onClick={() => {
                         setResearchAgent(a.id);
@@ -1253,6 +1322,13 @@ Responde al usuario: ${userText}`;
                 <Activity size={14} />
               </button>
               <button 
+                onClick={() => setShowInstagramModal(true)} 
+                className="w-9 h-9 rounded-lg flex items-center justify-center border border-pink-500/30 bg-pink-500/10 text-pink-300 hover:bg-pink-500 hover:text-white transition-all shadow-[0_0_10px_rgba(221,42,123,0.2)]"
+                title="Instagram Analytics & API"
+              >
+                <Instagram size={14} />
+              </button>
+              <button 
                 onClick={() => setShowResearchModal(true)} 
                 disabled={isResearching}
                 className="w-9 h-9 rounded-lg flex items-center justify-center border border-indigo-500/30 bg-indigo-500/10 text-indigo-200 hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-50"
@@ -1265,6 +1341,13 @@ Responde al usuario: ${userText}`;
             <>
               <button onClick={() => setIsAutoActive(!isAutoActive)} className={`w-full py-3 rounded text-[10px] font-bold border transition-all ${isAutoActive ? 'bg-[#CCFF00] text-black border-[#CCFF00] shadow-[0_0_10px_#CCFF0044]' : 'bg-white/5 text-white/40'}`}>
                 {isAutoActive ? 'AGENTS_ACTIVE' : 'ACTIVATE_AGENTS'}
+              </button>
+              <button 
+                onClick={() => setShowInstagramModal(true)} 
+                className="w-full py-2.5 rounded text-[10px] font-bold border border-pink-500/30 bg-gradient-to-r from-pink-600/20 via-purple-600/20 to-indigo-600/20 text-pink-300 hover:text-white hover:border-pink-400 transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(221,42,123,0.15)]"
+              >
+                <Instagram size={12} className="text-pink-400" />
+                <span>Instagram API Hub</span>
               </button>
               <button 
                 onClick={() => setShowResearchModal(true)} 
@@ -1304,19 +1387,36 @@ Responde al usuario: ${userText}`;
             <span className="text-[10px] font-bold uppercase tracking-widest hidden sm:inline">Mainframe</span>
           </div>
 
-          {/* NAVEGACIÓN: CHAT VS FORO */}
-          <div className="flex bg-white/5 rounded-lg p-0.5 border border-white/10">
+          {/* NAVEGACIÓN: CHAT VS FORO VS CRM INSTAGRAM */}
+          <div className="flex items-center gap-1.5 md:gap-2">
+            <div className="flex bg-white/5 rounded-lg p-0.5 border border-white/10">
+              <button 
+                onClick={() => setActiveView('chat')} 
+                className={`px-2 py-1 md:px-3 md:py-1.5 rounded-md text-[8px] md:text-[9px] font-bold tracking-widest uppercase transition-all ${activeView === 'chat' ? 'bg-[#CCFF00] text-black shadow-[0_0_8px_#CCFF0022]' : 'text-white/60 hover:text-white'}`}
+              >
+                💬 CHAT
+              </button>
+              <button 
+                onClick={() => setActiveView('forum')} 
+                className={`px-2 py-1 md:px-3 md:py-1.5 rounded-md text-[8px] md:text-[9px] font-bold tracking-widest uppercase transition-all ${activeView === 'forum' ? 'bg-[#CCFF00] text-black shadow-[0_0_8px_#CCFF0022]' : 'text-white/60 hover:text-white'}`}
+              >
+                📈 FORO <span className="hidden md:inline">TENDENCIAS</span>
+              </button>
+              <button 
+                onClick={() => setActiveView('crm')} 
+                className={`px-2 py-1 md:px-3 md:py-1.5 rounded-md text-[8px] md:text-[9px] font-bold tracking-widest uppercase transition-all ${activeView === 'crm' ? 'bg-[#CCFF00] text-black shadow-[0_0_8px_#CCFF0022]' : 'text-pink-300 hover:text-white'}`}
+              >
+                🎯 CRM <span className="hidden md:inline">INSTAGRAM</span>
+              </button>
+            </div>
+
             <button 
-              onClick={() => setActiveView('chat')} 
-              className={`px-2 py-1 md:px-3 md:py-1.5 rounded-md text-[8px] md:text-[9px] font-bold tracking-widest uppercase transition-all ${activeView === 'chat' ? 'bg-[#CCFF00] text-black shadow-[0_0_8px_#CCFF0022]' : 'text-white/60 hover:text-white'}`}
+              onClick={() => setShowInstagramModal(true)} 
+              className="px-2 py-1 md:px-2.5 md:py-1.5 rounded-md text-[8px] md:text-[9px] font-bold tracking-widest uppercase transition-all bg-gradient-to-r from-[#F58529]/20 via-[#DD2A7B]/20 to-[#8134AF]/20 border border-pink-500/30 text-pink-300 hover:text-white flex items-center gap-1.5 shadow-[0_0_10px_rgba(221,42,123,0.15)] hover:border-pink-400"
+              title="Abrir Instagram Analytics & Meta API Hub"
             >
-              💬 CHAT
-            </button>
-            <button 
-              onClick={() => setActiveView('forum')} 
-              className={`px-2 py-1 md:px-3 md:py-1.5 rounded-md text-[8px] md:text-[9px] font-bold tracking-widest uppercase transition-all ${activeView === 'forum' ? 'bg-[#CCFF00] text-black shadow-[0_0_8px_#CCFF0022]' : 'text-white/60 hover:text-white'}`}
-            >
-              📈 FORO <span className="hidden md:inline">TENDENCIAS</span>
+              <Instagram size={12} className="text-pink-400" />
+              <span className="hidden sm:inline">INSTA HUB</span>
             </button>
           </div>
 
@@ -1465,7 +1565,14 @@ Responde al usuario: ${userText}`;
         )}
  
         {/* CONTENIDO INTERNO EN BASE A LA VISTA */}
-        {activeView === 'chat' ? (
+        {activeView === 'crm' ? (
+          <InstagramCRMView 
+            onAskBot={(question) => {
+              setInputText(question);
+              setActiveView('chat');
+            }}
+          />
+        ) : activeView === 'chat' ? (
           // CONTENIDO CHAT DE AGENTES (VISTA ORIGINAL)
           <>
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-2.5 md:p-8 space-y-4 scrollbar-hide">
@@ -2488,6 +2595,16 @@ Responde al usuario: ${userText}`;
           </div>
         </div>
       )}
+
+      {/* MODAL ANALÍTICA DE INSTAGRAM & CONEXIÓN API */}
+      <InstagramAnalyticsModal
+        isOpen={showInstagramModal}
+        onClose={() => setShowInstagramModal(false)}
+        onAskBot={(question) => {
+          setInputText(question);
+          setActiveView('chat');
+        }}
+      />
     </div>
   );
 };
