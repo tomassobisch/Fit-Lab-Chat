@@ -782,6 +782,8 @@ Es de suma importancia empresarial que el contenido de cada sección sea complet
       }
     }
 
+    // 3. Fallbacks temáticos específicos por rol
+    switch (agent.nickname.toLowerCase()) {
       case 'instaanalyst':
       case 'instametrics':
         return `¡Hola jefe! Aquí @InstaAnalyst, tu especialista en Analítica de Instagram & Growth de TJ FITLAB. He recibido tu mensaje: *"${userText}"*.
