@@ -28,14 +28,17 @@ import {
   Key, 
   AlertCircle,
   Award,
-  Send
+  Send,
+  Edit3
 } from 'lucide-react';
 import { 
   InstagramAnalyticsData, 
   fetchInstagramMetrics, 
   getInstagramConfig, 
   saveInstagramConfig, 
-  testInstagramConnection 
+  testInstagramConnection,
+  saveCustomInstagramOverview,
+  getCustomInstagramOverview
 } from '../lib/instagram';
 import { supabase } from '../lib/supabase';
 
@@ -153,12 +156,43 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
   const [testStatus, setTestStatus] = useState<{ success: boolean; message: string } | null>(null);
   const [isTestingApi, setIsTestingApi] = useState(false);
 
+  // Modal Ajustar Métricas Reales
+  const [showEditMetricsModal, setShowEditMetricsModal] = useState(false);
+  const [editFollowers, setEditFollowers] = useState<number>(14820);
+  const [editMediaCount, setEditMediaCount] = useState<number>(142);
+  const [editEngagementRate, setEditEngagementRate] = useState<number>(4.92);
+  const [editMonthlyReach, setEditMonthlyReach] = useState<number>(68450);
+  const [editWeeklyImpressions, setEditWeeklyImpressions] = useState<number>(112300);
+  const [editBio, setEditBio] = useState<string>('⚡ Ciencia aplicada al entrenamiento de fuerza, hipertrofia y composición corporal.\n🏋️‍♂️ Asesorías Personalizadas & Alto Rendimiento.');
+
   useEffect(() => {
     loadMetrics();
     const config = getInstagramConfig();
     setTokenInput(config.accessToken);
     setAccountIdInput(config.accountId);
+
+    const custom = getCustomInstagramOverview();
+    setEditFollowers(custom.followersCount || 14820);
+    setEditMediaCount(custom.mediaCount || 142);
+    setEditEngagementRate(custom.engagementRate || 4.92);
+    setEditMonthlyReach(custom.weeklyReach || 68450);
+    setEditWeeklyImpressions(custom.weeklyImpressions || 112300);
+    setEditBio(custom.biography || '');
   }, []);
+
+  const handleSaveCustomMetrics = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveCustomInstagramOverview({
+      followersCount: editFollowers,
+      mediaCount: editMediaCount,
+      engagementRate: editEngagementRate,
+      weeklyReach: editMonthlyReach,
+      weeklyImpressions: editWeeklyImpressions,
+      biography: editBio
+    });
+    loadMetrics();
+    setShowEditMetricsModal(false);
+  };
 
   useEffect(() => {
     localStorage.setItem('tj_instagram_leads', JSON.stringify(leads));
@@ -288,11 +322,20 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
           </button>
 
           <button
+            onClick={() => setShowEditMetricsModal(true)}
+            className="px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 bg-white/5 text-white/80 border border-white/10 hover:text-[#CCFF00] hover:border-[#CCFF00]/40"
+            title="Ajustar o cargar métricas reales directamente"
+          >
+            <Edit3 size={13} className="text-[#CCFF00]" />
+            <span>Editar Datos Reales</span>
+          </button>
+
+          <button
             onClick={() => setShowApiConfig(!showApiConfig)}
             className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 border ${showApiConfig ? 'bg-[#CCFF00] text-black border-[#CCFF00]' : 'bg-white/5 text-white/80 border-white/10 hover:text-white hover:bg-white/10'}`}
           >
             <Key size={13} />
-            <span>Configurar Token API</span>
+            <span>Token API Meta</span>
           </button>
 
           <button
@@ -1002,6 +1045,108 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
                 className="w-full bg-[#CCFF00] hover:bg-white text-black font-black py-3.5 rounded-xl text-[10px] uppercase tracking-widest transition-all shadow-[0_0_15px_#CCFF0033]"
               >
                 Guardar Prospecto en CRM
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL AJUSTAR MÉTRICAS REALES DE @TSTEAM.FIT */}
+      {showEditMetricsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in">
+          <div className="w-full max-w-lg bg-[#0A0A0A] border border-white/10 rounded-2xl p-6 md:p-8 shadow-2xl relative">
+            <button
+              onClick={() => setShowEditMetricsModal(false)}
+              className="absolute top-4 right-4 text-white/40 hover:text-white"
+            >
+              ✕
+            </button>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-9 h-9 rounded-xl bg-[#CCFF00] flex items-center justify-center text-black">
+                <Edit3 size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-wider text-white">Ajustar Métricas de @tsteam.fit</h3>
+                <p className="text-[9px] text-white/40 font-mono">Actualiza tus estadísticas para que el CRM y el Bot IA usen tus datos reales</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveCustomMetrics} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[8px] text-white/40 font-bold uppercase tracking-widest block mb-1">Total de Seguidores</label>
+                  <input
+                    type="number"
+                    value={editFollowers}
+                    onChange={(e) => setEditFollowers(Number(e.target.value))}
+                    required
+                    className="w-full bg-white/5 border border-white/10 rounded-lg p-2.5 text-xs text-white outline-none focus:border-[#CCFF00]/40 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[8px] text-white/40 font-bold uppercase tracking-widest block mb-1">Total de Publicaciones</label>
+                  <input
+                    type="number"
+                    value={editMediaCount}
+                    onChange={(e) => setEditMediaCount(Number(e.target.value))}
+                    required
+                    className="w-full bg-white/5 border border-white/10 rounded-lg p-2.5 text-xs text-white outline-none focus:border-[#CCFF00]/40 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[8px] text-white/40 font-bold uppercase tracking-widest block mb-1">Engagement Rate (%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editEngagementRate}
+                    onChange={(e) => setEditEngagementRate(Number(e.target.value))}
+                    required
+                    className="w-full bg-white/5 border border-white/10 rounded-lg p-2.5 text-xs text-white outline-none focus:border-[#CCFF00]/40 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[8px] text-white/40 font-bold uppercase tracking-widest block mb-1">Alcance Mensual</label>
+                  <input
+                    type="number"
+                    value={editMonthlyReach}
+                    onChange={(e) => setEditMonthlyReach(Number(e.target.value))}
+                    required
+                    className="w-full bg-white/5 border border-white/10 rounded-lg p-2.5 text-xs text-white outline-none focus:border-[#CCFF00]/40 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[8px] text-white/40 font-bold uppercase tracking-widest block mb-1">Impresiones</label>
+                  <input
+                    type="number"
+                    value={editWeeklyImpressions}
+                    onChange={(e) => setEditWeeklyImpressions(Number(e.target.value))}
+                    required
+                    className="w-full bg-white/5 border border-white/10 rounded-lg p-2.5 text-xs text-white outline-none focus:border-[#CCFF00]/40 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[8px] text-white/40 font-bold uppercase tracking-widest block mb-1">Biografía de @tsteam.fit</label>
+                <textarea
+                  value={editBio}
+                  onChange={(e) => setEditBio(e.target.value)}
+                  rows={3}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg p-2.5 text-xs text-white outline-none focus:border-[#CCFF00]/40 resize-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-[#CCFF00] hover:bg-white text-black font-black py-3.5 rounded-xl text-[10px] uppercase tracking-widest transition-all shadow-[0_0_15px_#CCFF0033]"
+              >
+                Aplicar Métricas Reales a @tsteam.fit
               </button>
             </form>
           </div>

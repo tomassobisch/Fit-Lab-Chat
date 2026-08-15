@@ -134,7 +134,8 @@ const MOCK_INSTAGRAM_DATA: InstagramAnalyticsData = {
 const STORAGE_KEYS = {
   ACCESS_TOKEN: 'tj_instagram_access_token',
   ACCOUNT_ID: 'tj_instagram_account_id',
-  GRAPH_VERSION: 'tj_instagram_graph_version'
+  GRAPH_VERSION: 'tj_instagram_graph_version',
+  CUSTOM_DATA: 'tj_instagram_custom_data'
 };
 
 export const getInstagramConfig = () => {
@@ -156,6 +157,22 @@ export const saveInstagramConfig = (token: string, accountId: string, graphVersi
   localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, token.trim());
   localStorage.setItem(STORAGE_KEYS.ACCOUNT_ID, accountId.trim());
   localStorage.setItem(STORAGE_KEYS.GRAPH_VERSION, graphVersion.trim());
+};
+
+export const saveCustomInstagramOverview = (overview: Partial<InstagramMetricOverview>) => {
+  const current = getCustomInstagramOverview();
+  const updated = { ...current, ...overview };
+  localStorage.setItem(STORAGE_KEYS.CUSTOM_DATA, JSON.stringify(updated));
+};
+
+export const getCustomInstagramOverview = (): InstagramMetricOverview => {
+  const saved = localStorage.getItem(STORAGE_KEYS.CUSTOM_DATA);
+  if (saved) {
+    try {
+      return { ...MOCK_INSTAGRAM_DATA.overview, ...JSON.parse(saved) };
+    } catch {}
+  }
+  return MOCK_INSTAGRAM_DATA.overview;
 };
 
 export const autoDetectInstagramAccount = async (token: string): Promise<{ 
@@ -283,10 +300,15 @@ export const testInstagramConnection = async (token: string, accountId: string):
 
 export const fetchInstagramMetrics = async (): Promise<InstagramAnalyticsData> => {
   const config = getInstagramConfig();
+  const customOv = getCustomInstagramOverview();
 
-  // Si no hay token configurado, retornamos datos mock enriquecidos
+  // Si no hay token configurado o no hay accountId, retornamos datos guardados
   if (!config.accessToken || !config.accountId) {
-    return MOCK_INSTAGRAM_DATA;
+    return {
+      ...MOCK_INSTAGRAM_DATA,
+      overview: customOv,
+      isConnectedRealApi: false
+    };
   }
 
   try {
@@ -302,6 +324,7 @@ export const fetchInstagramMetrics = async (): Promise<InstagramAnalyticsData> =
       console.warn("Instagram API Profile error, fallback to mock:", profileData.error);
       return {
         ...MOCK_INSTAGRAM_DATA,
+        overview: customOv,
         isConnectedRealApi: false
       };
     }
