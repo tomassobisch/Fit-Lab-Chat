@@ -29,10 +29,15 @@ import {
   AlertCircle,
   Award,
   Send,
-  Edit3
+  Edit3,
+  Play,
+  Flame,
+  FileText,
+  Check
 } from 'lucide-react';
 import { 
   InstagramAnalyticsData, 
+  InstagramMediaItem,
   fetchInstagramMetrics, 
   getInstagramConfig, 
   saveInstagramConfig, 
@@ -164,6 +169,9 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
   const [editMonthlyReach, setEditMonthlyReach] = useState<number>(68450);
   const [editWeeklyImpressions, setEditWeeklyImpressions] = useState<number>(112300);
   const [editBio, setEditBio] = useState<string>('⚡ Ciencia aplicada al entrenamiento de fuerza, hipertrofia y composición corporal.\n🏋️‍♂️ Asesorías Personalizadas & Alto Rendimiento.');
+
+  // Modal Ficha de Rendimiento de Publicación
+  const [selectedMediaForDetails, setSelectedMediaForDetails] = useState<InstagramMediaItem | null>(null);
 
   useEffect(() => {
     loadMetrics();
@@ -861,72 +869,131 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
       {/* ============================================================ */}
       {activeTab === 'content' && (
         <div className="max-w-7xl mx-auto space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
             <div>
-              <h3 className="text-xs font-black uppercase tracking-wider text-white">Rendimiento por Publicación & Reel</h3>
-              <p className="text-[10px] text-white/40 font-mono">Métricas de Engagement, Guardados (Saves) y Compartidos (Shares)</p>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-black uppercase tracking-wider text-white">Ficha de Rendimiento por Publicación & Reel</h3>
+                <span className="px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 text-[8px] font-mono font-bold">@tsteam.fit</span>
+              </div>
+              <p className="text-[10px] text-white/40 font-mono mt-0.5">Diagnóstico del algoritmo 2026: Guardados (Saves), Compartidos (Shares), ER y Retención</p>
             </div>
             <button
-              onClick={() => onAskBot("@InstaAnalyst Desglosa los 3 formatos de Reels con mayor ratio de retención y guardados para TJ FITLAB y escribe el guión de 1 Reel viral para esta semana.")}
-              className="px-3.5 py-2 rounded-xl bg-[#CCFF00] text-black font-black text-[9px] uppercase tracking-wider hover:bg-white transition-all shadow-[0_0_10px_#CCFF0033]"
+              onClick={() => onAskBot("@InstaAnalyst Desglosa los 3 formatos de Reels con mayor ratio de retención y guardados para @tsteam.fit y escribe el guión de 1 Reel viral para esta semana.")}
+              className="px-3.5 py-2 rounded-xl bg-[#CCFF00] text-black font-black text-[9px] uppercase tracking-wider hover:bg-white transition-all shadow-[0_0_10px_#CCFF0033] flex items-center gap-1.5"
             >
-              + Guión Viral con IA
+              <Sparkles size={12} />
+              <span>+ Guión Viral con IA</span>
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {data?.recentMedia.map((m) => (
-              <div
-                key={m.id}
-                className="p-5 rounded-2xl bg-[#090909] border border-white/10 hover:border-white/20 transition-all flex flex-col sm:flex-row gap-4 group shadow-xl"
-              >
-                <div className="w-full sm:w-28 h-36 sm:h-auto rounded-xl overflow-hidden bg-black flex-shrink-0 relative border border-white/10">
-                  <img
-                    src={m.mediaUrl}
-                    alt=""
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                  <span className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded bg-black/80 text-[8px] font-black text-[#CCFF00] uppercase font-mono">
-                    {m.mediaType === 'VIDEO' ? 'REEL' : m.mediaType === 'CAROUSEL_ALBUM' ? 'CARRUSEL' : 'POST'}
-                  </span>
-                </div>
+            {data?.recentMedia.map((m) => {
+              const isTop = m.engagementRate >= 10;
+              const hasHighSaves = m.savedCount >= 30;
+              const saveToLikeRatio = m.likeCount > 0 ? ((m.savedCount / m.likeCount) * 100).toFixed(0) : '0';
 
-                <div className="flex-1 min-w-0 flex flex-col justify-between space-y-3">
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <span className="text-[9px] font-bold text-[#CCFF00] bg-[#CCFF00]/10 px-2 py-0.5 rounded font-mono">
-                        ER: {m.engagementRate}%
-                      </span>
-                      <span className="text-[8px] text-white/40 font-mono">
-                        {new Date(m.timestamp).toLocaleDateString()}
+              return (
+                <div
+                  key={m.id}
+                  className="p-5 rounded-2xl bg-[#090909] border border-white/10 hover:border-pink-500/30 transition-all flex flex-col justify-between space-y-4 group shadow-xl relative overflow-hidden"
+                >
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="w-full sm:w-32 h-44 sm:h-auto rounded-xl overflow-hidden bg-black flex-shrink-0 relative border border-white/10">
+                      <img
+                        src={m.mediaUrl}
+                        alt=""
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                      <span className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded bg-black/80 text-[8px] font-black text-[#CCFF00] uppercase font-mono flex items-center gap-1">
+                        <Play size={8} fill="#CCFF00" />
+                        {m.mediaType === 'VIDEO' ? 'REEL' : m.mediaType === 'CAROUSEL_ALBUM' ? 'CARRUSEL' : 'POST'}
                       </span>
                     </div>
-                    <p className="text-[11px] text-white/90 line-clamp-3 leading-relaxed font-sans">
-                      {m.caption}
-                    </p>
+
+                    <div className="flex-1 min-w-0 flex flex-col justify-between space-y-3">
+                      <div>
+                        {/* Badges de Rendimiento */}
+                        <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                          <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase font-mono flex items-center gap-1 ${
+                            isTop ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-[#CCFF00]/10 text-[#CCFF00] border border-[#CCFF00]/30'
+                          }`}>
+                            {isTop && <Flame size={10} className="text-amber-400" />}
+                            ER: {m.engagementRate}%
+                          </span>
+
+                          {hasHighSaves && (
+                            <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase font-mono bg-pink-500/20 text-pink-300 border border-pink-500/30 flex items-center gap-1">
+                              <Bookmark size={9} />
+                              {saveToLikeRatio}% Guardado
+                            </span>
+                          )}
+
+                          <span className="text-[8px] text-white/40 font-mono ml-auto">
+                            {new Date(m.timestamp).toLocaleDateString()}
+                          </span>
+                        </div>
+
+                        {/* Copy / Caption */}
+                        <p className="text-[11px] text-white/90 line-clamp-3 leading-relaxed font-sans font-medium">
+                          {m.caption}
+                        </p>
+                      </div>
+
+                      {/* Tarjeta de Métricas Numéricas */}
+                      <div className="grid grid-cols-4 gap-1.5 p-2.5 rounded-xl bg-white/[0.02] border border-white/5 text-[9.5px] font-mono">
+                        <div className="flex flex-col items-center justify-center p-1 rounded bg-black/40 text-white/80">
+                          <span className="text-red-400 font-bold flex items-center gap-1"><Heart size={10} /> {m.likeCount}</span>
+                          <span className="text-[7px] text-white/30 uppercase mt-0.5">Likes</span>
+                        </div>
+                        <div className="flex flex-col items-center justify-center p-1 rounded bg-black/40 text-white/80">
+                          <span className="text-blue-400 font-bold flex items-center gap-1"><MessageCircle size={10} /> {m.commentsCount}</span>
+                          <span className="text-[7px] text-white/30 uppercase mt-0.5">Coments</span>
+                        </div>
+                        <div className="flex flex-col items-center justify-center p-1 rounded bg-black/40 text-[#CCFF00]">
+                          <span className="font-bold flex items-center gap-1"><Bookmark size={10} /> {m.savedCount}</span>
+                          <span className="text-[7px] text-white/30 uppercase mt-0.5">Saves</span>
+                        </div>
+                        <div className="flex flex-col items-center justify-center p-1 rounded bg-black/40 text-pink-300">
+                          <span className="font-bold flex items-center gap-1"><Share2 size={10} /> {m.sharesCount}</span>
+                          <span className="text-[7px] text-white/30 uppercase mt-0.5">Shares</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-2 pt-3 border-t border-white/10 text-[10px] font-mono">
-                    <div className="flex items-center gap-1.5 text-white/70">
-                      <Heart size={12} className="text-red-400" />
-                      <span>{m.likeCount}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-white/70">
-                      <MessageCircle size={12} className="text-blue-400" />
-                      <span>{m.commentsCount}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-white font-bold">
-                      <Bookmark size={12} className="text-[#CCFF00]" />
-                      <span>{m.savedCount}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-white font-bold">
-                      <Share2 size={12} className="text-pink-400" />
-                      <span>{m.sharesCount}</span>
+                  {/* Acciones de la Ficha */}
+                  <div className="flex items-center justify-between gap-2 pt-3 border-t border-white/10">
+                    <button
+                      onClick={() => setSelectedMediaForDetails(m)}
+                      className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white text-[9px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 border border-white/10"
+                    >
+                      <BarChart3 size={11} className="text-[#CCFF00]" />
+                      <span>Ficha de Rendimiento 360°</span>
+                    </button>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => onAskBot(`@InstaAnalyst Analiza en profundidad el rendimiento de esta publicación de @tsteam.fit: "${m.caption.slice(0, 100)}...". Tiene ${m.likeCount} likes, ${m.savedCount} guardados y un Engagement Rate del ${m.engagementRate}%. ¿Por qué funcionó y cómo replicar la fórmula en el próximo Reel?`)}
+                        className="px-2.5 py-1.5 rounded-lg bg-[#CCFF00]/10 hover:bg-[#CCFF00] hover:text-black text-[#CCFF00] text-[8.5px] font-black uppercase tracking-wider transition-all border border-[#CCFF00]/30"
+                        title="Pedir auditoría a la IA"
+                      >
+                        🤖 Auditar IA
+                      </button>
+
+                      <a
+                        href={m.permalink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1.5 rounded-lg bg-white/5 text-white/40 hover:text-pink-400 hover:bg-pink-500/10 transition-all border border-white/5"
+                        title="Ver Reel en Instagram"
+                      >
+                        <ExternalLink size={12} />
+                      </a>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -1149,6 +1216,178 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
                 Aplicar Métricas Reales a @tsteam.fit
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL FICHA DE RENDIMIENTO 360° DE PUBLICACIÓN / REEL */}
+      {selectedMediaForDetails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-3 md:p-6 animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl bg-[#090909] border border-white/10 rounded-2xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.9)] flex flex-col max-h-[90vh]">
+            {/* Header del Modal */}
+            <div className="p-4 md:p-5 border-b border-white/10 bg-black/60 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#CCFF00] text-black flex items-center justify-center font-black">
+                  <BarChart3 size={18} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs md:text-sm font-black uppercase tracking-wider text-white">Ficha de Rendimiento 360°</h3>
+                    <span className="px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 text-[8px] font-mono font-bold">
+                      {selectedMediaForDetails.mediaType === 'VIDEO' ? 'REEL' : selectedMediaForDetails.mediaType === 'CAROUSEL_ALBUM' ? 'CARRUSEL' : 'POST'}
+                    </span>
+                  </div>
+                  <p className="text-[8.5px] text-white/40 font-mono">
+                    Publicado el {new Date(selectedMediaForDetails.timestamp).toLocaleDateString()} &bull; ID: {selectedMediaForDetails.id}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <a 
+                  href={selectedMediaForDetails.permalink} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1.5 rounded-lg bg-pink-500/10 text-pink-300 hover:text-white hover:bg-pink-500/20 text-[9px] font-mono font-bold flex items-center gap-1 border border-pink-500/20"
+                >
+                  <span>Ver en Instagram</span>
+                  <ExternalLink size={10} />
+                </a>
+                <button
+                  onClick={() => setSelectedMediaForDetails(null)}
+                  className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/5"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Contenido del Modal */}
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5 scrollbar-hide">
+              {/* Resumen Superior & Tarjeta Visual */}
+              <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-xl bg-white/[0.02] border border-white/5">
+                <div className="w-full sm:w-28 h-36 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10 relative">
+                  <img
+                    src={selectedMediaForDetails.mediaUrl}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-1.5">
+                    <span className="text-[8px] font-black text-[#CCFF00] font-mono">
+                      ER: {selectedMediaForDetails.engagementRate}%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest">Texto de la Publicación:</span>
+                    <span className="text-[8px] font-mono text-[#CCFF00]">
+                      {selectedMediaForDetails.engagementRate >= 10 ? '🔥 Viral / Top Performer' : '⭐ Rendimiento Estable'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-white/90 leading-relaxed max-h-24 overflow-y-auto p-2.5 rounded-lg bg-black/40 border border-white/5 font-sans">
+                    {selectedMediaForDetails.caption}
+                  </p>
+                </div>
+              </div>
+
+              {/* Métricas Cuantitativas */}
+              <div>
+                <h4 className="text-[9px] font-black uppercase tracking-widest text-white/40 mb-2.5">Métricas de Interacción & Conversión</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 font-mono text-[10px]">
+                  <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                    <div className="flex justify-between items-center text-white/40 mb-1">
+                      <span>Likes</span>
+                      <Heart size={12} className="text-red-400" />
+                    </div>
+                    <div className="text-lg font-black text-white">{selectedMediaForDetails.likeCount}</div>
+                    <span className="text-[7.5px] text-white/30">Me gusta directos</span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                    <div className="flex justify-between items-center text-white/40 mb-1">
+                      <span>Comentarios</span>
+                      <MessageCircle size={12} className="text-blue-400" />
+                    </div>
+                    <div className="text-lg font-black text-white">{selectedMediaForDetails.commentsCount}</div>
+                    <span className="text-[7.5px] text-white/30">Debates y respuestas</span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-[#CCFF00]/5 border border-[#CCFF00]/20">
+                    <div className="flex justify-between items-center text-[#CCFF00]/70 mb-1">
+                      <span>Guardados</span>
+                      <Bookmark size={12} className="text-[#CCFF00]" />
+                    </div>
+                    <div className="text-lg font-black text-[#CCFF00]">{selectedMediaForDetails.savedCount}</div>
+                    <span className="text-[7.5px] text-[#CCFF00]/60">Save Ratio: {selectedMediaForDetails.likeCount > 0 ? ((selectedMediaForDetails.savedCount / selectedMediaForDetails.likeCount) * 100).toFixed(0) : 0}%</span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-pink-500/5 border border-pink-500/20">
+                    <div className="flex justify-between items-center text-pink-400/70 mb-1">
+                      <span>Compartidos</span>
+                      <Share2 size={12} className="text-pink-400" />
+                    </div>
+                    <div className="text-lg font-black text-pink-300">{selectedMediaForDetails.sharesCount}</div>
+                    <span className="text-[7.5px] text-pink-400/60">Difusión orgánica</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Diagnóstico del Algoritmo de Meta 2026 */}
+              <div className="p-4 rounded-xl bg-[#0F0F0F] border border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[9px] font-black uppercase tracking-widest text-[#CCFF00] flex items-center gap-1.5">
+                    <Sparkles size={12} />
+                    Diagnóstico del Algoritmo Meta 2026
+                  </h4>
+                  <span className="text-[8px] font-mono text-white/40">Análisis Predictivo</span>
+                </div>
+
+                <div className="space-y-2 text-[10px] text-white/70 leading-relaxed font-sans">
+                  <div className="p-2.5 rounded-lg bg-black/40 border border-white/5 flex items-start gap-2">
+                    <span className="text-[#CCFF00] font-bold font-mono">1.</span>
+                    <p>
+                      <strong>Retención & Gancho Inicial:</strong> La estructura del copy activa el interés inmediato. Los posts con llamadas a la acción directas (como pedir una palabra clave en comentarios) multiplican por 3 la interacción del algoritmo de Meta.
+                    </p>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-black/40 border border-white/5 flex items-start gap-2">
+                    <span className="text-[#CCFF00] font-bold font-mono">2.</span>
+                    <p>
+                      <strong>Save-to-Reach Ratio:</strong> Con un <strong>{selectedMediaForDetails.likeCount > 0 ? ((selectedMediaForDetails.savedCount / selectedMediaForDetails.likeCount) * 100).toFixed(0) : 0}%</strong> de guardados respecto a los likes, el contenido es clasificado por Meta como "Material de Consulta y Alto Valor", lo que amplía su vida útil en la pestaña Explorar.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer de Acciones con IA */}
+            <div className="p-4 border-t border-white/10 bg-black/60 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <button
+                onClick={() => {
+                  const q = `@InstaAnalyst Realiza un desglose táctico de este Reel de @tsteam.fit: "${selectedMediaForDetails.caption.slice(0, 120)}...". Tuvo ${selectedMediaForDetails.likeCount} likes y ${selectedMediaForDetails.savedCount} guardados. Dime exactamente qué factores psicológicos y técnicos hicieron que la audiencia lo guardara y cómo optimizar la llamada a la acción para captar 5 nuevos clientes por DM.`;
+                  setSelectedMediaForDetails(null);
+                  onAskBot(q);
+                }}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#CCFF00] text-black font-black text-[9.5px] uppercase tracking-wider hover:bg-white transition-all shadow-[0_0_15px_#CCFF0033] flex items-center justify-center gap-1.5"
+              >
+                <Sparkles size={13} />
+                <span>Auditar a Fondo con @InstaAnalyst</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const q = `@InstaAnalyst A partir del éxito de este Reel de @tsteam.fit ("${selectedMediaForDetails.caption.slice(0, 80)}..."), escribe un GUION 2.0 (Secuela) para grabar esta semana con un gancho de 3 segundos más potente, estructura de 3 puntos clave y CTA para vender Asesorías Personalizadas de TJ FITLAB.`;
+                  setSelectedMediaForDetails(null);
+                  onAskBot(q);
+                }}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-[9.5px] uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
+              >
+                <FileText size={13} className="text-[#CCFF00]" />
+                <span>Generar Guión 2.0 con IA</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
