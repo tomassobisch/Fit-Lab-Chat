@@ -49,27 +49,75 @@ const MOCK_INSTAGRAM_DATA: InstagramAnalyticsData = {
   lastUpdated: new Date().toISOString(),
   overview: {
     username: 'tsteam.fit',
-    name: 'Tomás Sobisch | Hybrid Coach | TJFiTLAB',
-    biography: 'TJ Fitlab | Entrenamiento Híbrido 🧬\nFuerza y running basados en ciencia, no en intuición. 📊\nDejá de entrenar a ciegas. Postulá al laboratorio acá 👇',
+    name: 'Tomás Sobisch | Ecosistema para Coaches | TJFitLab',
+    biography: '💼 Ecosistema digital para entrenadores.\n⏳ Ganá +10h/semana y automatizá.\n📈 Duplicá alumnos sin perder calidad.\n🧠Conoce el laboratorio👇',
     profilePictureUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=500&auto=format&fit=crop&q=60',
-    followersCount: 1094,
-    followsCount: 1103,
-    mediaCount: 90,
-    engagementRate: 8.65,
-    weeklyReach: 14250,
-    weeklyImpressions: 28400,
-    profileViews: 940,
-    websiteClicks: 215,
+    followersCount: 1099,
+    followsCount: 1117,
+    mediaCount: 91,
+    engagementRate: 8.85,
+    weeklyReach: 15800,
+    weeklyImpressions: 31200,
+    profileViews: 1080,
+    websiteClicks: 245,
     topAudienceCity: 'Buenos Aires / Madrid / Barcelona',
-    topAudienceAgeGender: '25-34 años (62% Hombres / 38% Mujeres)',
+    topAudienceAgeGender: '25-34 años (64% Hombres / 36% Mujeres)',
     bestTimeToPost: 'Lunes a Viernes 19:30 - 21:00 CET'
   },
   recentMedia: [
     {
-      id: '17910208260243218',
-      caption: 'Tu mente no puede sostener dos realidades diferentes por mucho tiempo. O te ves como alguien capaz, enfocado y disciplinado, o te dejas ganar por la excusa del momento. 🧠✨ Deja de intentar "atraer" lo que quieres. Empieza a construir lo que crees. El laboratorio está en marcha. 🧬🔥',
+      id: '18029384729103948',
+      caption: 'Aprende, evoluciona y gana. Si estás listo para dejar la comodidad atrás y querés las plantillas de organización y hábitos que usamos en el laboratorio... 👇 COMENTÁ LA PALABRA: LAB y mi sistema te envía el acceso directo a nuestro hub exclusivo de Notion al privado ahora mismo 🚀.',
       mediaType: 'VIDEO',
       mediaUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=500&auto=format&fit=crop&q=60',
+      permalink: 'https://www.instagram.com/reel/Dbm5NHIqlGo/',
+      timestamp: '2026-08-04T06:14:58+00:00',
+      likeCount: 27,
+      commentsCount: 0,
+      savedCount: 18,
+      sharesCount: 9,
+      reach: 1850,
+      impressions: 2600,
+      videoViews: 1450,
+      engagementRate: 4.8
+    },
+    {
+      id: '18246191035308036',
+      caption: 'La mayoría fracasa porque confunde la emoción del primer día con el proceso real de cambiar de vida. La Regla del 3 no falla:\n🔹 A los 3 días: Tenés motivación 🧠\n🔹 A las 3 semanas: Construís un hábito 📅\n🔹 A los 3 meses: Ves los primeros resultados 🦾\n🔹 A los 3 años: Tu vida es completamente otra ✨\n👇 COMENTÁ LA PALABRA: LAB y mi sistema te envía el acceso directo a nuestro hub de Notion al privado 🚀.',
+      mediaType: 'VIDEO',
+      mediaUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=500&auto=format&fit=crop&q=60',
+      permalink: 'https://www.instagram.com/reel/DbNdL10qaKm/',
+      timestamp: '2026-07-25T09:09:43+00:00',
+      likeCount: 15,
+      commentsCount: 1,
+      savedCount: 12,
+      sharesCount: 7,
+      reach: 1220,
+      impressions: 1840,
+      videoViews: 980,
+      engagementRate: 3.5
+    },
+    {
+      id: '17865913635651120',
+      caption: 'Los años que decís que tenés, en realidad son los que ya no te quedan. El verdadero tiempo que te pertenece es el que viene por delante, y la pregunta es: ¿qué vas a hacer con él? ⏳🧠 En TJ Fitlab no entrenamos solo para vernos bien; entrenamos para que los años que nos quedan por vivir los dominemos con fuerza, energía y un sistema que funcione. 👇 COMENTÁ LA PALABRA: LAB y te paso el hub de Notion 🚀.',
+      mediaType: 'VIDEO',
+      mediaUrl: 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=500&auto=format&fit=crop&q=60',
+      permalink: 'https://www.instagram.com/reel/DauQm45KOoq/',
+      timestamp: '2026-07-13T06:25:13+00:00',
+      likeCount: 33,
+      commentsCount: 3,
+      savedCount: 22,
+      sharesCount: 14,
+      reach: 2150,
+      impressions: 3100,
+      videoViews: 1720,
+      engagementRate: 5.6
+    },
+    {
+      id: '17910208260243218',
+      caption: 'Tu mente no puede sostener dos realidades diferentes por mucho tiempo. O te ves como alguien capaz, enfocado y disciplinado, o te dejas ganar por la excusa del momento. 🧠✨ Deja de intentar "atraer" lo que quieres. Empieza a construir lo que crees. El laboratorio está en marcha. 🧬🔥 👇 COMENTÁ LA PALABRA: LAB.',
+      mediaType: 'VIDEO',
+      mediaUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=500&auto=format&fit=crop&q=60',
       permalink: 'https://www.instagram.com/reel/DaCifzpK3Vn/',
       timestamp: '2026-06-26T06:52:56+00:00',
       likeCount: 111,
@@ -83,7 +131,7 @@ const MOCK_INSTAGRAM_DATA: InstagramAnalyticsData = {
     },
     {
       id: '18467600533111233',
-      caption: 'El talento te da una ventaja, pero la obsesión por mejorar cada día te hace imparable. 🔥 No necesitás ser un superatleta genético para transformar tu cuerpo y tu mente. Lo que necesitás es un sistema que funcione, constancia y criterio. 🧠🏃‍♂️🦾',
+      caption: 'El talento te da una ventaja, pero la obsesión por mejorar cada día te hace imparable. 🔥 No necesitás ser un superatleta genético para transformar tu cuerpo y tu mente. Lo que necesitás es un sistema que funcione, constancia y criterio. 🧠🏃‍♂️🦾 👇 COMENTÁ LA PALABRA: LAB.',
       mediaType: 'VIDEO',
       mediaUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=500&auto=format&fit=crop&q=60',
       permalink: 'https://www.instagram.com/reel/DZ6zddqqc2u/',
@@ -101,7 +149,7 @@ const MOCK_INSTAGRAM_DATA: InstagramAnalyticsData = {
       id: '17918195224117851',
       caption: '🔬 Técnica y Biomecánica en el laboratorio: Ajuste de palancas mecánicas en sentadilla para maximizar reclutamiento de cuádriceps sin sobrecargar la zona lumbar.',
       mediaType: 'VIDEO',
-      mediaUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=500&auto=format&fit=crop&q=60',
+      mediaUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=500&auto=format&fit=crop&q=60',
       permalink: 'https://www.instagram.com/reel/DaKOa-zqDx1/',
       timestamp: '2026-06-29T06:31:44+00:00',
       likeCount: 30,
@@ -112,22 +160,6 @@ const MOCK_INSTAGRAM_DATA: InstagramAnalyticsData = {
       impressions: 1940,
       videoViews: 1150,
       engagementRate: 5.6
-    },
-    {
-      id: '17959485929962484',
-      caption: 'Rendirse es fácil cuando estás solo. Pero cuando te rodeas de personas que tienen tus mismas metas, tu misma hambre y la misma disciplina, la pereza deja de ser una opción. 🔥🏃‍♂️ TJ Fitlab: comunidad de atletas híbridos elevando estándares. 🦾🧬',
-      mediaType: 'VIDEO',
-      mediaUrl: 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=500&auto=format&fit=crop&q=60',
-      permalink: 'https://www.instagram.com/reel/DZ1ktBktxwe/',
-      timestamp: '2026-06-21T06:00:10+00:00',
-      likeCount: 8,
-      commentsCount: 0,
-      savedCount: 6,
-      sharesCount: 4,
-      reach: 650,
-      impressions: 920,
-      videoViews: 580,
-      engagementRate: 2.1
     }
   ]
 };
@@ -140,7 +172,7 @@ const STORAGE_KEYS = {
   CUSTOM_DATA: 'tj_instagram_custom_data'
 };
 
-const DEFAULT_REAL_TOKEN = 'EAAZAJa7jNQVsBSIOYV2ZCN4iXX4ycuX9A3ZBLsefJ6pcvlHkIaHrdpGSfz66o34uTEO6KSgEMjJVe7uZCVSagSE5Xml8qdy2LCPiNRi43myQqWVVJ9u3cBl1zJLELvlBL4i48moKyZAZAu6ikD7Esb50SQynkpLu3v9pSJCXSP5EHOeZA5B9ZB4MLHRcZAb0wfmuipXlkR7b021y2ZCuwZAcCMiCzUbci9ofVq2rnuVA7WPFdQnQgS6DuXHjeZAGRM7WHPbftv5Mg7UMDvvZA3oQZD';
+const DEFAULT_REAL_TOKEN = 'EAAZAJa7jNQVsBSGuTu0ZBGGZAG9q4LHWlXmhcdIRjZAqLE9ZCTSCzx8pmwiaqo9ZCj3JYZA66S7vyH8Bc2bPOBSfKIXFfpOgvzWUNTx80ZBJ1nfb46vK9pe2gO7ScmoswsHhn9rNiMd3NrTyZBZCXM4rEnNUAVCilYhpHc9PYoEe9KDyXreIUDT6jiqCeyDc5GliONQf6oAMFxnYfuF9W6nESMeBAM2Lhv0nAVSm1g5XHaX3NIgiSSZA5nUpbBebWsPwqMiNGW0Hz9SJVNDOZCeMVF4bHLnM';
 const DEFAULT_REAL_ACCOUNT_ID = '17841431806225602';
 
 export const getInstagramConfig = () => {

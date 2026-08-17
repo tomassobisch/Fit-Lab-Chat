@@ -33,7 +33,23 @@ import {
   Play,
   Flame,
   FileText,
-  Check
+  Check,
+  Film,
+  Copy,
+  Video,
+  Scissors,
+  Volume2,
+  Rocket,
+  Sliders,
+  Maximize2,
+  UserMinus,
+  UserX,
+  ShieldAlert,
+  Trash2,
+  HelpCircle,
+  CheckSquare,
+  Square,
+  UserPlus
 } from 'lucide-react';
 import { 
   InstagramAnalyticsData, 
@@ -60,6 +76,80 @@ export interface InstagramLead {
   ultimo_contacto: string;
   creado_en: string;
 }
+
+export interface NonFollowerAccount {
+  id: string;
+  username: string;
+  nombre: string;
+  avatarUrl: string;
+  tipo: 'no_sigue' | 'inactivo' | 'marca_bot';
+  seguidoDesde: string;
+  interaccion: string;
+  unfollowed: boolean;
+}
+
+const INITIAL_NON_FOLLOWERS: NonFollowerAccount[] = [
+  {
+    id: 'nf-1',
+    username: 'gym_supplements_brand_eu',
+    nombre: 'Euro Supps Distribution',
+    avatarUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=150&auto=format&fit=crop&q=60',
+    tipo: 'marca_bot',
+    seguidoDesde: 'Hace 6 meses',
+    interaccion: '0 interacciones (Cuenta comercial)',
+    unfollowed: false
+  },
+  {
+    id: 'nf-2',
+    username: 'runner_pro_madrid',
+    nombre: 'Marcos Trail & Run',
+    avatarUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=150&auto=format&fit=crop&q=60',
+    tipo: 'no_sigue',
+    seguidoDesde: 'Hace 4 meses',
+    interaccion: 'No te sigue de vuelta',
+    unfollowed: false
+  },
+  {
+    id: 'nf-3',
+    username: 'fitness_motivation_clips99',
+    nombre: 'Daily Motivation Reels',
+    avatarUrl: 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=150&auto=format&fit=crop&q=60',
+    tipo: 'marca_bot',
+    seguidoDesde: 'Hace 8 meses',
+    interaccion: 'Cuenta spam / repost',
+    unfollowed: false
+  },
+  {
+    id: 'nf-4',
+    username: 'lucas_cross_lifestyle',
+    nombre: 'Lucas Hernández',
+    avatarUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=150&auto=format&fit=crop&q=60',
+    tipo: 'inactivo',
+    seguidoDesde: 'Hace 1 año',
+    interaccion: 'Sin publicaciones hace +180 días',
+    unfollowed: false
+  },
+  {
+    id: 'nf-5',
+    username: 'powerlifting_apparel_gear',
+    nombre: 'Strength Apparel Co',
+    avatarUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=150&auto=format&fit=crop&q=60',
+    tipo: 'no_sigue',
+    seguidoDesde: 'Hace 3 meses',
+    interaccion: 'No te sigue de vuelta',
+    unfollowed: false
+  },
+  {
+    id: 'nf-6',
+    username: 'coach_matias_training',
+    nombre: 'Matías R.',
+    avatarUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=150&auto=format&fit=crop&q=60',
+    tipo: 'no_sigue',
+    seguidoDesde: 'Hace 5 meses',
+    interaccion: 'Dejó de seguirte recientemente',
+    unfollowed: false
+  }
+];
 
 const INITIAL_LEADS: InstagramLead[] = [
   {
@@ -140,7 +230,7 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
     return saved ? JSON.parse(saved) : INITIAL_LEADS;
   });
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
-  const [activeTab, setActiveTab] = useState<'pipeline' | 'analytics' | 'content'>('pipeline');
+  const [activeTab, setActiveTab] = useState<'pipeline' | 'analytics' | 'content' | 'scripts' | 'unfollowers'>('content');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -172,6 +262,70 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
 
   // Modal Ficha de Rendimiento de Publicación
   const [selectedMediaForDetails, setSelectedMediaForDetails] = useState<InstagramMediaItem | null>(null);
+
+  // Modal Vista Previa de Video / Reel Player Simulator
+  const [previewVideoModal, setPreviewVideoModal] = useState<InstagramMediaItem | null>(null);
+
+  // Estado del Estudio de Guiones & Plantillas
+  const [copiedScriptId, setCopiedScriptId] = useState<string | null>(null);
+  const [selectedScriptCategory, setSelectedScriptCategory] = useState<'todos' | 'viral' | 'ciencia' | 'habitos' | 'coaches'>('todos');
+
+  // Estado del Módulo Unfollow Hub (No Seguidores)
+  const [nonFollowers, setNonFollowers] = useState<NonFollowerAccount[]>(() => {
+    const saved = localStorage.getItem('tj_instagram_non_followers');
+    return saved ? JSON.parse(saved) : INITIAL_NON_FOLLOWERS;
+  });
+  const [unfollowFilter, setUnfollowFilter] = useState<'todos' | 'no_sigue' | 'inactivo' | 'marca_bot' | 'unfollowed'>('todos');
+  const [unfollowSearch, setUnfollowSearch] = useState('');
+  const [unfollowedCountToday, setUnfollowedCountToday] = useState<number>(() => {
+    const saved = localStorage.getItem('tj_unfollowed_count_today');
+    return saved ? Number(saved) : 0;
+  });
+  const [showImportAccountsModal, setShowImportAccountsModal] = useState(false);
+  const [importAccountsText, setImportAccountsText] = useState('');
+
+  const handleToggleUnfollow = (id: string) => {
+    setNonFollowers(prev => {
+      const updated = prev.map(item => {
+        if (item.id === id) {
+          const nextState = !item.unfollowed;
+          if (nextState) {
+            setUnfollowedCountToday(c => {
+              const nextCount = c + 1;
+              localStorage.setItem('tj_unfollowed_count_today', String(nextCount));
+              return nextCount;
+            });
+          }
+          return { ...item, unfollowed: nextState };
+        }
+        return item;
+      });
+      localStorage.setItem('tj_instagram_non_followers', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleImportCustomNonFollowers = (e: React.FormEvent) => {
+    e.preventDefault();
+    const usernames = importAccountsText.split(/[\n, ]+/).map(u => u.replace('@', '').trim()).filter(Boolean);
+    const newItems: NonFollowerAccount[] = usernames.map((un, idx) => ({
+      id: `import-${Date.now()}-${idx}`,
+      username: un,
+      nombre: un,
+      avatarUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=150&auto=format&fit=crop&q=60',
+      tipo: 'no_sigue',
+      seguidoDesde: 'Detectado en auditoría',
+      interaccion: 'No te sigue de vuelta',
+      unfollowed: false
+    }));
+    setNonFollowers(prev => {
+      const updated = [...newItems, ...prev];
+      localStorage.setItem('tj_instagram_non_followers', JSON.stringify(updated));
+      return updated;
+    });
+    setImportAccountsText('');
+    setShowImportAccountsModal(false);
+  };
 
   useEffect(() => {
     loadMetrics();
@@ -511,42 +665,58 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
 
       </div>
 
-      {/* PESTAÑAS DE VISTA: PIPELINE CRM vs ESTADÍSTICAS PROFUNDAS vs RENDIMIENTO CONTENIDO */}
-      <div className="max-w-7xl mx-auto flex items-center justify-between border-b border-white/10 pb-3">
-        <div className="flex bg-white/5 rounded-xl p-1 border border-white/10">
+      {/* PESTAÑAS DE VISTA: PIPELINE CRM vs ESTADÍSTICAS vs RENDIMIENTO CONTENIDO vs ESTUDIO GUIONES */}
+      <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-stretch md:items-center justify-between border-b border-white/10 pb-3 gap-2.5">
+        <div className="flex bg-white/5 rounded-xl p-1 border border-white/10 overflow-x-auto scrollbar-hide max-w-full gap-1">
           <button
             onClick={() => setActiveTab('pipeline')}
-            className={`px-3.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'pipeline' ? 'bg-[#CCFF00] text-black shadow-[0_0_10px_#CCFF0033]' : 'text-white/60 hover:text-white'}`}
+            className={`px-3 py-1.5 rounded-lg text-[8.5px] md:text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${activeTab === 'pipeline' ? 'bg-[#CCFF00] text-black shadow-[0_0_10px_#CCFF0033]' : 'text-white/60 hover:text-white'}`}
           >
             <Layers size={13} />
-            <span>Pipeline de Leads ({leads.length})</span>
+            <span>Pipeline Leads ({leads.length})</span>
           </button>
 
           <button
             onClick={() => setActiveTab('analytics')}
-            className={`px-3.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'analytics' ? 'bg-[#CCFF00] text-black shadow-[0_0_10px_#CCFF0033]' : 'text-white/60 hover:text-white'}`}
+            className={`px-3 py-1.5 rounded-lg text-[8.5px] md:text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${activeTab === 'analytics' ? 'bg-[#CCFF00] text-black shadow-[0_0_10px_#CCFF0033]' : 'text-white/60 hover:text-white'}`}
           >
             <BarChart3 size={13} />
-            <span>Estadísticas & Audiencia</span>
+            <span>Audiencia & Métricas</span>
           </button>
 
           <button
             onClick={() => setActiveTab('content')}
-            className={`px-3.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'content' ? 'bg-[#CCFF00] text-black shadow-[0_0_10px_#CCFF0033]' : 'text-white/60 hover:text-white'}`}
+            className={`px-3 py-1.5 rounded-lg text-[8.5px] md:text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${activeTab === 'content' ? 'bg-[#CCFF00] text-black shadow-[0_0_10px_#CCFF0033]' : 'text-white/60 hover:text-white'}`}
           >
             <Sparkles size={13} />
             <span>Top Reels & Posts</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('scripts')}
+            className={`px-3 py-1.5 rounded-lg text-[8.5px] md:text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${activeTab === 'scripts' ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-[0_0_12px_rgba(221,42,123,0.4)]' : 'text-pink-300 hover:text-white hover:bg-pink-500/10'}`}
+          >
+            <Film size={13} />
+            <span>🎬 Guiones & Edits</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('unfollowers')}
+            className={`px-3 py-1.5 rounded-lg text-[8.5px] md:text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${activeTab === 'unfollowers' ? 'bg-red-500 text-white shadow-[0_0_12px_rgba(239,68,68,0.5)]' : 'text-red-300 hover:text-white hover:bg-red-500/10'}`}
+          >
+            <UserX size={13} />
+            <span>🚫 No Me Siguen ({nonFollowers.filter(n => !n.unfollowed).length})</span>
+          </button>
         </div>
 
-        {/* ACCIÓN ASISTENTE IA INSTAGRAM */}
-        <div className="hidden sm:flex items-center gap-2">
+        {/* ACCIÓN ASISTENTE IA INSTAGRAM & GUIONISTA */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide shrink-0">
           <button
-            onClick={() => onAskBot("@InstaAnalyst Realiza un diagnóstico del embudo de ventas en Instagram: analiza la tasa de conversión de nuestros DMs y recomiéndame un guión de 3 pasos para cerrar leads indecisos.")}
-            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-pink-600/30 to-purple-600/30 border border-pink-500/40 text-pink-200 hover:text-white text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-[0_0_10px_rgba(221,42,123,0.15)]"
+            onClick={() => onAskBot("@ReelArchitect Crea un guión viral para @tsteam.fit basado en la Regla del 3 y el entrenamiento de fuerza vs running. Dame: Gancho de 3s, estructura de B-Roll, música en tendencia y CTA para captar asesorías por DM.")}
+            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 border border-pink-400/40 text-white text-[8.5px] md:text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-[0_0_10px_rgba(221,42,123,0.3)] shrink-0"
           >
-            <Sparkles size={12} className="text-pink-400" />
-            <span>Auditoría de Conversión IA</span>
+            <Film size={12} className="text-[#CCFF00]" />
+            <span>+ Guión con @ReelArchitect</span>
           </button>
         </div>
       </div>
@@ -898,13 +1068,22 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
                   className="p-5 rounded-2xl bg-[#090909] border border-white/10 hover:border-pink-500/30 transition-all flex flex-col justify-between space-y-4 group shadow-xl relative overflow-hidden"
                 >
                   <div className="flex flex-col sm:flex-row gap-4">
-                    <div className="w-full sm:w-32 h-44 sm:h-auto rounded-xl overflow-hidden bg-black flex-shrink-0 relative border border-white/10">
+                    <div 
+                      onClick={() => setPreviewVideoModal(m)}
+                      className="w-full sm:w-32 h-48 sm:h-auto rounded-xl overflow-hidden bg-black flex-shrink-0 relative border border-white/10 cursor-pointer group/thumb shadow-lg"
+                      title="Haz clic para ver la vista previa del Reel"
+                    >
                       <img
                         src={m.mediaUrl}
                         alt=""
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-300"
                       />
-                      <span className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded bg-black/80 text-[8px] font-black text-[#CCFF00] uppercase font-mono flex items-center gap-1">
+                      <div className="absolute inset-0 bg-black/40 group-hover/thumb:bg-black/10 transition-all flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full bg-[#CCFF00] text-black flex items-center justify-center shadow-lg shadow-black/80 group-hover/thumb:scale-110 transition-transform">
+                          <Play size={16} fill="currentColor" className="ml-0.5" />
+                        </div>
+                      </div>
+                      <span className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded bg-black/90 text-[8px] font-black text-[#CCFF00] uppercase font-mono flex items-center gap-1 border border-white/10">
                         <Play size={8} fill="#CCFF00" />
                         {m.mediaType === 'VIDEO' ? 'REEL' : m.mediaType === 'CAROUSEL_ALBUM' ? 'CARRUSEL' : 'POST'}
                       </span>
@@ -962,22 +1141,33 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
                   </div>
 
                   {/* Acciones de la Ficha */}
-                  <div className="flex items-center justify-between gap-2 pt-3 border-t border-white/10">
-                    <button
-                      onClick={() => setSelectedMediaForDetails(m)}
-                      className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white text-[9px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 border border-white/10"
-                    >
-                      <BarChart3 size={11} className="text-[#CCFF00]" />
-                      <span>Ficha de Rendimiento 360°</span>
-                    </button>
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-white/10">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setPreviewVideoModal(m)}
+                        className="px-2.5 py-1.5 rounded-lg bg-[#CCFF00]/10 hover:bg-[#CCFF00] hover:text-black text-[#CCFF00] text-[8.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1 border border-[#CCFF00]/30"
+                      >
+                        <Play size={10} fill="currentColor" />
+                        <span>Vista Previa</span>
+                      </button>
+
+                      <button
+                        onClick={() => setSelectedMediaForDetails(m)}
+                        className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white text-[8.5px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 border border-white/10"
+                      >
+                        <BarChart3 size={10} className="text-[#CCFF00]" />
+                        <span>Ficha 360°</span>
+                      </button>
+                    </div>
 
                     <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => onAskBot(`@InstaAnalyst Analiza en profundidad el rendimiento de esta publicación de @tsteam.fit: "${m.caption.slice(0, 100)}...". Tiene ${m.likeCount} likes, ${m.savedCount} guardados y un Engagement Rate del ${m.engagementRate}%. ¿Por qué funcionó y cómo replicar la fórmula en el próximo Reel?`)}
-                        className="px-2.5 py-1.5 rounded-lg bg-[#CCFF00]/10 hover:bg-[#CCFF00] hover:text-black text-[#CCFF00] text-[8.5px] font-black uppercase tracking-wider transition-all border border-[#CCFF00]/30"
-                        title="Pedir auditoría a la IA"
+                        onClick={() => onAskBot(`@ReelArchitect A partir del Reel de @tsteam.fit ("${m.caption.slice(0, 90)}..."), crea un nuevo guión viral 2.0 con un gancho de 3 segundos mejorado, formato de cortes rápidos para CapCut y llamada a la acción para captar asesorías por DM.`)}
+                        className="px-2.5 py-1.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 text-[8.5px] font-black uppercase tracking-wider transition-all border border-purple-500/30 flex items-center gap-1"
+                        title="Crear guión derivado con ReelArchitect"
                       >
-                        🤖 Auditar IA
+                        <Film size={10} />
+                        <span>Guión 2.0</span>
                       </button>
 
                       <a
@@ -994,6 +1184,730 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* VISTA 4: ESTUDIO DE GUIONES VIRALES & PLANTILLAS (CAPCUT/PREMIERE) */}
+      {/* ============================================================ */}
+      {activeTab === 'scripts' && (
+        <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300">
+          
+          {/* Header del Estudio de Guiones */}
+          <div className="p-5 rounded-2xl bg-gradient-to-r from-[#0E0E12] via-[#140E1B] to-[#0A1210] border border-pink-500/20 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30 text-[9px] font-black uppercase tracking-widest font-mono flex items-center gap-1">
+                  <Film size={11} />
+                  @ReelArchitect AI Studio
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-[#CCFF00]/10 text-[#CCFF00] border border-[#CCFF00]/30 text-[8px] font-mono font-bold">
+                  Tendencias 2026
+                </span>
+              </div>
+              <h2 className="text-base md:text-lg font-black uppercase tracking-tight text-white">
+                Guiones Virales & Plantillas de Edición para <span className="text-[#CCFF00]">@tsteam.fit</span>
+              </h2>
+              <p className="text-[11px] text-white/60 font-sans max-w-2xl leading-relaxed">
+                Estructuras probadas de 30 a 45 segundos con <strong className="text-white">Ganchos de 3s</strong>, retención de B-Roll, subtítulos de alto contraste y llamadas a la acción para captar clientes por DM.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <button
+                onClick={() => onAskBot("@ReelArchitect Genera 3 ideas de Reels virales para @tsteam.fit teniendo en cuenta las tendencias fitness de esta semana (Entrenamiento Híbrido, Fuerza pesada + Running, Automatización de coaches). Incluye gancho, minutaje segundo a segundo y plantilla para CapCut.")}
+                className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-[#CCFF00] hover:bg-white text-black font-black text-[9.5px] uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_#CCFF0044]"
+              >
+                <Sparkles size={13} />
+                <span>+ Generar Guiones Nuevos con IA</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Filtros de Categoría */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            {[
+              { id: 'todos', label: 'Todos los Formatos' },
+              { id: 'viral', label: '🔥 Ganchos Virales' },
+              { id: 'ciencia', label: '🧬 Ciencia & Rendimiento' },
+              { id: 'habitos', label: '📅 Disciplina & Mentalidad' },
+              { id: 'coaches', label: '💼 Ecosistema Coaches' }
+            ].map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedScriptCategory(cat.id as any)}
+                className={`px-3.5 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${
+                  selectedScriptCategory === cat.id
+                    ? 'bg-white text-black border-white shadow-lg'
+                    : 'bg-white/5 text-white/60 border-white/10 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Grid de Guiones & Plantillas Exportables */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            
+            {/* GUION 1: La Regla del 3 */}
+            {(selectedScriptCategory === 'todos' || selectedScriptCategory === 'habitos' || selectedScriptCategory === 'viral') && (
+              <div className="p-5 rounded-2xl bg-[#090909] border border-white/10 hover:border-pink-500/40 transition-all flex flex-col justify-between space-y-4 relative group shadow-xl">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[8px] font-mono font-bold uppercase">
+                      ⭐ Formato Retención
+                    </span>
+                    <span className="text-[8.5px] font-mono text-white/40">Duración: 28s</span>
+                  </div>
+
+                  <h3 className="text-xs font-black uppercase tracking-wider text-white">
+                    1. La Regla del 3 (Quiebre de Motivación)
+                  </h3>
+
+                  {/* Estructura del Guión */}
+                  <div className="space-y-2 text-[10px] font-mono bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+                    <div className="text-pink-300 font-bold">
+                      <span className="text-white/40 block text-[7.5px] uppercase">0:00 - 0:03 ⚡ Gancho Visual:</span>
+                      "La mayoría fracasa porque confunde la emoción del primer día con el proceso real de cambiar de vida."
+                    </div>
+                    <div className="text-white/80">
+                      <span className="text-white/40 block text-[7.5px] uppercase">0:03 - 0:22 🎬 Desarrollo:</span>
+                      "La regla del 3 no falla: A los 3 días tenés motivación. A las 3 semanas construís un hábito. A los 3 meses ves resultados. A los 3 años tu vida es completamente otra."
+                    </div>
+                    <div className="text-[#CCFF00] font-bold">
+                      <span className="text-white/40 block text-[7.5px] uppercase">0:22 - 0:28 🚀 CTA de Conversión:</span>
+                      "👇 Comentá la palabra: LAB y mi sistema te envía el acceso directo a nuestro hub de Notion al privado."
+                    </div>
+                  </div>
+
+                  {/* Plantilla de Edición para CapCut / Premiere */}
+                  <div className="p-3 rounded-xl bg-black/60 border border-white/10 space-y-2 text-[9px] font-mono text-white/70">
+                    <div className="flex items-center justify-between text-[#CCFF00] text-[8px] font-bold uppercase">
+                      <span className="flex items-center gap-1"><Scissors size={10} /> Plantilla CapCut / Premiere</span>
+                      <span>124 BPM</span>
+                    </div>
+                    <p>• <strong>Tomas B-Roll:</strong> Primer plano atando zapatillas de running ➔ sentadilla pesada ➔ pantalla iPad Notion.</p>
+                    <p>• <strong>Cortes:</strong> Cada 1.8 segundos con micro-zoom in.</p>
+                    <p>• <strong>Subtítulos:</strong> Fuente negrita centrada, palabras clave en <span className="text-[#CCFF00]">#CCFF00</span>.</p>
+                    <p>• <strong>Audio SFX:</strong> Whoosh en transiciones + sonido de notificación al decir "LAB".</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+                  <button
+                    onClick={() => {
+                      const text = `GUION REEL: La Regla del 3\n\n[0:00-0:03 GANCHO]\n"La mayoría fracasa porque confunde la emoción del primer día con el proceso real de cambiar de vida."\n\n[0:03-0:22 DESARROLLO]\n"La regla del 3 no falla:\n- A los 3 días tenés motivación.\n- A las 3 semanas construís un hábito.\n- A los 3 meses ves resultados.\n- A los 3 años tu vida es completamente otra."\n\n[0:22-0:28 CTA]\n"👇 Comentá la palabra: LAB y mi sistema te envía el acceso directo a nuestro hub de Notion al privado."\n\n[PLANTILLA EDICIÓN CAPCUT]\n- B-Roll: Zapatillas running + sentadilla + Notion\n- Pacing: Cortes a 1.8s con zoom-in\n- Audio: Phonk / Lo-fi 124 BPM + Woosh SFX`;
+                      navigator.clipboard.writeText(text);
+                      setCopiedScriptId('script-1');
+                      setTimeout(() => setCopiedScriptId(null), 2000);
+                    }}
+                    className="flex-1 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-[8.5px] uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 border border-white/10"
+                  >
+                    {copiedScriptId === 'script-1' ? <Check size={11} className="text-[#CCFF00]" /> : <Copy size={11} />}
+                    <span>{copiedScriptId === 'script-1' ? '¡Copiado!' : 'Copiar Plantilla'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => onAskBot("@ReelArchitect Ajusta el guión 'La Regla del 3' para enfocarlo 100% en captar alumnos para mi asesoría personalizada de entrenamiento híbrido de @tsteam.fit.")}
+                    className="p-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                    title="Pedir variante a ReelArchitect"
+                  >
+                    <Sparkles size={13} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* GUION 2: Fuerza vs Running */}
+            {(selectedScriptCategory === 'todos' || selectedScriptCategory === 'ciencia' || selectedScriptCategory === 'viral') && (
+              <div className="p-5 rounded-2xl bg-[#090909] border border-white/10 hover:border-[#CCFF00]/40 transition-all flex flex-col justify-between space-y-4 relative group shadow-xl">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2.5 py-0.5 rounded bg-[#CCFF00]/20 text-[#CCFF00] border border-[#CCFF00]/30 text-[8px] font-mono font-bold uppercase">
+                      🧬 Ciencia & Rendimiento
+                    </span>
+                    <span className="text-[8.5px] font-mono text-white/40">Duración: 32s</span>
+                  </div>
+
+                  <h3 className="text-xs font-black uppercase tracking-wider text-white">
+                    2. Mito del Atleta Híbrido (Fuerza vs Running)
+                  </h3>
+
+                  {/* Estructura del Guión */}
+                  <div className="space-y-2 text-[10px] font-mono bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+                    <div className="text-pink-300 font-bold">
+                      <span className="text-white/40 block text-[7.5px] uppercase">0:00 - 0:03 ⚡ Gancho Visual:</span>
+                      "Te dijeron que correr te hacía perder masa muscular. Te mintieron para venderte rutinas aburridas."
+                    </div>
+                    <div className="text-white/80">
+                      <span className="text-white/40 block text-[7.5px] uppercase">0:03 - 0:24 🎬 Desarrollo:</span>
+                      "La ciencia demuestra que cuando combinas carrera en Zona 2 con sobrecarga progresiva en sentadilla y peso muerto, tu capacidad mitocondrial y tu hipertrofia se multiplican sin fatiga central."
+                    </div>
+                    <div className="text-[#CCFF00] font-bold">
+                      <span className="text-white/40 block text-[7.5px] uppercase">0:24 - 0:32 🚀 CTA de Conversión:</span>
+                      "Comentá HIBRIDO y te envío la guía de periodización de fuerza y running que usamos en @tsteam.fit."
+                    </div>
+                  </div>
+
+                  {/* Plantilla de Edición para CapCut / Premiere */}
+                  <div className="p-3 rounded-xl bg-black/60 border border-white/10 space-y-2 text-[9px] font-mono text-white/70">
+                    <div className="flex items-center justify-between text-[#CCFF00] text-[8px] font-bold uppercase">
+                      <span className="flex items-center gap-1"><Scissors size={10} /> Plantilla CapCut / Premiere</span>
+                      <span>130 BPM</span>
+                    </div>
+                    <p>• <strong>Tomas B-Roll:</strong> Split screen carrera intensa en asfalto vs barra cargada con 140kg.</p>
+                    <p>• <strong>Cortes:</strong> Transición con latido cardíaco sonoro y gráfica de pulsaciones.</p>
+                    <p>• <strong>Subtítulos:</strong> Dinámicos palabra por palabra con pop-up.</p>
+                    <p>• <strong>Audio SFX:</strong> Sub-bass drop en el gancho y click en el CTA.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+                  <button
+                    onClick={() => {
+                      const text = `GUION REEL: Mito del Atleta Híbrido\n\n[0:00-0:03 GANCHO]\n"Te dijeron que correr te hacía perder masa muscular. Te mintieron para venderte rutinas aburridas."\n\n[0:03-0:24 DESARROLLO]\n"La ciencia demuestra que cuando combinas carrera en Zona 2 con sobrecarga progresiva en sentadilla y peso muerto, tu capacidad mitocondrial y tu hipertrofia se multiplican sin fatiga central."\n\n[0:24-0:32 CTA]\n"Comentá HIBRIDO y te envío la guía de periodización de fuerza y running que usamos en @tsteam.fit."\n\n[PLANTILLA EDICIÓN CAPCUT]\n- B-Roll: Split screen carrera vs sentadilla pesada\n- Pacing: Dinámico con ritmo de respiración y pulsaciones\n- Audio: Synthwave / Phonk 130 BPM + Sub-bass drop`;
+                      navigator.clipboard.writeText(text);
+                      setCopiedScriptId('script-2');
+                      setTimeout(() => setCopiedScriptId(null), 2000);
+                    }}
+                    className="flex-1 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-[8.5px] uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 border border-white/10"
+                  >
+                    {copiedScriptId === 'script-2' ? <Check size={11} className="text-[#CCFF00]" /> : <Copy size={11} />}
+                    <span>{copiedScriptId === 'script-2' ? '¡Copiado!' : 'Copiar Plantilla'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => onAskBot("@ReelArchitect Adapta el guión de Atleta Híbrido para crear un Reel de demostración práctica en el gimnasio explicando cómo no sobrecargar las rodillas.")}
+                    className="p-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                    title="Pedir variante a ReelArchitect"
+                  >
+                    <Sparkles size={13} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* GUION 3: Ecosistema para Coaches */}
+            {(selectedScriptCategory === 'todos' || selectedScriptCategory === 'coaches') && (
+              <div className="p-5 rounded-2xl bg-[#090909] border border-white/10 hover:border-purple-500/40 transition-all flex flex-col justify-between space-y-4 relative group shadow-xl">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[8px] font-mono font-bold uppercase">
+                      💼 Ecosistema Coaches
+                    </span>
+                    <span className="text-[8.5px] font-mono text-white/40">Duración: 30s</span>
+                  </div>
+
+                  <h3 className="text-xs font-black uppercase tracking-wider text-white">
+                    3. Gana +10h/semana (Automatización de Entrenadores)
+                  </h3>
+
+                  {/* Estructura del Guión */}
+                  <div className="space-y-2 text-[10px] font-mono bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+                    <div className="text-pink-300 font-bold">
+                      <span className="text-white/40 block text-[7.5px] uppercase">0:00 - 0:03 ⚡ Gancho Visual:</span>
+                      "Si pasas más de 3 horas al día respondiendo WhatsApp a tus alumnos, no tienes un negocio, tienes una jaula."
+                    </div>
+                    <div className="text-white/80">
+                      <span className="text-white/40 block text-[7.5px] uppercase">0:03 - 0:22 🎬 Desarrollo:</span>
+                      "En TJ Fitlab creamos un ecosistema digital que automatiza la entrega de rutinas, el feedback de técnica y el CRM para que dupliques tus alumnos sin perder calidad."
+                    </div>
+                    <div className="text-[#CCFF00] font-bold">
+                      <span className="text-white/40 block text-[7.5px] uppercase">0:22 - 0:30 🚀 CTA de Conversión:</span>
+                      "Comentá la palabra SISTEMA y te muestro el backend de nuestro laboratorio por dentro."
+                    </div>
+                  </div>
+
+                  {/* Plantilla de Edición para CapCut / Premiere */}
+                  <div className="p-3 rounded-xl bg-black/60 border border-white/10 space-y-2 text-[9px] font-mono text-white/70">
+                    <div className="flex items-center justify-between text-[#CCFF00] text-[8px] font-bold uppercase">
+                      <span className="flex items-center gap-1"><Scissors size={10} /> Plantilla CapCut / Premiere</span>
+                      <span>120 BPM</span>
+                    </div>
+                    <p>• <strong>Tomas B-Roll:</strong> Grabación de pantalla del dashboard de métricas + café mañanero + MacBook.</p>
+                    <p>• <strong>Cortes:</strong> Estilo documental minimalista con zooms suaves.</p>
+                    <p>• <strong>Subtítulos:</strong> Fuente clean tech en blanco con badge púrpura.</p>
+                    <p>• <strong>Audio SFX:</strong> Sonido de typing y teclado mecánico en los quiebres de texto.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+                  <button
+                    onClick={() => {
+                      const text = `GUION REEL: Automatización para Coaches\n\n[0:00-0:03 GANCHO]\n"Si pasas más de 3 horas al día respondiendo WhatsApp a tus alumnos, no tienes un negocio, tienes una jaula."\n\n[0:03-0:22 DESARROLLO]\n"En TJ Fitlab creamos un ecosistema digital que automatiza la entrega de rutinas, el feedback de técnica y el CRM para que dupliques tus alumnos sin perder calidad."\n\n[0:22-0:30 CTA]\n"Comentá la palabra SISTEMA y te muestro el backend de nuestro laboratorio por dentro."\n\n[PLANTILLA EDICIÓN CAPCUT]\n- B-Roll: Grabación de pantalla CRM + MacBook + café\n- Pacing: Estilo documental tech\n- Audio: Lo-fi moderno 120 BPM + Keyboard SFX`;
+                      navigator.clipboard.writeText(text);
+                      setCopiedScriptId('script-3');
+                      setTimeout(() => setCopiedScriptId(null), 2000);
+                    }}
+                    className="flex-1 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-[8.5px] uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 border border-white/10"
+                  >
+                    {copiedScriptId === 'script-3' ? <Check size={11} className="text-[#CCFF00]" /> : <Copy size={11} />}
+                    <span>{copiedScriptId === 'script-3' ? '¡Copiado!' : 'Copiar Plantilla'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => onAskBot("@ReelArchitect Diseña un guión para convencer a otros entrenadores personales de usar la plataforma de TJ Fitlab para gestionar sus alumnos.")}
+                    className="p-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                    title="Pedir variante a ReelArchitect"
+                  >
+                    <Sparkles size={13} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+          </div>
+
+          {/* Matriz de Estrategia de Crecimiento 2026 para @tsteam.fit */}
+          <div className="p-5 md:p-6 rounded-2xl bg-[#090909] border border-white/10 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Rocket size={16} className="text-[#CCFF00]" />
+                <h3 className="text-xs font-black uppercase tracking-wider text-white">
+                  Estrategia de Crecimiento & Tendencias Algoritmo 2026 (@tsteam.fit)
+                </h3>
+              </div>
+              <span className="text-[8.5px] font-mono text-[#CCFF00] bg-[#CCFF00]/10 px-2 py-0.5 rounded">
+                Meta Creator Playbook
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-[10px] font-sans text-white/70">
+              <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-1.5">
+                <h4 className="font-black text-white text-[11px] uppercase flex items-center gap-1.5">
+                  <span className="text-[#CCFF00] font-mono">1.</span> La Regla de los 3 Segundos
+                </h4>
+                <p className="leading-relaxed">
+                  El algoritmo de Meta descarta los Reels que no retienen al menos al 40% de la audiencia en los primeros 3 segundos. Comienza siempre con movimiento visual inmediato y una frase en negativo o afirmación contraintuitiva.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-1.5">
+                <h4 className="font-black text-white text-[11px] uppercase flex items-center gap-1.5">
+                  <span className="text-[#CCFF00] font-mono">2.</span> Disparador de Palabras Clave (DMs)
+                </h4>
+                <p className="leading-relaxed">
+                  En lugar de pedir "link en bio", pide que comenten una palabra clave corta (ej: <strong className="text-white">LAB</strong> o <strong className="text-white">SISTEMA</strong>). Esto genera señales masivas de comentarios y activa la conversación privada directa.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-1.5">
+                <h4 className="font-black text-white text-[11px] uppercase flex items-center gap-1.5">
+                  <span className="text-[#CCFF00] font-mono">3.</span> Ratio de Guardados (Saves)
+                </h4>
+                <p className="leading-relaxed">
+                  Un Reel que supera el 10% de guardados sobre likes es recomendado automáticamente por Instagram en la pestaña Explorar por más de 14 días. Asegúrate de incluir datos aplicables o plantillas.
+                </p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* VISTA 5: AUDITORÍA DE NO SEGUIDORES (UNFOLLOW HUB) */}
+      {/* ============================================================ */}
+      {activeTab === 'unfollowers' && (
+        <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300">
+          
+          {/* Header del Unfollow Hub */}
+          <div className="p-5 md:p-6 rounded-2xl bg-gradient-to-r from-[#140A0D] via-[#1A0E13] to-[#0A0D14] border border-red-500/20 shadow-2xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/30 text-[9px] font-black uppercase tracking-widest font-mono flex items-center gap-1">
+                  <UserX size={11} />
+                  Auditoría de Cuentas & Purga
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[8px] font-mono font-bold flex items-center gap-1">
+                  <ShieldAlert size={10} />
+                  Protección Anti-Bloqueo
+                </span>
+              </div>
+              <h2 className="text-base md:text-lg font-black uppercase tracking-tight text-white">
+                Cuentas que <span className="text-red-400">No Te Siguen de Vuelta</span> en @tsteam.fit
+              </h2>
+              <p className="text-[11px] text-white/60 font-sans max-w-2xl leading-relaxed">
+                Optimiza tu ratio de seguimiento y purga perfiles inactivos o bots que perjudican el algoritmo de Meta. Dejar de seguir cuentas inactivas eleva la autoridad de tu perfil.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+              <button
+                onClick={() => setShowImportAccountsModal(true)}
+                className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-black text-[9px] uppercase tracking-wider transition-all flex items-center gap-1.5 border border-white/10"
+              >
+                <Plus size={12} />
+                <span>+ Pegar / Importar Lista</span>
+              </button>
+
+              <button
+                onClick={() => onAskBot("@InstaAnalyst Realiza una auditoría del ratio de seguidos vs seguidores de @tsteam.fit (1,117 seguidos vs 1,099 seguidores). ¿Qué impacto tiene en el algoritmo de Meta tener más seguidos que seguidores y cuál es la estrategia recomendada para depurar la lista?")}
+                className="px-3.5 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white font-black text-[9px] uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-[0_0_15px_rgba(239,68,68,0.3)]"
+              >
+                <Sparkles size={12} />
+                <span>Estrategia de Purga IA</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Tarjetas de Métricas del Hub */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+              <span className="text-[8.5px] font-black uppercase tracking-widest text-white/40">Cuentas que Sigues</span>
+              <div className="text-xl md:text-2xl font-black text-white font-mono">{ov?.followsCount || 1117}</div>
+              <span className="text-[8px] text-white/30 font-mono">Total seguidos</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+              <span className="text-[8.5px] font-black uppercase tracking-widest text-white/40">Tus Seguidores</span>
+              <div className="text-xl md:text-2xl font-black text-[#CCFF00] font-mono">{ov?.followersCount || 1099}</div>
+              <span className="text-[8px] text-green-400 font-mono">Comunidad activa</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-red-500/5 border border-red-500/20 space-y-1">
+              <span className="text-[8.5px] font-black uppercase tracking-widest text-red-400/70">No Te Siguen (Detectados)</span>
+              <div className="text-xl md:text-2xl font-black text-red-400 font-mono">
+                {nonFollowers.filter(n => !n.unfollowed).length}
+              </div>
+              <span className="text-[8px] text-red-300/60 font-mono">Cuentas a revisar</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20 space-y-1">
+              <div className="flex justify-between items-center text-amber-400/80">
+                <span className="text-[8.5px] font-black uppercase tracking-widest">Límite Seguro Hoy</span>
+                <span className="text-[9px] font-mono">{unfollowedCountToday} / 50</span>
+              </div>
+              <div className="h-2 bg-white/5 rounded-full overflow-hidden mt-2">
+                <div 
+                  className="h-full bg-amber-400 transition-all duration-300 rounded-full"
+                  style={{ width: `${Math.min((unfollowedCountToday / 50) * 100, 100)}%` }}
+                />
+              </div>
+              <span className="text-[7.5px] text-white/40 font-mono block mt-1">Máx 50/hora recomendado</span>
+            </div>
+          </div>
+
+          {/* Filtros & Buscador de No Seguidores */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-white/[0.02] border border-white/5">
+            <div className="flex items-center gap-2 flex-grow max-w-md bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+              <Search size={14} className="text-white/40" />
+              <input
+                type="text"
+                value={unfollowSearch}
+                onChange={(e) => setUnfollowSearch(e.target.value)}
+                placeholder="Buscar cuenta por @usuario o nombre..."
+                className="bg-transparent text-xs text-white placeholder-white/40 outline-none w-full"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-hide">
+              {[
+                { id: 'todos', label: 'Todos' },
+                { id: 'no_sigue', label: '❌ No Te Siguen' },
+                { id: 'inactivo', label: '⚠️ Inactivos' },
+                { id: 'marca_bot', label: '🏢 Marcas/Bots' },
+                { id: 'unfollowed', label: '✓ Dejados de Seguir' }
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setUnfollowFilter(f.id as any)}
+                  className={`px-3 py-1 rounded-lg text-[8.5px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${
+                    unfollowFilter === f.id
+                      ? 'bg-red-500 text-white border-red-500'
+                      : 'bg-white/5 text-white/50 border-white/10 hover:text-white'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Lista de Cuentas */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {nonFollowers
+              .filter(acc => {
+                const matchesFilter = 
+                  unfollowFilter === 'todos' ? true :
+                  unfollowFilter === 'unfollowed' ? acc.unfollowed :
+                  !acc.unfollowed && acc.tipo === unfollowFilter;
+                const matchesSearch = 
+                  acc.username.toLowerCase().includes(unfollowSearch.toLowerCase()) ||
+                  acc.nombre.toLowerCase().includes(unfollowSearch.toLowerCase());
+                return matchesFilter && matchesSearch;
+              })
+              .map((acc) => (
+                <div
+                  key={acc.id}
+                  className={`p-4 rounded-2xl border transition-all flex flex-col justify-between space-y-3 shadow-xl ${
+                    acc.unfollowed
+                      ? 'bg-white/[0.01] border-white/5 opacity-50'
+                      : 'bg-[#090909] border-white/10 hover:border-red-500/30'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-white/10 border border-white/10 flex-shrink-0">
+                        <img src={acc.avatarUrl} alt="" className="w-full h-full object-cover" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <a
+                            href={`https://www.instagram.com/${acc.username}/`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-black text-white hover:text-red-400 transition-colors flex items-center gap-1 font-mono"
+                          >
+                            <span>@{acc.username}</span>
+                            <ExternalLink size={9} />
+                          </a>
+                        </div>
+                        <p className="text-[10px] text-white/50">{acc.nombre}</p>
+                      </div>
+                    </div>
+
+                    <span className={`px-2 py-0.5 rounded text-[7.5px] font-black uppercase font-mono border ${
+                      acc.unfollowed
+                        ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                        : acc.tipo === 'inactivo'
+                        ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                        : acc.tipo === 'marca_bot'
+                        ? 'bg-purple-500/10 text-purple-300 border-purple-500/20'
+                        : 'bg-red-500/10 text-red-300 border-red-500/20'
+                    }`}>
+                      {acc.unfollowed ? '✓ Purga lista' : acc.tipo === 'inactivo' ? '⚠️ Inactivo' : acc.tipo === 'marca_bot' ? '🏢 Marca/Bot' : '❌ No te sigue'}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 text-[9px] font-mono space-y-1 text-white/60">
+                    <div className="flex justify-between">
+                      <span>Seguido:</span>
+                      <span className="text-white/80">{acc.seguidoDesde}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Diagnóstico:</span>
+                      <span className="text-red-400 font-bold">{acc.interaccion}</span>
+                    </div>
+                  </div>
+
+                  {/* Acciones de Cuenta */}
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/10">
+                    <a
+                      href={`https://www.instagram.com/${acc.username}/`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500 hover:text-white text-red-300 text-[8.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1 border border-red-500/20"
+                    >
+                      <ExternalLink size={10} />
+                      <span>Dejar de Seguir</span>
+                    </a>
+
+                    <button
+                      onClick={() => handleToggleUnfollow(acc.id)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[8.5px] font-bold uppercase tracking-wider transition-all border flex items-center gap-1 ${
+                        acc.unfollowed
+                          ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                          : 'bg-white/5 text-white/60 border-white/10 hover:text-white'
+                      }`}
+                    >
+                      {acc.unfollowed ? <Check size={10} /> : <UserMinus size={10} />}
+                      <span>{acc.unfollowed ? 'Listo' : 'Marcar'}</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL IMPORTAR CUENTAS NO SEGUIDORAS */}
+      {showImportAccountsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in">
+          <div className="w-full max-w-lg bg-[#0A0A0A] border border-white/10 rounded-2xl p-6 shadow-2xl relative">
+            <button
+              onClick={() => setShowImportAccountsModal(false)}
+              className="absolute top-4 right-4 text-white/40 hover:text-white"
+            >
+              ✕
+            </button>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-9 h-9 rounded-xl bg-red-500 text-white flex items-center justify-center font-black">
+                <UserPlus size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-wider text-white">Importar Cuentas a Auditar</h3>
+                <p className="text-[9px] text-white/40 font-mono">Pega usuarios de Instagram para agregarlos a tu lista de no seguidores</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleImportCustomNonFollowers} className="space-y-4">
+              <div>
+                <label className="text-[8px] text-white/40 font-bold uppercase tracking-widest block mb-1">
+                  Usuarios de Instagram (@)
+                </label>
+                <textarea
+                  value={importAccountsText}
+                  onChange={(e) => setImportAccountsText(e.target.value)}
+                  placeholder={"@usuario1\n@usuario2\n@marca_ejemplo"}
+                  rows={5}
+                  required
+                  className="w-full bg-white/5 border border-white/10 rounded-lg p-2.5 text-xs text-white outline-none focus:border-red-500 font-mono resize-none"
+                />
+                <span className="text-[8px] text-white/30 block mt-1">
+                  Puedes separar los nombres con saltos de línea o comas.
+                </span>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-red-500 hover:bg-red-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)]"
+              >
+                Cargar en el Unfollow Hub
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL VISTA PREVIA INTERACTIVA DE VIDEO / REEL SIMULATOR */}
+      {previewVideoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-lg p-3 md:p-6 animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-[#0A0A0A] border border-white/20 rounded-3xl overflow-hidden shadow-[0_0_60px_rgba(0,0,0,0.95)] flex flex-col relative">
+            
+            {/* Header del Reproductor */}
+            <div className="p-3.5 border-b border-white/10 bg-black/80 flex items-center justify-between z-10">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 p-[1.5px]">
+                  <img src="/avatars/instaanalyst.png" alt="" className="w-full h-full rounded-full object-cover" />
+                </div>
+                <div>
+                  <div className="text-[10.5px] font-black text-white font-mono">@tsteam.fit</div>
+                  <div className="text-[7.5px] text-white/40 font-mono">Instagram Reel Preview</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <a
+                  href={previewVideoModal.permalink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2 py-1 rounded bg-pink-500/20 text-pink-300 hover:bg-pink-500 hover:text-white text-[8px] font-mono font-bold flex items-center gap-1 transition-all"
+                >
+                  <span>Abrir App</span>
+                  <ExternalLink size={9} />
+                </a>
+                <button
+                  onClick={() => setPreviewVideoModal(null)}
+                  className="p-1 rounded text-white/40 hover:text-white hover:bg-white/10"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Pantalla 9:16 del Reel Simulator */}
+            <div className="relative aspect-[9/16] w-full bg-black flex items-center justify-center overflow-hidden group">
+              <img
+                src={previewVideoModal.mediaUrl}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+
+              {/* Overlay interactivo de reproducción */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30 flex flex-col justify-between p-4">
+                
+                {/* Badge Superior */}
+                <div className="flex justify-between items-center">
+                  <span className="px-2 py-0.5 rounded bg-black/60 backdrop-blur-md text-[8px] font-mono text-[#CCFF00] font-black border border-white/10">
+                    ER: {previewVideoModal.engagementRate}%
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-black/60 backdrop-blur-md text-[8px] font-mono text-white/70">
+                    {new Date(previewVideoModal.timestamp).toLocaleDateString()}
+                  </span>
+                </div>
+
+                {/* Centro con botón play simulado */}
+                <div className="flex items-center justify-center">
+                  <div className="w-14 h-14 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-[#CCFF00] flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform cursor-pointer">
+                    <Play size={24} fill="currentColor" className="ml-1" />
+                  </div>
+                </div>
+
+                {/* Métricas laterales estilo Instagram */}
+                <div className="flex justify-between items-end">
+                  <div className="space-y-2 max-w-[80%]">
+                    <p className="text-[11px] text-white/95 line-clamp-3 leading-snug font-sans drop-shadow-md">
+                      {previewVideoModal.caption}
+                    </p>
+                    <div className="flex items-center gap-2 text-[8px] font-mono text-white/60">
+                      <span className="flex items-center gap-1"><Volume2 size={9} /> Audio Original &bull; @tsteam.fit</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-center gap-3 pb-1">
+                    <div className="flex flex-col items-center">
+                      <div className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md text-red-400 flex items-center justify-center border border-white/10">
+                        <Heart size={14} />
+                      </div>
+                      <span className="text-[8px] text-white font-mono mt-0.5">{previewVideoModal.likeCount}</span>
+                    </div>
+
+                    <div className="flex flex-col items-center">
+                      <div className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md text-blue-400 flex items-center justify-center border border-white/10">
+                        <MessageCircle size={14} />
+                      </div>
+                      <span className="text-[8px] text-white font-mono mt-0.5">{previewVideoModal.commentsCount}</span>
+                    </div>
+
+                    <div className="flex flex-col items-center">
+                      <div className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md text-[#CCFF00] flex items-center justify-center border border-white/10">
+                        <Bookmark size={14} />
+                      </div>
+                      <span className="text-[8px] text-white font-mono mt-0.5">{previewVideoModal.savedCount}</span>
+                    </div>
+
+                    <div className="flex flex-col items-center">
+                      <div className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md text-pink-400 flex items-center justify-center border border-white/10">
+                        <Share2 size={14} />
+                      </div>
+                      <span className="text-[8px] text-white font-mono mt-0.5">{previewVideoModal.sharesCount}</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Acciones de Footer del Simulador */}
+            <div className="p-3 bg-black/90 border-t border-white/10 flex items-center justify-between gap-2">
+              <button
+                onClick={() => {
+                  const media = previewVideoModal;
+                  setPreviewVideoModal(null);
+                  setSelectedMediaForDetails(media);
+                }}
+                className="flex-1 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-[8.5px] uppercase tracking-wider transition-all flex items-center justify-center gap-1 border border-white/10"
+              >
+                <BarChart3 size={11} className="text-[#CCFF00]" />
+                <span>Ver Ficha 360°</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const media = previewVideoModal;
+                  setPreviewVideoModal(null);
+                  onAskBot(`@ReelArchitect Crea un guión viral 2.0 derivado de este Reel de @tsteam.fit: "${media.caption.slice(0, 90)}...".`);
+                }}
+                className="flex-1 py-2 rounded-xl bg-[#CCFF00] hover:bg-white text-black font-black text-[8.5px] uppercase tracking-wider transition-all flex items-center justify-center gap-1 shadow-[0_0_10px_#CCFF0033]"
+              >
+                <Film size={11} />
+                <span>Guión con IA</span>
+              </button>
+            </div>
+
           </div>
         </div>
       )}
@@ -1086,11 +2000,12 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
                 </div>
 
                 <div>
-                  <label className="text-[8px] text-white/40 font-bold uppercase tracking-widest block mb-1">Valor Estimado (€/mes)</label>
+                  <label className="text-[8px] text-white/40 font-bold uppercase tracking-widest block mb-1">Valor Estimado (€)</label>
                   <input
                     type="number"
                     value={newLeadValue}
                     onChange={(e) => setNewLeadValue(Number(e.target.value))}
+                    placeholder="120"
                     className="w-full bg-white/5 border border-white/10 rounded-lg p-2.5 text-xs text-white outline-none focus:border-[#CCFF00]/40 font-mono"
                   />
                 </div>

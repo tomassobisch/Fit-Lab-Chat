@@ -17,8 +17,9 @@ interface ForumPost {
 
 const INITIAL_AGENTS: Agente[] = [
   { id: '56495e75-d7f8-4df9-b8d0-8434727039df', nombre: 'Senior Dev', nickname: 'Programador', rol: 'Ingeniero de Software', skills: 'React, Python, Supabase, n8n', avatar_url: '/avatars/programador.png', estado_online: true, creado_en: '' },
-  { id: 'd8804865-ef92-4af9-99c5-abf8f6323cee', nombre: 'Marketing Pro', nickname: 'CommunityManager', rol: 'Marketing y Contenido', skills: 'Social Media, SEO, Copywriting', avatar_url: '/avatars/communitymanager.png', estado_online: true, creado_en: '' },
+  { id: '7c81d23e-5b12-4c62-a89e-29f76a123901', nombre: 'Viral Script & Edit Architect', nickname: 'ReelArchitect', rol: 'Guionista Viral & Director de Edits', skills: 'Ganchos 3s Hook, Retención, Plantillas CapCut/Premiere, Storytelling Híbrido, CTA Conversión', avatar_url: '/avatars/reelarchitect.png', estado_online: true, creado_en: '' },
   { id: '9b51f99f-4408-46d0-a0ed-bd70803b7fab', nombre: 'InstaMetrics Pro', nickname: 'InstaAnalyst', rol: 'Analista Métricas Instagram & Growth', skills: 'Instagram Graph API, Reels Analytics, Audiencias, Conversión', avatar_url: '/avatars/instaanalyst.png', estado_online: true, creado_en: '' },
+  { id: 'd8804865-ef92-4af9-99c5-abf8f6323cee', nombre: 'Marketing Pro', nickname: 'CommunityManager', rol: 'Marketing y Contenido', skills: 'Social Media, SEO, Copywriting', avatar_url: '/avatars/communitymanager.png', estado_online: true, creado_en: '' },
   { id: '5653eb5d-1251-412e-a6d2-37d261679cfd', nombre: 'Legal Expert', nickname: 'Legal', rol: 'Consultoría Legal', skills: 'Compliance, Contratos, Privacidad', avatar_url: '/avatars/legal.png', estado_online: true, creado_en: '' },
   { id: '1939aaa3-719d-4dde-96e6-46559524f832', nombre: 'Data Analyst', nickname: 'Data', rol: 'Análisis de Datos', skills: 'SQL, Metabase, Predicción', avatar_url: '/avatars/dataanalyst.png', estado_online: true, creado_en: '' },
   { id: '8417871e-c4dc-41b8-84af-2d7c7c1ab7bb', nombre: 'Project Manager', nickname: 'Strategist', rol: 'Estrategia y QA', skills: 'Planificación, Gestión de Equipos', avatar_url: '/avatars/strategist.png', estado_online: true, creado_en: '' },
@@ -182,6 +183,11 @@ export const TJOfficeChat: React.FC = () => {
     let suma = '';
 
     switch (agent.nickname.toLowerCase()) {
+      case 'reelarchitect':
+        cualidades = 'Especialista en viralidad, ganchos magnéticos de 3 segundos, guiones de alta retención y directrices visuales para CapCut/Premiere.';
+        dedicacion = 'Crea guiones estructurados paso a paso para Reels de @tsteam.fit, optimiza la retención de audiencia, escribe llamadas a la acción que convierten seguidores en clientes y diseña plantillas de edición con minutaje y efectos de sonido.';
+        suma = 'Multiplica el alcance orgánico de cada video, evita que los Reels se sientan improvisados y escala la captación de prospectos por mensaje privado (DMs).';
+        break;
       case 'instaanalyst':
       case 'instametrics':
         cualidades = 'Lectura analítica del algoritmo de Meta/Instagram en tiempo real, detección de hooks virales, optimización de ratios de guardados/compartidos y conversión a app.';
@@ -784,6 +790,19 @@ Es de suma importancia empresarial que el contenido de cada sección sea complet
 
     // 3. Fallbacks temáticos específicos por rol
     switch (agent.nickname.toLowerCase()) {
+      case 'reelarchitect':
+        return `¡Hola jefe! Aquí @ReelArchitect, tu Guionista Viral & Director de Edits para @tsteam.fit. Recibí tu mensaje: *"${userText}"*.
+${userText.toLowerCase().includes('plantilla') || userText.toLowerCase().includes('capcut') || userText.toLowerCase().includes('edits')
+  ? `🎬 **Estructura de Edición Recomendada para CapCut / Premiere:**
+- **0:00 - 0:03 (Gancho / Hook)**: Movimiento visual inmediato (cargando barra o atando zapatillas) + Sub-drop SFX. Frase contraintuitiva en pantalla.
+- **0:03 - 0:22 (Valor & Retención)**: Cortes rápidos cada 1.8 segundos, B-Roll alternando entrenamiento pesado y Notion, subtítulos en amarillo (#CCFF00) con efecto pop-up.
+- **0:22 - 0:30 (CTA de Conversión)**: "👇 COMENTÁ LA PALABRA: LAB y te envío el sistema directo al DM".`
+  : `🔥 **Fórmula de Guión Viral para @tsteam.fit (Quiebre de Creencia):**
+1. **Gancho (0-3s)**: *"La mayoría fracasa porque confunde la emoción del primer día con el proceso real de cambiar de vida."*
+2. **Cuerpo (3-24s)**: Desglosa la Regla del 3 (3 días motivación ➔ 3 semanas hábito ➔ 3 meses resultados ➔ 3 años nueva identidad).
+3. **CTA (24-30s)**: *"Comentá LAB y te envío nuestro hub de Notion al privado."*
+¿Quieres que preparemos la escaleta segundo a segundo con los textos exactos para pantalla?`}`;
+
       case 'instaanalyst':
       case 'instametrics':
         return `¡Hola jefe! Aquí @InstaAnalyst, tu especialista en Analítica de Instagram & Growth de TJ FITLAB y TS TEAM FIT (@tsteam.fit). He recibido tu mensaje: *"${userText}"*.
@@ -866,8 +885,13 @@ El sistema de IA está offline en este momento debido a un límite de cuota o fa
         agentToReply = agentes.find(a => a.nickname.toLowerCase() === nick);
       }
 
+      // Si el mensaje habla de guión, script, capcut, edición o plantillas, priorizar @ReelArchitect
+      if (!agentToReply && (userText.toLowerCase().includes('guion') || userText.toLowerCase().includes('guión') || userText.toLowerCase().includes('script') || userText.toLowerCase().includes('capcut') || userText.toLowerCase().includes('plantilla') || userText.toLowerCase().includes('edit') || userText.toLowerCase().includes('gancho') || userText.toLowerCase().includes('hook'))) {
+        agentToReply = agentes.find(a => a.nickname.toLowerCase() === 'reelarchitect');
+      }
+
       // Si el mensaje habla de instagram, métricas o api, y no hay mención explícita, priorizar @InstaAnalyst
-      if (!agentToReply && (userText.toLowerCase().includes('instagram') || userText.toLowerCase().includes('insta') || userText.toLowerCase().includes('reels') || userText.toLowerCase().includes('engagement'))) {
+      if (!agentToReply && (userText.toLowerCase().includes('instagram') || userText.toLowerCase().includes('insta') || userText.toLowerCase().includes('reels') || userText.toLowerCase().includes('engagement') || userText.toLowerCase().includes('no me siguen') || userText.toLowerCase().includes('unfollow'))) {
         agentToReply = agentes.find(a => a.nickname.toLowerCase() === 'instaanalyst');
       }
 
@@ -1390,7 +1414,7 @@ Responde al usuario: ${userText}`;
           </div>
 
           {/* NAVEGACIÓN PRINCIPAL UNIFICADA: CHAT | FORO | CRM INSTAGRAM | API HUB */}
-          <div className="flex bg-white/5 rounded-xl p-1 border border-white/10 items-center gap-1 shadow-inner">
+          <div className="flex bg-white/5 rounded-xl p-1 border border-white/10 items-center gap-1 shadow-inner overflow-x-auto scrollbar-hide max-w-[72vw] sm:max-w-none shrink-0">
             <button 
               onClick={() => setActiveView('chat')} 
               className={`px-2.5 py-1.5 md:px-3.5 md:py-1.5 rounded-lg text-[8.5px] md:text-[9.5px] font-black tracking-widest uppercase transition-all flex items-center gap-1.5 ${
