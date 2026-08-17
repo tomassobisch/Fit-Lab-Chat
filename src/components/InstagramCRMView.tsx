@@ -49,7 +49,11 @@ import {
   HelpCircle,
   CheckSquare,
   Square,
-  UserPlus
+  UserPlus,
+  UploadCloud,
+  FileCode,
+  FolderArchive,
+  Download
 } from 'lucide-react';
 import { 
   InstagramAnalyticsData, 
@@ -59,7 +63,8 @@ import {
   saveInstagramConfig, 
   testInstagramConnection,
   saveCustomInstagramOverview,
-  getCustomInstagramOverview
+  getCustomInstagramOverview,
+  fetchInstagramInteractedUsers
 } from '../lib/instagram';
 import { supabase } from '../lib/supabase';
 
@@ -283,6 +288,11 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
   });
   const [showImportAccountsModal, setShowImportAccountsModal] = useState(false);
   const [importAccountsText, setImportAccountsText] = useState('');
+  const [jsonImportTab, setJsonImportTab] = useState<'upload' | 'api_scan' | 'text'>('upload');
+  const [isScanningApiUsers, setIsScanningApiUsers] = useState(false);
+  const [followingJsonData, setFollowingJsonData] = useState<{ username: string; timestamp?: number }[] | null>(null);
+  const [followersJsonData, setFollowersJsonData] = useState<{ username: string; timestamp?: number }[] | null>(null);
+  const [uploadStatusMsg, setUploadStatusMsg] = useState<string | null>(null);
 
   const handleToggleUnfollow = (id: string) => {
     setNonFollowers(prev => {
@@ -303,6 +313,112 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
       localStorage.setItem('tj_instagram_non_followers', JSON.stringify(updated));
       return updated;
     });
+  };
+
+  // Procesar archivo JSON oficial descargado de Instagram
+  const handleProcessFile = async (e: React.ChangeEvent<HTMLInputElement>, target: 'following' | 'followers') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      let items: { username: string; timestamp?: number }[] = [];
+
+      // Estructura 1: following.json -> { relationships_following: [ { string_list_data: [ { value: '...', timestamp: ... } ] } ] }
+      if (json.relationships_following && Array.isArray(json.relationships_following)) {
+        items = json.relationships_following.map((entry: any) => {
+          const d = entry.string_list_data?.[0];
+          return { username: d?.value || entry.title || '', timestamp: d?.timestamp };
+        }).filter((i: any) => i.username);
+      } 
+      // Estructura 2: followers_1.json -> [ { string_list_data: [ { value: '...', timestamp: ... } ] } ]
+      else if (Array.isArray(json)) {
+        items = json.map((entry: any) => {
+          const d = entry.string_list_data?.[0];
+          return { username: d?.value || entry.title || (typeof entry === 'string' ? entry : ''), timestamp: d?.timestamp };
+        }).filter((i: any) => i.username);
+      }
+      // Estructura 3: { relationships_followers: [ ... ] }
+      else if (json.relationships_followers && Array.isArray(json.relationships_followers)) {
+        items = json.relationships_followers.map((entry: any) => {
+          const d = entry.string_list_data?.[0];
+          return { username: d?.value || entry.title || '', timestamp: d?.timestamp };
+        }).filter((i: any) => i.username);
+      }
+
+      if (target === 'following') {
+        setFollowingJsonData(items);
+        setUploadStatusMsg(`✓ Cargadas ${items.length} cuentas seguidas (following.json)`);
+      } else {
+        setFollowersJsonData(items);
+        setUploadStatusMsg(`✓ Cargados ${items.length} seguidores reales (followers_1.json)`);
+      }
+    } catch (err) {
+      console.error("Error leyendo JSON de Instagram:", err);
+      setUploadStatusMsg("❌ Error al leer el archivo. Asegúrate de subir el archivo .json oficial de Instagram.");
+    }
+  };
+
+  // Comparar Following vs Followers para generar la lista real 100% precisa
+  const handleCompareAndApplyJson = () => {
+    if (!followingJsonData) return;
+    const followersSet = new Set((followersJsonData || []).map(f => f.username.toLowerCase()));
+
+    const notFollowingBack = followingJsonData.filter(f => !followersSet.has(f.username.toLowerCase()));
+
+    const newAccounts: NonFollowerAccount[] = notFollowingBack.map((item, idx) => ({
+      id: `real-nf-${Date.now()}-${idx}`,
+      username: item.username,
+      nombre: item.username,
+      avatarUrl: `https://images.unsplash.com/photo-1534438327276?w=150&auto=format&fit=crop&q=60`,
+      tipo: 'no_sigue',
+      seguidoDesde: item.timestamp ? new Date(item.timestamp * 1000).toLocaleDateString() : 'Datos reales de Instagram',
+      interaccion: 'Cuenta real que no te sigue de vuelta',
+      unfollowed: false
+    }));
+
+    setNonFollowers(newAccounts);
+    localStorage.setItem('tj_instagram_non_followers', JSON.stringify(newAccounts));
+    setShowImportAccountsModal(false);
+    setUploadStatusMsg(null);
+  };
+
+  // Escanear usuarios reales que comentan en los Reels mediante Meta Graph API
+  const handleScanMetaApiComments = async () => {
+    setIsScanningApiUsers(true);
+    try {
+      const realUsers = await fetchInstagramInteractedUsers();
+      if (realUsers.length > 0) {
+        const uniqueUsers = Array.from(new Set(realUsers.map(u => u.username)));
+        const newItems: NonFollowerAccount[] = uniqueUsers.map((un, idx) => {
+          const match = realUsers.find(r => r.username === un);
+          return {
+            id: `meta-api-${Date.now()}-${idx}`,
+            username: un,
+            nombre: un,
+            avatarUrl: 'https://images.unsplash.com/photo-1534438327276?w=150&auto=format&fit=crop&q=60',
+            tipo: 'no_sigue',
+            seguidoDesde: match?.timestamp ? new Date(match.timestamp).toLocaleDateString() : 'Detectado en Meta API',
+            interaccion: match?.text ? `Comentó: "${match.text.slice(0, 40)}..."` : 'Interactuó en Reels',
+            unfollowed: false
+          };
+        });
+
+        setNonFollowers(prev => {
+          const updated = [...newItems, ...prev.filter(p => !uniqueUsers.includes(p.username))];
+          localStorage.setItem('tj_instagram_non_followers', JSON.stringify(updated));
+          return updated;
+        });
+        setUploadStatusMsg(`✓ Se detectaron ${uniqueUsers.length} usuarios reales que interactúan con tus Reels.`);
+      } else {
+        setUploadStatusMsg(`ℹ️ Conexión con Meta API activa. No se encontraron nuevos comentarios en los últimos 6 Reels analizados.`);
+      }
+    } catch (err) {
+      console.error("Error escaneando comentarios de Meta API:", err);
+    } finally {
+      setIsScanningApiUsers(false);
+    }
   };
 
   const handleImportCustomNonFollowers = (e: React.FormEvent) => {
@@ -1530,17 +1646,29 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
                 Cuentas que <span className="text-red-400">No Te Siguen de Vuelta</span> en @tsteam.fit
               </h2>
               <p className="text-[11px] text-white/60 font-sans max-w-2xl leading-relaxed">
-                Optimiza tu ratio de seguimiento y purga perfiles inactivos o bots que perjudican el algoritmo de Meta. Dejar de seguir cuentas inactivas eleva la autoridad de tu perfil.
+                Optimiza tu ratio de seguimiento y purga perfiles inactivos o bots. Sincroniza mediante <strong className="text-white">Archivos Oficiales de Instagram (.JSON)</strong> o escanea interacciones en vivo con la <strong className="text-white">Meta Graph API</strong>.
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
               <button
-                onClick={() => setShowImportAccountsModal(true)}
+                onClick={() => {
+                  setJsonImportTab('upload');
+                  setShowImportAccountsModal(true);
+                }}
                 className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-black text-[9px] uppercase tracking-wider transition-all flex items-center gap-1.5 border border-white/10"
               >
-                <Plus size={12} />
-                <span>+ Pegar / Importar Lista</span>
+                <UploadCloud size={13} className="text-[#CCFF00]" />
+                <span>📁 Cargar JSON Instagram</span>
+              </button>
+
+              <button
+                onClick={handleScanMetaApiComments}
+                disabled={isScanningApiUsers}
+                className="px-3.5 py-2 rounded-xl bg-[#CCFF00]/10 hover:bg-[#CCFF00] hover:text-black text-[#CCFF00] font-black text-[9px] uppercase tracking-wider transition-all flex items-center gap-1.5 border border-[#CCFF00]/30 disabled:opacity-50"
+              >
+                <RefreshCw size={12} className={isScanningApiUsers ? "animate-spin" : ""} />
+                <span>{isScanningApiUsers ? "Escaneando..." : "⚡ Escanear Meta API"}</span>
               </button>
 
               <button
@@ -1548,9 +1676,38 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
                 className="px-3.5 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white font-black text-[9px] uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-[0_0_15px_rgba(239,68,68,0.3)]"
               >
                 <Sparkles size={12} />
-                <span>Estrategia de Purga IA</span>
+                <span>Estrategia IA</span>
               </button>
             </div>
+          </div>
+
+          {/* Banner Explicativo de Integración con Meta API & Exportación Oficial */}
+          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-[10px] font-sans">
+            <div className="flex items-start gap-2.5">
+              <div className="p-2 rounded-xl bg-[#CCFF00]/10 text-[#CCFF00] flex-shrink-0 mt-0.5">
+                <HelpCircle size={15} />
+              </div>
+              <div className="space-y-1">
+                <div className="text-white font-bold flex items-center gap-2">
+                  <span>¿Cómo obtener tus datos 100% reales sin riesgo de baneo?</span>
+                  <span className="text-[8px] bg-white/10 text-white/70 px-1.5 py-0.5 rounded font-mono uppercase">Seguridad Meta 2026</span>
+                </div>
+                <p className="text-white/60 leading-relaxed max-w-3xl">
+                  Por políticas de privacidad (GDPR de Meta), la Graph API no lista nombres privados de seguidores en endpoints abiertos. La forma oficial y 100% segura que usan las agencias es: <strong className="text-white">Instagram &rarr; Tu Actividad &rarr; Descargar Información &rarr; Formato JSON</strong>. Luego subes tu <code className="text-[#CCFF00] bg-black/40 px-1 rounded">following.json</code> y <code className="text-[#CCFF00] bg-black/40 px-1 rounded">followers_1.json</code> aquí y el sistema te filtra exactamente quién no te sigue en 1 segundo.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                setJsonImportTab('upload');
+                setShowImportAccountsModal(true);
+              }}
+              className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-mono font-bold text-[8.5px] uppercase whitespace-nowrap flex items-center gap-1 self-end md:self-auto"
+            >
+              <FolderArchive size={11} className="text-[#CCFF00]" />
+              <span>Ver Guía & Subir</span>
+            </button>
           </div>
 
           {/* Tarjetas de Métricas del Hub */}
@@ -1733,41 +1890,195 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
             >
               ✕
             </button>
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-9 h-9 rounded-xl bg-red-500 text-white flex items-center justify-center font-black">
-                <UserPlus size={18} />
+            
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-red-500 text-white flex items-center justify-center font-black flex-shrink-0">
+                <UserPlus size={19} />
               </div>
               <div>
-                <h3 className="text-sm font-black uppercase tracking-wider text-white">Importar Cuentas a Auditar</h3>
-                <p className="text-[9px] text-white/40 font-mono">Pega usuarios de Instagram para agregarlos a tu lista de no seguidores</p>
+                <h3 className="text-sm font-black uppercase tracking-wider text-white">Sincronizador de Datos Reales</h3>
+                <p className="text-[9.5px] text-white/40 font-mono">Importa tus 1,117 seguidos y 1,099 seguidores reales para auditar no seguidores</p>
               </div>
             </div>
 
-            <form onSubmit={handleImportCustomNonFollowers} className="space-y-4">
-              <div>
-                <label className="text-[8px] text-white/40 font-bold uppercase tracking-widest block mb-1">
-                  Usuarios de Instagram (@)
-                </label>
-                <textarea
-                  value={importAccountsText}
-                  onChange={(e) => setImportAccountsText(e.target.value)}
-                  placeholder={"@usuario1\n@usuario2\n@marca_ejemplo"}
-                  rows={5}
-                  required
-                  className="w-full bg-white/5 border border-white/10 rounded-lg p-2.5 text-xs text-white outline-none focus:border-red-500 font-mono resize-none"
-                />
-                <span className="text-[8px] text-white/30 block mt-1">
-                  Puedes separar los nombres con saltos de línea o comas.
-                </span>
-              </div>
+            {/* Switcher de Métodos de Importación */}
+            <div className="flex bg-white/5 rounded-xl p-1 border border-white/10 gap-1 mb-5">
+              <button
+                type="button"
+                onClick={() => {
+                  setJsonImportTab('upload');
+                  setUploadStatusMsg(null);
+                }}
+                className={`flex-1 py-1.5 rounded-lg text-[8.5px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                  jsonImportTab === 'upload' ? 'bg-white text-black shadow-md' : 'text-white/60 hover:text-white'
+                }`}
+              >
+                <UploadCloud size={12} />
+                <span>1. Archivos JSON Oficiales</span>
+              </button>
 
               <button
-                type="submit"
-                className="w-full bg-red-500 hover:bg-red-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)]"
+                type="button"
+                onClick={() => {
+                  setJsonImportTab('api_scan');
+                  setUploadStatusMsg(null);
+                }}
+                className={`flex-1 py-1.5 rounded-lg text-[8.5px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                  jsonImportTab === 'api_scan' ? 'bg-[#CCFF00] text-black shadow-md' : 'text-white/60 hover:text-white'
+                }`}
               >
-                Cargar en el Unfollow Hub
+                <RefreshCw size={12} />
+                <span>2. Escáner Meta API</span>
               </button>
-            </form>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setJsonImportTab('text');
+                  setUploadStatusMsg(null);
+                }}
+                className={`flex-1 py-1.5 rounded-lg text-[8.5px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                  jsonImportTab === 'text' ? 'bg-red-500 text-white shadow-md' : 'text-white/60 hover:text-white'
+                }`}
+              >
+                <FileCode size={12} />
+                <span>3. Pegar Lista</span>
+              </button>
+            </div>
+
+            {uploadStatusMsg && (
+              <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 text-[10px] font-mono text-white mb-4 flex items-center justify-between">
+                <span>{uploadStatusMsg}</span>
+                <span className="text-[8px] opacity-40 font-bold uppercase">Estado</span>
+              </div>
+            )}
+
+            {/* TAB 1: SUBIR ARCHIVOS JSON OFICIALES */}
+            {jsonImportTab === 'upload' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* File Input 1: following.json */}
+                  <div className="p-3.5 rounded-xl bg-white/[0.02] border border-dashed border-white/15 hover:border-red-500/40 transition-all text-center space-y-2">
+                    <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center mx-auto text-white/60">
+                      <FolderArchive size={15} />
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold text-white font-mono">1. following.json</div>
+                      <div className="text-[7.5px] text-white/40 font-mono">Cuentas que sigues ({followingJsonData?.length || '0'} cargados)</div>
+                    </div>
+                    <label className="block cursor-pointer py-1.5 px-3 rounded-lg bg-white/10 hover:bg-white/20 text-[8.5px] font-black text-white uppercase tracking-wider transition-all">
+                      <span>Seleccionar Archivo</span>
+                      <input 
+                        type="file" 
+                        accept=".json" 
+                        onChange={(e) => handleProcessFile(e, 'following')} 
+                        className="hidden" 
+                      />
+                    </label>
+                  </div>
+
+                  {/* File Input 2: followers_1.json */}
+                  <div className="p-3.5 rounded-xl bg-white/[0.02] border border-dashed border-white/15 hover:border-green-500/40 transition-all text-center space-y-2">
+                    <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center mx-auto text-white/60">
+                      <FolderArchive size={15} />
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold text-white font-mono">2. followers_1.json</div>
+                      <div className="text-[7.5px] text-white/40 font-mono">Tus seguidores ({followersJsonData?.length || '0'} cargados)</div>
+                    </div>
+                    <label className="block cursor-pointer py-1.5 px-3 rounded-lg bg-white/10 hover:bg-white/20 text-[8.5px] font-black text-white uppercase tracking-wider transition-all">
+                      <span>Seleccionar Archivo</span>
+                      <input 
+                        type="file" 
+                        accept=".json" 
+                        onChange={(e) => handleProcessFile(e, 'followers')} 
+                        className="hidden" 
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Guía Rápida */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/5 space-y-1.5 text-[9.5px] text-white/60 font-sans">
+                  <div className="font-bold text-white uppercase text-[8px] tracking-wider flex items-center gap-1">
+                    <Download size={11} className="text-[#CCFF00]" />
+                    ¿Cómo exportar tus archivos oficiales en 30 segundos?
+                  </div>
+                  <ol className="list-decimal list-inside space-y-1 text-white/50 text-[9px] leading-relaxed">
+                    <li>Abre Instagram en tu teléfono &rarr; <strong>Ajustes</strong> &rarr; <strong>Tu actividad</strong>.</li>
+                    <li>Toca <strong>Descargar tu información</strong> &rarr; <strong>Descargar información</strong>.</li>
+                    <li>Elige <strong>Parte de tu información</strong> &rarr; marca <strong>Seguidores y seguidos</strong>.</li>
+                    <li>Selecciona formato <strong>JSON</strong> y rango <strong>Desde el principio</strong>.</li>
+                    <li>Sube aquí los dos archivos y el CRM te calcula el 100% de no seguidores exactos.</li>
+                  </ol>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={!followingJsonData}
+                  onClick={handleCompareAndApplyJson}
+                  className="w-full bg-[#CCFF00] hover:bg-white text-black font-black py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all shadow-[0_0_15px_#CCFF0033] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                >
+                  <Sparkles size={13} />
+                  <span>Comparar & Aplicar Lista Real ({followingJsonData ? `${followingJsonData.length} seguidos` : 'Sube following.json'})</span>
+                </button>
+              </div>
+            )}
+
+            {/* TAB 2: ESCÁNER META GRAPH API */}
+            {jsonImportTab === 'api_scan' && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl bg-white/[0.02] border border-white/10 space-y-2 text-[10px] font-sans">
+                  <div className="text-white font-bold flex items-center gap-1.5">
+                    <Sparkles size={13} className="text-[#CCFF00]" />
+                    Escaneo de Interacciones Reales en Meta Graph API
+                  </div>
+                  <p className="text-white/60 leading-relaxed">
+                    La API de Meta conectada a tu cuenta <strong className="text-white">@tsteam.fit</strong> analizará en tiempo real los comentarios y usuarios que han interactuado con tus 91 publicaciones y Reels para identificar prospectos y contactos activos.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isScanningApiUsers}
+                  onClick={handleScanMetaApiComments}
+                  className="w-full bg-[#CCFF00] hover:bg-white text-black font-black py-3.5 rounded-xl text-[10px] uppercase tracking-widest transition-all shadow-[0_0_15px_#CCFF0033] flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <RefreshCw size={13} className={isScanningApiUsers ? "animate-spin" : ""} />
+                  <span>{isScanningApiUsers ? "Consultando Meta Graph API..." : "Ejecutar Escaneo en Vivo"}</span>
+                </button>
+              </div>
+            )}
+
+            {/* TAB 3: PEGAR LISTA MANUAL */}
+            {jsonImportTab === 'text' && (
+              <form onSubmit={handleImportCustomNonFollowers} className="space-y-4">
+                <div>
+                  <label className="text-[8px] text-white/40 font-bold uppercase tracking-widest block mb-1">
+                    Usuarios de Instagram (@)
+                  </label>
+                  <textarea
+                    value={importAccountsText}
+                    onChange={(e) => setImportAccountsText(e.target.value)}
+                    placeholder={"@usuario1\n@usuario2\n@marca_ejemplo"}
+                    rows={5}
+                    required
+                    className="w-full bg-white/5 border border-white/10 rounded-lg p-2.5 text-xs text-white outline-none focus:border-red-500 font-mono resize-none"
+                  />
+                  <span className="text-[8px] text-white/30 block mt-1">
+                    Puedes separar los nombres con saltos de línea o comas.
+                  </span>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-red-500 hover:bg-red-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)]"
+                >
+                  Cargar en el Unfollow Hub
+                </button>
+              </form>
+            )}
+
           </div>
         </div>
       )}

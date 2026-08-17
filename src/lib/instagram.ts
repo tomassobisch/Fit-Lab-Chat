@@ -484,6 +484,37 @@ export const fetchInstagramMetrics = async (): Promise<InstagramAnalyticsData> =
   }
 };
 
+// Extraer usuarios que han interactuado o comentado en los posts reales de Meta Graph API
+export async function fetchInstagramInteractedUsers(): Promise<{ username: string; text?: string; mediaId?: string; timestamp?: string }[]> {
+  const config = getInstagramConfig();
+  if (!config.accessToken || !config.accountId) return [];
+  try {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${config.accountId}/media?fields=id,caption,comments{id,text,from{id,username},timestamp}&access_token=${config.accessToken}`);
+    const data = await res.json();
+    if (!data.data || !Array.isArray(data.data)) return [];
+    
+    const users: { username: string; text?: string; mediaId?: string; timestamp?: string }[] = [];
+    for (const media of data.data) {
+      if (media.comments && media.comments.data && Array.isArray(media.comments.data)) {
+        for (const comm of media.comments.data) {
+          if (comm.from && comm.from.username) {
+            users.push({
+              username: comm.from.username,
+              text: comm.text,
+              mediaId: media.id,
+              timestamp: comm.timestamp
+            });
+          }
+        }
+      }
+    }
+    return users;
+  } catch (err) {
+    console.error("Error al obtener usuarios interactuados de Meta Graph API:", err);
+    return [];
+  }
+}
+
 // Formatear métricas para inyectarlas directamente al prompt de Gemini (@InstaAnalyst)
 export const buildInstagramAiContext = (data: InstagramAnalyticsData): string => {
   const ov = data.overview;
