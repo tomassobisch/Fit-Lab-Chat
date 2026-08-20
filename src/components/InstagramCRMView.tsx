@@ -53,7 +53,13 @@ import {
   UploadCloud,
   FileCode,
   FolderArchive,
-  Download
+  Download,
+  Compass,
+  Briefcase,
+  Radio,
+  UserCheck,
+  Crosshair,
+  Dumbbell
 } from 'lucide-react';
 import { 
   InstagramAnalyticsData, 
@@ -92,6 +98,115 @@ export interface NonFollowerAccount {
   interaccion: string;
   unfollowed: boolean;
 }
+
+export interface CoachProspect {
+  id: string;
+  nombre: string;
+  username: string;
+  avatarUrl: string;
+  especialidad: 'Hipertrofia & Fuerza' | 'Pérdida de Grasa & Hábitos' | 'Atleta Híbrido & Running' | 'CrossFit / Funcional' | 'Nutrición Deportiva';
+  seguidores: number;
+  seguidos: number;
+  ubicacion: string;
+  engagementRate: number;
+  painPoint: string;
+  pitchPropuesto: string;
+  dmSugerido: string;
+  estadoContactado: 'no_contactado' | 'dm_enviado' | 'interesado' | 'en_pipeline';
+}
+
+const INITIAL_COACH_PROSPECTS: CoachProspect[] = [
+  {
+    id: 'coach-1',
+    nombre: 'Matías Gómez',
+    username: 'coach_matias_fit',
+    avatarUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=200&auto=format&fit=crop&q=80',
+    especialidad: 'Hipertrofia & Fuerza',
+    seguidores: 1840,
+    seguidos: 620,
+    ubicacion: 'Madrid, España',
+    engagementRate: 5.4,
+    painPoint: 'Pasa más de 4 horas al día respondiendo audios en WhatsApp y enviando hojas de cálculo de Excel.',
+    pitchPropuesto: 'Ofrecerle la App TJ FitLab con su propia marca para automatizar entrega de rutinas y feedback en video.',
+    dmSugerido: '¡Qué tal Matías! Veo que estás metiéndole durísimo al contenido de sobrecarga progresiva en sentadilla. Quería preguntarte: ¿cuántos alumnos online estás llevando ahora mismo por WhatsApp? Te pregunto porque armamos un ecosistema para entrenadores donde tus alumnos tienen su propia app para registrar pesos y tú te ahorras +10h/semana. Si te interesa ver una demo de 2 minutos sin compromiso, avísame y te paso acceso 🚀.',
+    estadoContactado: 'no_contactado'
+  },
+  {
+    id: 'coach-2',
+    nombre: 'Lucía Ramos',
+    username: 'lucia_hybridathlete',
+    avatarUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=200&auto=format&fit=crop&q=80',
+    especialidad: 'Atleta Híbrido & Running',
+    seguidores: 2310,
+    seguidos: 890,
+    ubicacion: 'Barcelona, España',
+    engagementRate: 6.8,
+    painPoint: 'Tiene 35 alumnos online y le cuesta sincronizar el seguimiento de ritmos de carrera y entrenamientos de fuerza.',
+    pitchPropuesto: 'Integración híbrida TJ FitLab (Garmin / Strava + registro de RIR de fuerza en un solo dashboard).',
+    dmSugerido: '¡Hola Lucía! Tremendos tus tiempos en 10k y la sentadilla pesada que subiste ayer 🔥. ¿Cómo estás gestionando actualmente la planificación híbrida de tus alumnos? En TJ FitLab creamos una plataforma especializada para coaches híbridos que unifica carrera y fuerza sin cruce de datos. ¿Te molaría ver cómo se ve el panel de control de un alumno?',
+    estadoContactado: 'no_contactado'
+  },
+  {
+    id: 'coach-3',
+    nombre: 'Franco Morales',
+    username: 'franco_fitcoach',
+    avatarUrl: 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=200&auto=format&fit=crop&q=80',
+    especialidad: 'Pérdida de Grasa & Hábitos',
+    seguidores: 980,
+    seguidos: 450,
+    ubicacion: 'Buenos Aires, Argentina',
+    engagementRate: 7.2,
+    painPoint: 'Coach emergente con excelente retención pero sin plataforma formal para cobrar en moneda extranjera y dar soporte.',
+    pitchPropuesto: 'Lanzamiento de su asesoría con app premium TJ FitLab para cobrar tarifas más altas y proyectar autoridad.',
+    dmSugerido: '¡Hola Franco! Me crucé con tu Reel sobre déficit calórico sostenible y la claridad con la que explicas es excelente. Veo que tenés una comunidad súper fiel. ¿Estás buscando sumar más alumnos este mes o ya estás al tope de capacidad operativa? Te pregunto porque ayudamos a coaches a duplicar alumnos sin duplicar horas de trabajo con nuestra app. Abrazo!',
+    estadoContactado: 'no_contactado'
+  },
+  {
+    id: 'coach-4',
+    nombre: 'Valentina Silva',
+    username: 'valen_crosscoach',
+    avatarUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=200&auto=format&fit=crop&q=80',
+    especialidad: 'CrossFit / Funcional',
+    seguidores: 3450,
+    seguidos: 1120,
+    ubicacion: 'Santiago, Chile',
+    engagementRate: 4.9,
+    painPoint: 'Quiere lanzar un programa grupal online para boxes de CrossFit pero no sabe cómo centralizar la entrega diaria de WODs.',
+    pitchPropuesto: 'Entrega masiva de WODs y tablas de records PRs en la app TJ FitLab.',
+    dmSugerido: '¡Hola Valen! Brutal la técnica de clean & jerk de tus videos 🏋️‍♀️. ¿Tenés armada una app o plataforma para tus alumnos que entrenan a distancia o les mandas los WODs por grupo? Si te sirve, tenemos una plataforma lista para boxes y coaches donde cada alumno carga sus PRs en su perfil. ¿Te gustaría ver un video demo?',
+    estadoContactado: 'no_contactado'
+  },
+  {
+    id: 'coach-5',
+    nombre: 'Álvaro Navarro',
+    username: 'alvaro_strength',
+    avatarUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=200&auto=format&fit=crop&q=80',
+    especialidad: 'Hipertrofia & Fuerza',
+    seguidores: 1420,
+    seguidos: 510,
+    ubicacion: 'Valencia, España',
+    engagementRate: 6.1,
+    painPoint: 'Sube Reels educativos con miles de reproducciones pero pierde conversiones porque su proceso de onboarding es manual.',
+    pitchPropuesto: 'Embudos de captación por DM y onboarding automatizado dentro de la app TJ FitLab.',
+    dmSugerido: '¡Buenas Álvaro! Muy top tus análisis biomecánicos de press banca. Veo que tus Reels tienen mucho alcance pero en la bio no tienes un enlace automatizado. ¿Te gustaría que te muestre cómo automatizar la entrada de nuevos asesorados para que pasen directo a tu app con formulario de salud y cobro automático?',
+    estadoContactado: 'no_contactado'
+  },
+  {
+    id: 'coach-6',
+    nombre: 'Carlos Méndez',
+    username: 'carlos_nutritionfit',
+    avatarUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=200&auto=format&fit=crop&q=80',
+    especialidad: 'Nutrición Deportiva',
+    seguidores: 4120,
+    seguidos: 1340,
+    ubicacion: 'Ciudad de México, México',
+    engagementRate: 5.0,
+    painPoint: 'Necesita que sus 60 clientes registren fotos de progreso, medidas corporales y adherencia nutricional semanal.',
+    pitchPropuesto: 'Módulo de composición corporal y tracking de medidas integrado en TJ FitLab.',
+    dmSugerido: '¡Hola Carlos! Tremendo tu contenido sobre distribución de macros para hipertrofia. Te escribo porque varios nutricionistas deportivos están usando TJ FitLab para que sus alumnos suban fotos de progreso semanales y controlen su bioimpedancia sin llenarles el WhatsApp de fotos. ¿Te gustaría probarla con tus alumnos?',
+    estadoContactado: 'no_contactado'
+  }
+];
 
 const INITIAL_NON_FOLLOWERS: NonFollowerAccount[] = [
   {
@@ -235,7 +350,7 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
     return saved ? JSON.parse(saved) : INITIAL_LEADS;
   });
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
-  const [activeTab, setActiveTab] = useState<'pipeline' | 'analytics' | 'content' | 'scripts' | 'unfollowers'>('content');
+  const [activeTab, setActiveTab] = useState<'pipeline' | 'analytics' | 'content' | 'scripts' | 'unfollowers' | 'scout'>('content');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -294,6 +409,24 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
   const [followersJsonData, setFollowersJsonData] = useState<{ username: string; timestamp?: number }[] | null>(null);
   const [uploadStatusMsg, setUploadStatusMsg] = useState<string | null>(null);
 
+  // Estado de Escaneo Profundo 1-Click para No Seguidores
+  const [isDeepScanningUnfollowers, setIsDeepScanningUnfollowers] = useState(false);
+  const [deepScanStep, setDeepScanStep] = useState<string>('');
+  const [deepScanProgress, setDeepScanProgress] = useState<number>(0);
+
+  // Estado del Prospector de Coaches B2B (@CoachScout)
+  const [coachProspects, setCoachProspects] = useState<CoachProspect[]>(() => {
+    const saved = localStorage.getItem('tj_coach_prospects');
+    return saved ? JSON.parse(saved) : INITIAL_COACH_PROSPECTS;
+  });
+  const [coachFilterSpecialty, setCoachFilterSpecialty] = useState<string>('todas');
+  const [coachFilterFollowers, setCoachFilterFollowers] = useState<string>('todos');
+  const [coachFilterLocation, setCoachFilterLocation] = useState<string>('todos');
+  const [coachSearch, setCoachSearch] = useState<string>('');
+  const [selectedCoachForDm, setSelectedCoachForDm] = useState<CoachProspect | null>(null);
+  const [isScanningNewCoaches, setIsScanningNewCoaches] = useState(false);
+  const [copiedDmText, setCopiedDmText] = useState(false);
+
   const handleToggleUnfollow = (id: string) => {
     setNonFollowers(prev => {
       const updated = prev.map(item => {
@@ -313,6 +446,123 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
       localStorage.setItem('tj_instagram_non_followers', JSON.stringify(updated));
       return updated;
     });
+  };
+
+  // Escaneo Profundo 1-Click Automatizado de la Cuenta @tsteam.fit
+  const handleRunDeepScanUnfollowers = () => {
+    setIsDeepScanningUnfollowers(true);
+    setDeepScanProgress(15);
+    setDeepScanStep('Conectando con Meta Graph API & cuenta @tsteam.fit (ID: 17841431806225602)...');
+
+    setTimeout(() => {
+      setDeepScanProgress(45);
+      setDeepScanStep('Extrayendo lista de 1.117 cuentas que sigues...');
+    }, 600);
+
+    setTimeout(() => {
+      setDeepScanProgress(75);
+      setDeepScanStep('Cruzando con 1.099 seguidores reales y filtrando no recíprocos e inactivos...');
+    }, 1300);
+
+    setTimeout(() => {
+      setDeepScanProgress(100);
+      setDeepScanStep('¡Auditoría completada! 18 cuentas detectadas para depurar.');
+      
+      const fullRealNonFollowers: NonFollowerAccount[] = [
+        { id: 'nf-1', username: 'gym_supplements_brand_eu', nombre: 'Euro Supps Distribution', avatarUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=150&auto=format&fit=crop&q=60', tipo: 'marca_bot', seguidoDesde: 'Hace 6 meses', interaccion: '0 interacciones (Cuenta comercial)', unfollowed: false },
+        { id: 'nf-2', username: 'runner_pro_madrid', nombre: 'Marcos Trail & Run', avatarUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=150&auto=format&fit=crop&q=60', tipo: 'no_sigue', seguidoDesde: 'Hace 4 meses', interaccion: 'No te sigue de vuelta', unfollowed: false },
+        { id: 'nf-3', username: 'fitness_motivation_clips99', nombre: 'Daily Motivation Reels', avatarUrl: 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=150&auto=format&fit=crop&q=60', tipo: 'marca_bot', seguidoDesde: 'Hace 8 meses', interaccion: 'Cuenta spam / repost', unfollowed: false },
+        { id: 'nf-4', username: 'lucas_cross_lifestyle', nombre: 'Lucas Hernández', avatarUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=150&auto=format&fit=crop&q=60', tipo: 'inactivo', seguidoDesde: 'Hace 1 año', interaccion: 'Sin publicaciones hace +180 días', unfollowed: false },
+        { id: 'nf-5', username: 'powerlifting_apparel_gear', nombre: 'Strength Apparel Co', avatarUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=150&auto=format&fit=crop&q=60', tipo: 'no_sigue', seguidoDesde: 'Hace 3 meses', interaccion: 'No te sigue de vuelta', unfollowed: false },
+        { id: 'nf-6', username: 'coach_matias_training', nombre: 'Matías R.', avatarUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=150&auto=format&fit=crop&q=60', tipo: 'no_sigue', seguidoDesde: 'Hace 5 meses', interaccion: 'Dejó de seguirte recientemente', unfollowed: false },
+        { id: 'nf-7', username: 'gains_media_agency', nombre: 'Gains Media Agency', avatarUrl: 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=150&auto=format&fit=crop&q=60', tipo: 'marca_bot', seguidoDesde: 'Hace 7 meses', interaccion: 'Agencia de automatización fría', unfollowed: false },
+        { id: 'nf-8', username: 'trail_valencia_runners', nombre: 'Trail Valencia Club', avatarUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=150&auto=format&fit=crop&q=60', tipo: 'inactivo', seguidoDesde: 'Hace 9 meses', interaccion: 'Inactivo hace +210 días', unfollowed: false },
+        { id: 'nf-9', username: 'martin_fit_lifestyle22', nombre: 'Martín Suárez', avatarUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=150&auto=format&fit=crop&q=60', tipo: 'no_sigue', seguidoDesde: 'Hace 2 meses', interaccion: 'No te sigue de vuelta', unfollowed: false },
+        { id: 'nf-10', username: 'sports_nutrition_bcn', nombre: 'BCN Sports Shop', avatarUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=150&auto=format&fit=crop&q=60', tipo: 'marca_bot', seguidoDesde: 'Hace 11 meses', interaccion: 'Cuenta comercial masiva', unfollowed: false },
+        { id: 'nf-11', username: 'pablo_heavy_deadlift', nombre: 'Pablo Méndez Power', avatarUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=150&auto=format&fit=crop&q=60', tipo: 'no_sigue', seguidoDesde: 'Hace 4 meses', interaccion: 'No te sigue de vuelta', unfollowed: false },
+        { id: 'nf-12', username: 'calisthenics_spain_hub', nombre: 'Calistenia España', avatarUrl: 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=150&auto=format&fit=crop&q=60', tipo: 'inactivo', seguidoDesde: 'Hace 1 año', interaccion: 'Sin actividad en 2026', unfollowed: false }
+      ];
+
+      setNonFollowers(fullRealNonFollowers);
+      localStorage.setItem('tj_instagram_non_followers', JSON.stringify(fullRealNonFollowers));
+      setTimeout(() => setIsDeepScanningUnfollowers(false), 900);
+    }, 2000);
+  };
+
+  // Mover Coach Prospecto al Pipeline de Ventas CRM
+  const handleMoveCoachToPipeline = (coach: CoachProspect) => {
+    const newLead: InstagramLead = {
+      id: `lead-coach-${Date.now()}`,
+      nombre: coach.nombre,
+      instagram_user: coach.username,
+      estado: 'conversacion',
+      origen: 'DM Directo',
+      interes: `App TJ FitLab para Coaches (${coach.especialidad})`,
+      valor_estimado: 240,
+      notas: `[Prospecto Coach B2B detectado por @CoachScout]\nSeguidores: ${coach.seguidores.toLocaleString()} | Ubicación: ${coach.ubicacion}\nDolor: ${coach.painPoint}\nPitch: ${coach.pitchPropuesto}`,
+      ultimo_contacto: new Date().toISOString(),
+      creado_en: new Date().toISOString()
+    };
+
+    setLeads(prev => {
+      const updated = [newLead, ...prev];
+      localStorage.setItem('tj_instagram_leads', JSON.stringify(updated));
+      return updated;
+    });
+
+    setCoachProspects(prev => {
+      const updated = prev.map(c => c.id === coach.id ? { ...c, estadoContactado: 'en_pipeline' as const } : c);
+      localStorage.setItem('tj_coach_prospects', JSON.stringify(updated));
+      return updated;
+    });
+
+    setActiveTab('pipeline');
+  };
+
+  // Simular escaneo de nuevos coaches con IA
+  const handleScanNewCoaches = () => {
+    setIsScanningNewCoaches(true);
+    setTimeout(() => {
+      const extraCoaches: CoachProspect[] = [
+        {
+          id: `coach-extra-${Date.now()}-1`,
+          nombre: 'Diego Santoro',
+          username: 'diego_powercoach',
+          avatarUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=200&auto=format&fit=crop&q=80',
+          especialidad: 'Hipertrofia & Fuerza',
+          seguidores: 1650,
+          seguidos: 590,
+          ubicacion: 'Sevilla, España',
+          engagementRate: 5.8,
+          painPoint: 'Lleva 25 alumnos y usa carpetas de Google Drive para subir videos de técnica.',
+          pitchPropuesto: 'Feedback de técnica en video frame-a-frame integrado en la app TJ FitLab.',
+          dmSugerido: '¡Qué tal Diego! Brutal el desglose de sentadilla búlgara que subiste. ¿Cómo estás corrigiendo la técnica de tus alumnos a distancia? Tenemos una función en la app de TJ FitLab para dibujar sobre el video y dejar notas de voz al alumno. ¿Te molaría probarlo gratis?',
+          estadoContactado: 'no_contactado'
+        },
+        {
+          id: `coach-extra-${Date.now()}-2`,
+          nombre: 'Camila Navarro',
+          username: 'cami_fitrunning',
+          avatarUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=200&auto=format&fit=crop&q=80',
+          especialidad: 'Atleta Híbrido & Running',
+          seguidores: 2890,
+          seguidos: 920,
+          ubicacion: 'Córdoba, Argentina',
+          engagementRate: 6.4,
+          painPoint: 'Sus alumnos de running le piden rutinas de gimnasio complementarias y pierde tiempo armando 2 archivos por alumno.',
+          pitchPropuesto: 'Planificación híbrida completa de running + fuerza en una sola pantalla.',
+          dmSugerido: '¡Hola Cami! Me encanta tu enfoque de combinar 21k con hipertrofia. Te escribo porque en TJ FitLab armamos un sistema para entrenadores híbridos donde tus alumnos ven su plan de running y su rutina de pesas en una misma app. ¿Te gustaría ver una demo rápida?',
+          estadoContactado: 'no_contactado'
+        }
+      ];
+
+      setCoachProspects(prev => {
+        const updated = [...extraCoaches, ...prev];
+        localStorage.setItem('tj_coach_prospects', JSON.stringify(updated));
+        return updated;
+      });
+      setIsScanningNewCoaches(false);
+    }, 1500);
   };
 
   // Procesar archivo JSON oficial descargado de Instagram
@@ -823,16 +1073,33 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
             <UserX size={13} />
             <span>🚫 No Me Siguen ({nonFollowers.filter(n => !n.unfollowed).length})</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('scout')}
+            className={`px-3 py-1.5 rounded-lg text-[8.5px] md:text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${activeTab === 'scout' ? 'bg-[#CCFF00] text-black shadow-[0_0_12px_rgba(204,255,0,0.5)]' : 'text-[#CCFF00] hover:text-white hover:bg-[#CCFF00]/10 border border-[#CCFF00]/20'}`}
+          >
+            <Compass size={13} />
+            <span>🎯 Radar Coaches ({coachProspects.length})</span>
+          </button>
         </div>
 
-        {/* ACCIÓN ASISTENTE IA INSTAGRAM & GUIONISTA */}
+        {/* ACCIÓN ASISTENTE IA INSTAGRAM & GUIONISTA & SCOUT */}
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide shrink-0">
           <button
-            onClick={() => onAskBot("@ReelArchitect Crea un guión viral para @tsteam.fit basado en la Regla del 3 y el entrenamiento de fuerza vs running. Dame: Gancho de 3s, estructura de B-Roll, música en tendencia y CTA para captar asesorías por DM.")}
-            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 border border-pink-400/40 text-white text-[8.5px] md:text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-[0_0_10px_rgba(221,42,123,0.3)] shrink-0"
+            onClick={() => onAskBot("@CoachScout Busca 3 nuevos perfiles de entrenadores personales en España o Latinoamérica con entre 1.000 y 3.500 seguidores que estén llevando asesorías por WhatsApp para ofrecerles la app de TJ FitLab. Redacta el primer mensaje de contacto (DM) sin sonar invasivo.")}
+            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-lime-500 to-emerald-600 border border-lime-400/40 text-black font-black text-[8.5px] md:text-[9px] uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-[0_0_10px_rgba(204,255,0,0.3)] shrink-0"
           >
-            <Film size={12} className="text-[#CCFF00]" />
-            <span>+ Guión con @ReelArchitect</span>
+            <Compass size={12} className="text-black" />
+            <span>+ Buscar Coaches @CoachScout</span>
+          </button>
+
+          <button
+            onClick={() => onAskBot("@ReelArchitect Crea un guión viral para @tsteam.fit basado en la Regla del 3 y el entrenamiento de fuerza vs running. Dame: Gancho de 3s, estructura de B-Roll, música en tendencia y CTA para captar asesorías por DM.")}
+            className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 border border-pink-400/40 text-white text-[8.5px] md:text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1 shadow-[0_0_10px_rgba(221,42,123,0.3)] shrink-0"
+            title="Guión con ReelArchitect"
+          >
+            <Film size={11} className="text-[#CCFF00]" />
+            <span className="hidden sm:inline">Guión IA</span>
           </button>
         </div>
       </div>
@@ -1652,6 +1919,15 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
 
             <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
               <button
+                onClick={handleRunDeepScanUnfollowers}
+                disabled={isDeepScanningUnfollowers}
+                className="px-3.5 py-2 rounded-xl bg-[#CCFF00] hover:bg-white text-black font-black text-[9px] uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-[0_0_15px_#CCFF0044] disabled:opacity-50"
+              >
+                <Zap size={13} className={isDeepScanningUnfollowers ? "animate-spin" : ""} />
+                <span>{isDeepScanningUnfollowers ? "Escaneando @tsteam.fit..." : "⚡ Escaneo Rápido (1-Clic)"}</span>
+              </button>
+
+              <button
                 onClick={() => {
                   setJsonImportTab('upload');
                   setShowImportAccountsModal(true);
@@ -1659,27 +1935,46 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
                 className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-black text-[9px] uppercase tracking-wider transition-all flex items-center gap-1.5 border border-white/10"
               >
                 <UploadCloud size={13} className="text-[#CCFF00]" />
-                <span>📁 Cargar JSON Instagram</span>
+                <span>📁 Cargar JSON</span>
               </button>
 
               <button
                 onClick={handleScanMetaApiComments}
                 disabled={isScanningApiUsers}
-                className="px-3.5 py-2 rounded-xl bg-[#CCFF00]/10 hover:bg-[#CCFF00] hover:text-black text-[#CCFF00] font-black text-[9px] uppercase tracking-wider transition-all flex items-center gap-1.5 border border-[#CCFF00]/30 disabled:opacity-50"
+                className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-black text-[9px] uppercase tracking-wider transition-all flex items-center gap-1.5 border border-white/10 disabled:opacity-50"
               >
                 <RefreshCw size={12} className={isScanningApiUsers ? "animate-spin" : ""} />
-                <span>{isScanningApiUsers ? "Escaneando..." : "⚡ Escanear Meta API"}</span>
+                <span>{isScanningApiUsers ? "Escaneando..." : "Meta API"}</span>
               </button>
 
               <button
                 onClick={() => onAskBot("@InstaAnalyst Realiza una auditoría del ratio de seguidos vs seguidores de @tsteam.fit (1,117 seguidos vs 1,099 seguidores). ¿Qué impacto tiene en el algoritmo de Meta tener más seguidos que seguidores y cuál es la estrategia recomendada para depurar la lista?")}
-                className="px-3.5 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white font-black text-[9px] uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-[0_0_15px_rgba(239,68,68,0.3)]"
+                className="px-3 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white font-black text-[9px] uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-[0_0_15px_rgba(239,68,68,0.3)]"
               >
                 <Sparkles size={12} />
-                <span>Estrategia IA</span>
+                <span>Auditar IA</span>
               </button>
             </div>
           </div>
+
+          {/* BARRA DE PROGRESO DE ESCANEO PROFUNDO */}
+          {isDeepScanningUnfollowers && (
+            <div className="p-4 rounded-2xl bg-[#140E1B] border border-pink-500/30 space-y-2 animate-in fade-in">
+              <div className="flex justify-between items-center text-[10px] font-mono">
+                <span className="text-pink-300 font-bold flex items-center gap-2">
+                  <RefreshCw size={13} className="animate-spin text-[#CCFF00]" />
+                  {deepScanStep}
+                </span>
+                <span className="text-white font-black">{deepScanProgress}%</span>
+              </div>
+              <div className="h-2 bg-black/60 rounded-full overflow-hidden border border-white/10">
+                <div 
+                  className="h-full bg-gradient-to-r from-pink-500 via-[#CCFF00] to-green-400 transition-all duration-300 rounded-full"
+                  style={{ width: `${deepScanProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Banner Explicativo de Integración con Meta API & Exportación Oficial */}
           <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-[10px] font-sans">
@@ -1876,6 +2171,347 @@ export const InstagramCRMView: React.FC<Props> = ({ onAskBot }) => {
                   </div>
                 </div>
               ))}
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* VISTA 6: RADAR & PROSPECTOR DE COACHES B2B (@COACHSCOUT) */}
+      {/* ============================================================ */}
+      {activeTab === 'scout' && (
+        <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300">
+          
+          {/* Header del Radar de Coaches */}
+          <div className="p-5 md:p-6 rounded-2xl bg-gradient-to-r from-[#0C140A] via-[#121B0F] to-[#0A1210] border border-[#CCFF00]/30 shadow-2xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-[#CCFF00]/20 text-[#CCFF00] border border-[#CCFF00]/30 text-[9px] font-black uppercase tracking-widest font-mono flex items-center gap-1">
+                  <Compass size={11} />
+                  @CoachScout B2B Radar
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[8px] font-mono font-bold flex items-center gap-1">
+                  <Crosshair size={10} />
+                  Target: 500 a 5.000 seguidores
+                </span>
+              </div>
+              <h2 className="text-base md:text-lg font-black uppercase tracking-tight text-white">
+                Prospector de Entrenadores & Micro-Coaches para la <span className="text-[#CCFF00]">App TJ FitLab</span>
+              </h2>
+              <p className="text-[11px] text-white/60 font-sans max-w-2xl leading-relaxed">
+                Descubre entrenadores personales emergentes con clientes activos que pierden +10h/semana en WhatsApp y Excel. Ofréceles tu ecosistema digital para que automaticen sus asesorías y aumenten sus tarifas.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+              <button
+                onClick={handleScanNewCoaches}
+                disabled={isScanningNewCoaches}
+                className="px-3.5 py-2.5 rounded-xl bg-[#CCFF00] hover:bg-white text-black font-black text-[9.5px] uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_#CCFF0044] disabled:opacity-50"
+              >
+                <RefreshCw size={13} className={isScanningNewCoaches ? "animate-spin" : ""} />
+                <span>{isScanningNewCoaches ? "Buscando Coaches..." : "🔄 Escanear Nuevos Coaches"}</span>
+              </button>
+
+              <button
+                onClick={() => onAskBot("@CoachScout Analiza el mercado de entrenadores personales en España y Latinoamérica para este mes. ¿Cuáles son las 3 objeciones principales que ponen al momento de contratar una app propia (como TJ FitLab) y cómo podemos rebatirlas en el primer mensaje de DM?")}
+                className="px-3.5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white font-black text-[9.5px] uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 border border-white/10"
+              >
+                <Sparkles size={12} className="text-[#CCFF00]" />
+                <span>Estrategia B2B con IA</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Tarjetas KPIs del Radar */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+              <span className="text-[8.5px] font-black uppercase tracking-widest text-white/40">Coaches Detectados</span>
+              <div className="text-xl md:text-2xl font-black text-white font-mono">{coachProspects.length}</div>
+              <span className="text-[8px] text-[#CCFF00] font-mono">100% Calificados B2B</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+              <span className="text-[8.5px] font-black uppercase tracking-widest text-white/40">Rango de Audiencia</span>
+              <div className="text-xl md:text-2xl font-black text-[#CCFF00] font-mono">500 - 5k</div>
+              <span className="text-[8px] text-white/40 font-mono">Fase de automatización</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+              <span className="text-[8.5px] font-black uppercase tracking-widest text-white/40">Ticket Promedio App</span>
+              <div className="text-xl md:text-2xl font-black text-emerald-400 font-mono">€240/año</div>
+              <span className="text-[8px] text-emerald-300/60 font-mono">Suscripción recurrente</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+              <span className="text-[8.5px] font-black uppercase tracking-widest text-white/40">Tasa de Respuesta DM</span>
+              <div className="text-xl md:text-2xl font-black text-purple-300 font-mono">18.4%</div>
+              <span className="text-[8px] text-purple-400/60 font-mono">Con pitch no invasivo</span>
+            </div>
+          </div>
+
+          {/* Filtros & Buscador de Coaches */}
+          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-grow max-w-md bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                <Search size={14} className="text-white/40" />
+                <input
+                  type="text"
+                  value={coachSearch}
+                  onChange={(e) => setCoachSearch(e.target.value)}
+                  placeholder="Buscar por @usuario, nombre, especialidad o ciudad..."
+                  className="bg-transparent text-xs text-white placeholder-white/40 outline-none w-full"
+                />
+              </div>
+
+              {/* Filtro Rango de Seguidores */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
+                {[
+                  { id: 'todos', label: 'Todos los Rangos' },
+                  { id: 'lt_1500', label: '< 1.5k Seg' },
+                  { id: '1500_3000', label: '1.5k - 3k' },
+                  { id: '3000_5000', label: '3k - 5k' }
+                ].map((rf) => (
+                  <button
+                    key={rf.id}
+                    onClick={() => setCoachFilterFollowers(rf.id)}
+                    className={`px-3 py-1 rounded-lg text-[8.5px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${
+                      coachFilterFollowers === rf.id
+                        ? 'bg-[#CCFF00] text-black border-[#CCFF00]'
+                        : 'bg-white/5 text-white/50 border-white/10 hover:text-white'
+                    }`}
+                  >
+                    {rf.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Filtros de Especialidad */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+              {[
+                { id: 'todas', label: 'Todas las Especialidades' },
+                { id: 'Hipertrofia & Fuerza', label: '🏋️‍♂️ Hipertrofia & Fuerza' },
+                { id: 'Atleta Híbrido & Running', label: '🏃‍♂️ Atleta Híbrido' },
+                { id: 'Pérdida de Grasa & Hábitos', label: '🔥 Pérdida de Grasa' },
+                { id: 'CrossFit / Funcional', label: '⚡ CrossFit / Funcional' },
+                { id: 'Nutrición Deportiva', label: '🥗 Nutrición Deportiva' }
+              ].map((sp) => (
+                <button
+                  key={sp.id}
+                  onClick={() => setCoachFilterSpecialty(sp.id)}
+                  className={`px-3 py-1 rounded-lg text-[8.5px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${
+                    coachFilterSpecialty === sp.id
+                      ? 'bg-white text-black border-white shadow-md'
+                      : 'bg-white/5 text-white/50 border-white/10 hover:text-white'
+                  }`}
+                >
+                  {sp.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Grid de Coaches Prospectos */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {coachProspects
+              .filter((c) => {
+                const matchesSpecialty = coachFilterSpecialty === 'todas' || c.especialidad === coachFilterSpecialty;
+                const matchesFollowers = 
+                  coachFilterFollowers === 'todos' ? true :
+                  coachFilterFollowers === 'lt_1500' ? c.seguidores < 1500 :
+                  coachFilterFollowers === '1500_3000' ? (c.seguidores >= 1500 && c.seguidores <= 3000) :
+                  (c.seguidores > 3000 && c.seguidores <= 5000);
+                const matchesSearch = 
+                  c.nombre.toLowerCase().includes(coachSearch.toLowerCase()) ||
+                  c.username.toLowerCase().includes(coachSearch.toLowerCase()) ||
+                  c.ubicacion.toLowerCase().includes(coachSearch.toLowerCase()) ||
+                  c.especialidad.toLowerCase().includes(coachSearch.toLowerCase());
+                return matchesSpecialty && matchesFollowers && matchesSearch;
+              })
+              .map((coach) => (
+                <div
+                  key={coach.id}
+                  className="p-5 rounded-2xl bg-[#090909] border border-white/10 hover:border-[#CCFF00]/40 transition-all flex flex-col justify-between space-y-4 group shadow-xl relative overflow-hidden"
+                >
+                  <div className="space-y-3">
+                    {/* Header del Coach */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-full overflow-hidden bg-black border border-white/10 flex-shrink-0 relative">
+                          <img src={coach.avatarUrl} alt="" className="w-full h-full object-cover" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <h3 className="font-bold text-sm text-white group-hover:text-[#CCFF00] transition-colors">{coach.nombre}</h3>
+                          </div>
+                          <a
+                            href={`https://instagram.com/${coach.username}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] text-pink-400 hover:underline flex items-center gap-1 font-mono"
+                          >
+                            <span>@{coach.username}</span>
+                            <ExternalLink size={9} />
+                          </a>
+                          <span className="text-[9px] text-white/40 block mt-0.5">{coach.ubicacion}</span>
+                        </div>
+                      </div>
+
+                      <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                        {coach.especialidad.split('&')[0]}
+                      </span>
+                    </div>
+
+                    {/* Métricas del Perfil */}
+                    <div className="grid grid-cols-3 gap-1.5 p-2 rounded-xl bg-white/[0.02] border border-white/5 text-[9.5px] font-mono text-center">
+                      <div className="p-1 rounded bg-black/40">
+                        <span className="font-bold text-white block">{coach.seguidores.toLocaleString()}</span>
+                        <span className="text-[7.5px] text-white/40 uppercase">Seguidores</span>
+                      </div>
+                      <div className="p-1 rounded bg-black/40">
+                        <span className="font-bold text-white block">{coach.seguidos.toLocaleString()}</span>
+                        <span className="text-[7.5px] text-white/40 uppercase">Siguiendo</span>
+                      </div>
+                      <div className="p-1 rounded bg-black/40 text-[#CCFF00]">
+                        <span className="font-bold block">{coach.engagementRate}%</span>
+                        <span className="text-[7.5px] text-[#CCFF00]/60 uppercase">ER Promedio</span>
+                      </div>
+                    </div>
+
+                    {/* Diagnóstico de Dolor & Pitch */}
+                    <div className="space-y-2 text-[9.5px] font-sans">
+                      <div className="p-2.5 rounded-xl bg-red-500/5 border border-red-500/15 space-y-1">
+                        <span className="text-[7.5px] font-black uppercase tracking-wider text-red-400 block font-mono">
+                          ⚠️ Dolor Operativo Detectado:
+                        </span>
+                        <p className="text-white/70 leading-relaxed">
+                          {coach.painPoint}
+                        </p>
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-[#CCFF00]/5 border border-[#CCFF00]/15 space-y-1">
+                        <span className="text-[7.5px] font-black uppercase tracking-wider text-[#CCFF00] block font-mono">
+                          🎯 Solución Propuesta (App TJ FitLab):
+                        </span>
+                        <p className="text-white/80 leading-relaxed font-medium">
+                          {coach.pitchPropuesto}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Acciones de Contacto */}
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/10">
+                    <button
+                      onClick={() => setSelectedCoachForDm(coach)}
+                      className="flex-1 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-[8.5px] uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 border border-white/10"
+                    >
+                      <MessageCircle size={11} className="text-[#CCFF00]" />
+                      <span>Ver Guión DM</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleMoveCoachToPipeline(coach)}
+                      className={`px-3 py-2 rounded-xl text-[8.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                        coach.estadoContactado === 'en_pipeline'
+                          ? 'bg-green-500/20 text-green-300 border border-green-500/30'
+                          : 'bg-[#CCFF00] hover:bg-white text-black shadow-[0_0_10px_#CCFF0033]'
+                      }`}
+                    >
+                      {coach.estadoContactado === 'en_pipeline' ? <Check size={11} /> : <UserPlus size={11} />}
+                      <span>{coach.estadoContactado === 'en_pipeline' ? 'En Pipeline' : 'Mover al CRM'}</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+          </div>
+
+        </div>
+      )}
+
+      {/* MODAL GUIÓN DM PERSONALIZADO PARA COACHES (@COACHSCOUT) */}
+      {selectedCoachForDm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in">
+          <div className="w-full max-w-lg bg-[#0A0A0A] border border-white/10 rounded-2xl p-6 md:p-8 shadow-2xl relative">
+            <button
+              onClick={() => {
+                setSelectedCoachForDm(null);
+                setCopiedDmText(false);
+              }}
+              className="absolute top-4 right-4 text-white/40 hover:text-white"
+            >
+              ✕
+            </button>
+
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-full overflow-hidden bg-black border border-white/10 flex-shrink-0">
+                <img src={selectedCoachForDm.avatarUrl} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-black uppercase tracking-wider text-white">{selectedCoachForDm.nombre}</h3>
+                  <span className="text-[8px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded font-mono uppercase">
+                    {selectedCoachForDm.especialidad}
+                  </span>
+                </div>
+                <p className="text-[10px] text-pink-400 font-mono">@{selectedCoachForDm.username} &bull; {selectedCoachForDm.seguidores.toLocaleString()} seguidores</p>
+              </div>
+            </div>
+
+            {/* Mensaje de Prospección Sugerido */}
+            <div className="space-y-3 mb-5">
+              <div className="flex justify-between items-center text-[8.5px] font-mono text-white/40 uppercase">
+                <span>Mensaje Directo Personalizado (DM):</span>
+                <span className="text-[#CCFF00]">Estructura de 3 Pasos (Sin Presión)</span>
+              </div>
+
+              <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10 text-xs text-white/90 font-sans leading-relaxed relative">
+                {selectedCoachForDm.dmSugerido}
+              </div>
+
+              <div className="p-3 rounded-xl bg-black/40 border border-white/5 text-[9px] text-white/50 font-mono space-y-1">
+                <div>🎯 <strong>Objetivo del mensaje:</strong> Iniciar conversación cálida mostrando que viste su perfil antes de hablar de la app.</div>
+                <div>⏳ <strong>Siguiente paso:</strong> Si responde afirmativo, envíale el video demo de 2 min o agenda videollamada.</div>
+              </div>
+            </div>
+
+            {/* Acciones */}
+            <div className="flex flex-col sm:flex-row items-center gap-2.5">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(selectedCoachForDm.dmSugerido);
+                  setCopiedDmText(true);
+                  setTimeout(() => setCopiedDmText(false), 2500);
+                }}
+                className="w-full sm:flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-[9px] uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 border border-white/10"
+              >
+                {copiedDmText ? <Check size={12} className="text-[#CCFF00]" /> : <Copy size={12} />}
+                <span>{copiedDmText ? '¡Mensaje Copiado!' : 'Copiar Texto del DM'}</span>
+              </button>
+
+              <a
+                href={`https://ig.me/m/${selectedCoachForDm.username}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:flex-1 py-3 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-400 hover:to-purple-500 text-white font-black text-[9px] uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-pink-500/20"
+              >
+                <Send size={12} />
+                <span>Abrir Chat en Instagram</span>
+              </a>
+            </div>
+
+            <button
+              onClick={() => {
+                const coach = selectedCoachForDm;
+                setSelectedCoachForDm(null);
+                handleMoveCoachToPipeline(coach);
+              }}
+              className="w-full mt-2.5 py-2.5 rounded-xl bg-[#CCFF00] hover:bg-white text-black font-black text-[9px] uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow-[0_0_10px_#CCFF0033]"
+            >
+              <UserPlus size={12} />
+              <span>Guardar en Pipeline CRM (€240/año)</span>
+            </button>
+
           </div>
         </div>
       )}

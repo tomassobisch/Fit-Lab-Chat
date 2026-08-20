@@ -17,6 +17,7 @@ interface ForumPost {
 
 const INITIAL_AGENTS: Agente[] = [
   { id: '56495e75-d7f8-4df9-b8d0-8434727039df', nombre: 'Senior Dev', nickname: 'Programador', rol: 'Ingeniero de Software', skills: 'React, Python, Supabase, n8n', avatar_url: '/avatars/programador.png', estado_online: true, creado_en: '' },
+  { id: '3d84f921-6a11-4f32-8b44-59e21183ac92', nombre: 'AI Coach Scout & B2B Hunter', nickname: 'CoachScout', rol: 'Headhunter de Entrenadores & Cierre B2B', skills: 'Prospección Micro-Coaches (<5k), Guiones DM de Quiebre, Venta de Software Fitness, Objeciones SaaS', avatar_url: '/avatars/coachscout.png', estado_online: true, creado_en: '' },
   { id: '7c81d23e-5b12-4c62-a89e-29f76a123901', nombre: 'Viral Script & Edit Architect', nickname: 'ReelArchitect', rol: 'Guionista Viral & Director de Edits', skills: 'Ganchos 3s Hook, Retención, Plantillas CapCut/Premiere, Storytelling Híbrido, CTA Conversión', avatar_url: '/avatars/reelarchitect.png', estado_online: true, creado_en: '' },
   { id: '9b51f99f-4408-46d0-a0ed-bd70803b7fab', nombre: 'InstaMetrics Pro', nickname: 'InstaAnalyst', rol: 'Analista Métricas Instagram & Growth', skills: 'Instagram Graph API, Reels Analytics, Audiencias, Conversión', avatar_url: '/avatars/instaanalyst.png', estado_online: true, creado_en: '' },
   { id: 'd8804865-ef92-4af9-99c5-abf8f6323cee', nombre: 'Marketing Pro', nickname: 'CommunityManager', rol: 'Marketing y Contenido', skills: 'Social Media, SEO, Copywriting', avatar_url: '/avatars/communitymanager.png', estado_online: true, creado_en: '' },
@@ -183,6 +184,11 @@ export const TJOfficeChat: React.FC = () => {
     let suma = '';
 
     switch (agent.nickname.toLowerCase()) {
+      case 'coachscout':
+        cualidades = 'Prospección B2B de alta precisión, detección de micro-coaches en fase de crecimiento (500 a 5.000 seguidores), redacción de guiones de DM no invasivos y manejo de objeciones para la venta de la App TJ FitLab.';
+        dedicacion = 'Rastrea y audita entrenadores personales en España y Latinoamérica que sufren el desorden de gestionar alumnos por WhatsApp/Excel, elabora mensajes de contacto personalizados y alimenta el pipeline de ventas del CRM.';
+        suma = 'Consigue nuevos clientes B2B (entrenadores que pagan suscripción anual recurrente por la app), multiplica los ingresos pasivos de la empresa y expande el ecosistema TJ FitLab en el sector fitness.';
+        break;
       case 'reelarchitect':
         cualidades = 'Especialista en viralidad, ganchos magnéticos de 3 segundos, guiones de alta retención y directrices visuales para CapCut/Premiere.';
         dedicacion = 'Crea guiones estructurados paso a paso para Reels de @tsteam.fit, optimiza la retención de audiencia, escribe llamadas a la acción que convierten seguidores en clientes y diseña plantillas de edición con minutaje y efectos de sonido.';
@@ -790,6 +796,17 @@ Es de suma importancia empresarial que el contenido de cada sección sea complet
 
     // 3. Fallbacks temáticos específicos por rol
     switch (agent.nickname.toLowerCase()) {
+      case 'coachscout':
+        return `¡Hola jefe! Aquí @CoachScout, tu especialista en prospección B2B y captación de entrenadores personales para la App TJ FitLab. He recibido tu consulta: *"${userText}"*.
+🎯 **Estrategia de Prospección para Micro-Coaches (500 - 5.000 seguidores):**
+1. **Perfil Ideal**: Coaches con 20-50 alumnos que aún mandan PDFs por WhatsApp y pierden +10h/semana armando Excels.
+2. **Estructura del DM de Alta Conversión (3 Pasos)**:
+   - *1. Elogio Contextual*: Menciona un detalle técnico de su último Reel ("Tremendo el análisis de sobrecarga progresiva en sentadilla").
+   - *2. Quiebre de Dolor*: "¿Cómo estás gestionando el seguimiento de tus alumnos online sin volverte loco con WhatsApp?".
+   - *3. Solución sin Fricción*: "En TJ FitLab creamos una plataforma para coaches donde cada alumno tiene su app y tú ahorras +10h/semana. ¿Te gustaría ver un video demo de 2 minutos sin compromiso?".
+3. **Manejo de Objeción "Ya uso Excel/WhatsApp"**: *"Totalmente, el 90% de los entrenadores empiezan así, pero cuando superas los 25 alumnos se vuelve un caos operativo. Con nuestra app puedes cobrar un 30% más y retener a tus clientes el doble de tiempo."*
+¿Quieres que busquemos 3 nuevos perfiles en el Radar o redactemos un guión para un nicho específico (hipertrofia, running, nutrición)?`;
+
       case 'reelarchitect':
         return `¡Hola jefe! Aquí @ReelArchitect, tu Guionista Viral & Director de Edits para @tsteam.fit. Recibí tu mensaje: *"${userText}"*.
 ${userText.toLowerCase().includes('plantilla') || userText.toLowerCase().includes('capcut') || userText.toLowerCase().includes('edits')
@@ -883,6 +900,11 @@ El sistema de IA está offline en este momento debido a un límite de cuota o fa
           nick = nick.slice(0, -1);
         }
         agentToReply = agentes.find(a => a.nickname.toLowerCase() === nick);
+      }
+
+      // Si el mensaje habla de entrenadores, coaches, prospección, vender app, ofrecer app o cliente potencial, priorizar @CoachScout
+      if (!agentToReply && (userText.toLowerCase().includes('coach') || userText.toLowerCase().includes('entrenador') || userText.toLowerCase().includes('prospect') || userText.toLowerCase().includes('vender mi app') || userText.toLowerCase().includes('ofrecerle mi app') || userText.toLowerCase().includes('ofrecer mi app') || userText.toLowerCase().includes('cliente potencial') || userText.toLowerCase().includes('scout'))) {
+        agentToReply = agentes.find(a => a.nickname.toLowerCase() === 'coachscout');
       }
 
       // Si el mensaje habla de guión, script, capcut, edición o plantillas, priorizar @ReelArchitect
