@@ -158,7 +158,14 @@ export const TJOfficeChat: React.FC = () => {
   const [mentionFilter, setMentionFilter] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(window.innerWidth < 1024);
-  const [geminiModel, setGeminiModel] = useState<string>('gemini-2.5-flash');
+  const [geminiModel, setGeminiModel] = useState<string>('gemini-2.0-flash');
+  const [geminiApiKey, setGeminiApiKey] = useState<string>(() => {
+    return localStorage.getItem('tj_gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY || '';
+  });
+  const [showGeminiConfigModal, setShowGeminiConfigModal] = useState(false);
+  const [tempGeminiKey, setTempGeminiKey] = useState('');
+  const [geminiTestStatus, setGeminiTestStatus] = useState<{ success: boolean; message: string } | null>(null);
+  const [isTestingGemini, setIsTestingGemini] = useState(false);
 
   // ESTADO MODAL INSTAGRAM ANALYTICS & API
   const [showInstagramModal, setShowInstagramModal] = useState(false);
@@ -378,10 +385,128 @@ export const TJOfficeChat: React.FC = () => {
     finally { setIsSyncing(false); }
   };
 
+  // Helper para consultar la API de Google Gemini con auto-fallback de modelos y herramientas
+  const fetchGeminiResponse = async (
+    apiKey: string,
+    primaryModel: string,
+    promptText: string,
+    signal?: AbortSignal
+  ): Promise<string> => {
+    const modelsToTry = [
+      primaryModel || 'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-pro'
+    ];
+    const uniqueModels = Array.from(new Set(modelsToTry));
+
+    let lastError: any = null;
+
+    for (const model of uniqueModels) {
+      // 1. Intento con Google Search Grounding (Búsqueda Web en Vivo)
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: promptText }] }],
+            tools: [{ googleSearch: {} }]
+          }),
+          signal
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) return text;
+        }
+      } catch (e) {
+        lastError = e;
+      }
+
+      // 2. Intento estándar de texto (sin tools, 100% compatible y ultra rápido)
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: promptText }] }]
+          }),
+          signal
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) return text;
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          console.warn(`Gemini model ${model} returned:`, errData);
+          lastError = errData;
+        }
+      } catch (e) {
+        lastError = e;
+      }
+    }
+
+    throw lastError || new Error("No se pudo obtener respuesta de la API de Gemini.");
+  };
+
+  const handleTestGeminiKey = async (keyToTest: string) => {
+    if (!keyToTest.trim()) {
+      setGeminiTestStatus({ success: false, message: 'Por favor ingresa una clave de API válida.' });
+      return;
+    }
+
+    setIsTestingGemini(true);
+    setGeminiTestStatus(null);
+
+    try {
+      const testModel = geminiModel || 'gemini-2.0-flash';
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent?key=${keyToTest.trim()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: 'Hola, responde únicamente con "CONECTADO".' }] }]
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+        setGeminiTestStatus({
+          success: true,
+          message: `✅ ¡Conexión exitosa! ${testModel} respondió correctamente.`
+        });
+      } else {
+        const errDetail = data.error?.message || 'Error al autenticar la clave con Google Gemini.';
+        setGeminiTestStatus({
+          success: false,
+          message: `❌ ${errDetail}`
+        });
+      }
+    } catch (err: any) {
+      setGeminiTestStatus({
+        success: false,
+        message: `❌ Error de red o conexión: ${err.message || 'No se pudo contactar a Google.'}`
+      });
+    } finally {
+      setIsTestingGemini(false);
+    }
+  };
+
+  const handleSaveGeminiKey = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanKey = tempGeminiKey.trim();
+    setGeminiApiKey(cleanKey);
+    localStorage.setItem('tj_gemini_api_key', cleanKey);
+    setShowGeminiConfigModal(false);
+  };
+
   const executeSingleAgentResearch = async (agent: Agente, customTopic?: string) => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    const apiKey = geminiApiKey || import.meta.env.VITE_GEMINI_API_KEY;
     if (!apiKey) {
-      alert("No se detectó VITE_GEMINI_API_KEY en las variables de entorno. Por favor, configúrala en tu archivo .env para realizar búsquedas reales.");
+      setTempGeminiKey('');
+      setShowGeminiConfigModal(true);
       return;
     }
 
@@ -497,50 +622,10 @@ Es de suma importancia empresarial que el contenido de cada sección sea complet
     let publishData: { titulo: string; contenido: string } | null = null;
 
     try {
-      // Llamada API con Google Search
-      const fallbackModel = geminiModel === 'gemini-2.5-flash' ? 'gemini-1.5-flash' : 'gemini-2.5-flash';
-      let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          contents: [{ parts: [{ text: promptText }] }],
-          tools: [{ google_search: {} }] 
-        })
-      });
-      
-      if (!res.ok) {
-        // Fallback
-        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            contents: [{ parts: [{ text: promptText }] }],
-            tools: [{ google_search: {} }]
-          })
-        });
-      }
-
-      if (!res.ok) {
-        // Fallback sin herramientas
-        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            contents: [{ parts: [{ text: promptText }] }]
-          })
-        });
-      }
-
-      const resJson = await res.json();
-      if (res.ok && resJson.candidates?.[0]?.content?.parts?.[0]?.text) {
-        aiText = resJson.candidates[0].content.parts[0].text;
-      } else {
-        const errMsg = resJson.error?.message || "Error desconocido en Gemini";
-        throw new Error(errMsg);
-      }
+      aiText = await fetchGeminiResponse(apiKey, geminiModel, promptText);
     } catch (e: any) {
       console.error("Fallo llamada Gemini en investigación:", e);
-      aiText = `¡Hola jefe! He intentado buscar información sobre "${nicho}" en internet, pero encontré un error al consultar el sistema de IA: ${e.message}`;
+      aiText = `¡Hola jefe! He intentado buscar información sobre "${nicho}" en internet, pero encontré un error al consultar el sistema de IA: ${e.message || 'Error de conexión'}`;
     }
 
     // Procesar e insertar post
@@ -921,7 +1006,7 @@ El sistema de IA está offline en este momento debido a un límite de cuota o fa
       const agent = agentToReply || agentes[Math.floor(Math.random() * agentes.length)] || agentes[0];
       if (agent) {
         setIsTyping(agent.nickname);
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        const apiKey = geminiApiKey || import.meta.env.VITE_GEMINI_API_KEY;
         let aiText = "";
         let publishData: { titulo: string; contenido: string } | null = null;
 
@@ -965,59 +1050,12 @@ Responde al usuario: ${userText}`;
 
             try {
               const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 8000);
-              
-              // Intento 1: v1beta con modelo seleccionado y google_search
-              const fallbackModel = geminiModel === 'gemini-2.5-flash' ? 'gemini-1.5-flash' : 'gemini-2.5-flash';
-              let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                  contents: [{ parts: [{ text: promptText }] }],
-                  tools: [{ google_search: {} }] 
-                }),
-                signal: controller.signal
-              });
-              
-              // Intento 2: fallback
-              if (!res.ok) {
-                console.warn(`Fallo con ${geminiModel}, intentando con ${fallbackModel}...`);
-                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${fallbackModel}:generateContent?key=${apiKey}`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ 
-                    contents: [{ parts: [{ text: promptText }] }],
-                    tools: [{ google_search: {} }]
-                  }),
-                  signal: controller.signal
-                });
-              }
-              
-              // Intento 3: fallback sin herramientas si sigue fallando
-              if (!res.ok) {
-                console.warn("Fallo con herramientas, ejecutando llamada simple...");
-                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ 
-                    contents: [{ parts: [{ text: promptText }] }]
-                  }),
-                  signal: controller.signal
-                });
-              }
-              
+              const timeoutId = setTimeout(() => controller.abort(), 18000);
+              aiText = await fetchGeminiResponse(apiKey, geminiModel, promptText, controller.signal);
               clearTimeout(timeoutId);
-
-              const resJson = await res.json();
-              if (res.ok && resJson.candidates?.[0]?.content?.parts?.[0]?.text) {
-                 aiText = resJson.candidates[0].content.parts[0].text;
-              } else {
-                 console.error("Gemini API Error details, using local fallback:", resJson);
-                 aiText = generateLocalResponse(agent, userText);
-              }
             } catch (e: any) {
-               console.error("Gemini Fetch Exception, using local fallback:", e);
-               aiText = generateLocalResponse(agent, userText);
+              console.error("Gemini Fetch Exception, using local fallback:", e);
+              aiText = generateLocalResponse(agent, userText);
             }
         }
 
@@ -1483,16 +1521,33 @@ Responde al usuario: ${userText}`;
           </div>
 
           <div className="flex items-center gap-1 md:gap-2">
+            {/* Botón Estado / Configuración Gemini API */}
+            <button
+              onClick={() => {
+                setTempGeminiKey(geminiApiKey);
+                setGeminiTestStatus(null);
+                setShowGeminiConfigModal(true);
+              }}
+              className={`px-2 py-1.5 md:px-2.5 md:py-1.5 rounded-lg text-[8px] md:text-[9px] font-bold tracking-wider uppercase transition-all flex items-center gap-1.5 border ${
+                geminiApiKey
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                  : 'bg-red-500/20 border-red-500/50 text-red-300 hover:bg-red-500/30 animate-pulse'
+              }`}
+              title={geminiApiKey ? "Gemini API Conectada (clic para ver/editar)" : "Configurar Gemini API Key (Requerido para IA en vivo)"}
+            >
+              <Zap size={11} className={geminiApiKey ? "text-emerald-400" : "text-red-400 animate-bounce"} />
+              <span className="hidden sm:inline">{geminiApiKey ? "IA Conectada" : "Configurar IA"}</span>
+            </button>
+
             <select
               value={geminiModel}
               onChange={(e) => setGeminiModel(e.target.value)}
-              className="bg-white/5 border border-white/10 rounded px-1.5 py-1 md:px-2.5 md:py-1.5 text-[7.5px] md:text-[9px] font-bold text-white/70 hover:text-white outline-none focus:border-[#CCFF00]/40 tracking-wider cursor-pointer uppercase font-mono transition-all max-w-[70px] md:max-w-none"
+              className="bg-white/5 border border-white/10 rounded px-1.5 py-1 md:px-2.5 md:py-1.5 text-[7.5px] md:text-[9px] font-bold text-white/70 hover:text-white outline-none focus:border-[#CCFF00]/40 tracking-wider cursor-pointer uppercase font-mono transition-all max-w-[80px] md:max-w-none"
               title="Seleccionar Modelo Gemini"
             >
-              <option value="gemini-2.5-flash" className="bg-[#0A0A0A]">2.5 Flash</option>
-              <option value="gemini-2.5-pro" className="bg-[#0A0A0A]">2.5 Pro</option>
-              <option value="gemini-1.5-pro" className="bg-[#0A0A0A]">1.5 Pro</option>
+              <option value="gemini-2.0-flash" className="bg-[#0A0A0A]">2.0 Flash</option>
               <option value="gemini-1.5-flash" className="bg-[#0A0A0A]">1.5 Flash</option>
+              <option value="gemini-1.5-pro" className="bg-[#0A0A0A]">1.5 Pro</option>
             </select>
             <button onClick={fetchData} className={`p-1.5 md:p-2 ${isSyncing ? 'animate-spin text-[#CCFF00]' : 'text-white/40'}`}><RefreshCw size={12}/></button>
             <button onClick={() => setIsVoiceEnabled(!isVoiceEnabled)} className={`p-1.5 md:p-2 rounded-full border ${isVoiceEnabled ? 'border-[#CCFF00] text-[#CCFF00]' : 'border-white/10 text-white/20'}`}><Activity size={12}/></button>
@@ -2654,6 +2709,107 @@ Responde al usuario: ${userText}`;
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONFIGURACIÓN GEMINI API KEY */}
+      {showGeminiConfigModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in">
+          <div className="w-full max-w-lg bg-[#0A0A0A] border border-white/10 rounded-2xl p-6 md:p-8 shadow-2xl relative space-y-5">
+            <button
+              onClick={() => {
+                setShowGeminiConfigModal(false);
+                setGeminiTestStatus(null);
+              }}
+              className="absolute top-4 right-4 text-white/40 hover:text-white"
+            >
+              <X size={16} />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-[#CCFF00] p-0.5 flex-shrink-0">
+                <div className="w-full h-full bg-black rounded-[10px] flex items-center justify-center">
+                  <Zap size={18} className="text-[#CCFF00]" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-wider text-white">Conexión de IA (Google Gemini)</h3>
+                <p className="text-[9.5px] text-white/40 font-mono">Conecta los bots (@ReelArchitect, @CoachScout, @InstaAnalyst) a la API oficial</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveGeminiKey} className="space-y-4">
+              <div>
+                <label className="text-[8px] text-white/40 font-bold uppercase tracking-widest block mb-1">
+                  Google Gemini API Key
+                </label>
+                <input
+                  type="password"
+                  value={tempGeminiKey}
+                  onChange={(e) => setTempGeminiKey(e.target.value)}
+                  placeholder="AIzaSy..."
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-[#CCFF00] font-mono"
+                />
+                <div className="flex justify-between items-center mt-1.5">
+                  <span className="text-[8px] text-white/40 font-mono">Se guarda de forma segura en tu navegador.</span>
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[8px] text-[#CCFF00] hover:underline font-mono flex items-center gap-1"
+                  >
+                    <span>Obtener clave gratis en Google AI Studio</span>
+                    <ExternalLink size={8} />
+                  </a>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[8px] text-white/40 font-bold uppercase tracking-widest block mb-1">
+                  Modelo por Defecto
+                </label>
+                <select
+                  value={geminiModel}
+                  onChange={(e) => setGeminiModel(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-[#CCFF00] font-mono uppercase"
+                >
+                  <option value="gemini-2.0-flash" className="bg-[#0A0A0A]">Gemini 2.0 Flash (Recomendado & Rápido)</option>
+                  <option value="gemini-1.5-flash" className="bg-[#0A0A0A]">Gemini 1.5 Flash (Alta Disponibilidad)</option>
+                  <option value="gemini-1.5-pro" className="bg-[#0A0A0A]">Gemini 1.5 Pro (Razonamiento Complejo)</option>
+                </select>
+              </div>
+
+              {geminiTestStatus && (
+                <div className={`p-3 rounded-xl border text-[10px] font-mono flex items-center gap-2 ${
+                  geminiTestStatus.success
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                    : 'bg-red-500/10 border-red-500/30 text-red-300'
+                }`}>
+                  {geminiTestStatus.success ? <CheckCircle2 size={14} className="text-emerald-400 flex-shrink-0" /> : <AlertCircle size={14} className="text-red-400 flex-shrink-0" />}
+                  <span>{geminiTestStatus.message}</span>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row items-center gap-2.5 pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => handleTestGeminiKey(tempGeminiKey)}
+                  disabled={isTestingGemini || !tempGeminiKey.trim()}
+                  className="w-full sm:flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-[9px] uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 border border-white/10 disabled:opacity-40"
+                >
+                  <RefreshCw size={12} className={isTestingGemini ? "animate-spin" : ""} />
+                  <span>{isTestingGemini ? "Probando..." : "⚡ Probar Conexión"}</span>
+                </button>
+
+                <button
+                  type="submit"
+                  className="w-full sm:flex-1 py-3 rounded-xl bg-[#CCFF00] hover:bg-white text-black font-black text-[9px] uppercase tracking-wider transition-all shadow-[0_0_15px_#CCFF0033]"
+                >
+                  Guardar y Activar Bots
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
