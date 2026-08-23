@@ -763,32 +763,30 @@ Es de suma importancia empresarial que el contenido de cada sección sea complet
     });
 
     if (publishData) {
-      const newPost = {
+      const newPost: ForumPost = {
+        id: `post-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         titulo: publishData.titulo,
         autor_nombre: `${agent.nombre} (@${agent.nickname})`,
         autor_rol: agent.rol,
-        contenido: publishData.contenido
+        contenido: publishData.contenido,
+        creado_en: new Date().toISOString()
       };
 
+      setForumPosts(prev => {
+        const updated = [newPost, ...prev.filter(p => p.titulo !== newPost.titulo)];
+        localStorage.setItem('tj_forum_posts', JSON.stringify(updated));
+        return updated;
+      });
+
       try {
-        const { data: inserted, error: insErr } = await supabase.from('tj_foro_posts').insert([newPost]).select();
-        if (insErr) {
-          const localPost: ForumPost = {
-            id: `post-${Date.now()}`,
-            ...newPost,
-            creado_en: new Date().toISOString()
-          };
-          setForumPosts(prev => [localPost, ...prev]);
-        } else if (inserted && inserted[0]) {
-          setForumPosts(prev => [inserted[0], ...prev]);
-        }
+        await supabase.from('tj_foro_posts').insert([{
+          titulo: newPost.titulo,
+          autor_nombre: newPost.autor_nombre,
+          autor_rol: newPost.autor_rol,
+          contenido: newPost.contenido
+        }]);
       } catch (dbErr) {
-        const localPost: ForumPost = {
-          id: `post-${Date.now()}`,
-          ...newPost,
-          creado_en: new Date().toISOString()
-        };
-        setForumPosts(prev => [localPost, ...prev]);
+        console.warn("Supabase no disponible, post guardado en almacenamiento local.");
       }
     }
 
@@ -1775,6 +1773,18 @@ Responde al usuario: ${userText}`;
                   <div className="flex-1 min-w-0">
                     <p className="text-[9px] font-bold text-white/40 uppercase mb-1">{m.remitente_tipo === 'agente' ? agentes.find(a => a.id === m.remitente_id)?.nombre : 'Jefe'}</p>
                     <p className={`text-[12px] leading-relaxed break-words ${m.remitente_tipo === 'agente' ? 'text-[#CCFF00]/90' : 'text-white/80'}`}>{m.texto}</p>
+                    {m.texto.toLowerCase().includes('foro') && (
+                      <button
+                        onClick={() => {
+                          setActiveView('forum');
+                          setForumActiveTab('discussion');
+                        }}
+                        className="mt-2.5 px-3 py-1.5 rounded-lg bg-[#CCFF00]/10 hover:bg-[#CCFF00] text-[#CCFF00] hover:text-black border border-[#CCFF00]/30 text-[8.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-[0_0_8px_#CCFF0022]"
+                      >
+                        <Globe size={11} />
+                        <span>Ver artículo publicado en el Foro &rarr;</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
