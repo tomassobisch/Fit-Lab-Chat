@@ -1,5 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Edit3, Activity, MessageSquare, Settings2, X, Menu, RefreshCw, Search, Printer, PlusCircle, Globe, ChevronLeft, ChevronRight, Instagram } from 'lucide-react';
+import { 
+  Send, 
+  Edit3, 
+  Activity, 
+  MessageSquare, 
+  Settings2, 
+  X, 
+  Menu, 
+  RefreshCw, 
+  Search, 
+  Printer, 
+  PlusCircle, 
+  Globe, 
+  ChevronLeft, 
+  ChevronRight, 
+  Instagram,
+  Zap,
+  ExternalLink,
+  CheckCircle2,
+  AlertCircle
+} from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Agente, Mensaje, ReporteGym } from '../types';
 import { InstagramAnalyticsModal } from './InstagramAnalyticsModal';
