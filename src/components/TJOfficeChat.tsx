@@ -484,14 +484,33 @@ export const TJOfficeChat: React.FC = () => {
     setIsTestingGemini(true);
     setGeminiTestStatus(null);
 
+    let detectedModels: string[] = [];
+
+    // 1. Consultar ModelService.ListModels de Google para obtener la lista exacta de modelos soportados por esta clave
+    try {
+      const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`);
+      if (listRes.ok) {
+        const listJson = await listRes.json();
+        if (Array.isArray(listJson.models)) {
+          detectedModels = listJson.models
+            .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
+            .map((m: any) => m.name.replace('models/', ''));
+        }
+      }
+    } catch (e) {
+      console.warn("No se pudo listar modelos desde API:", e);
+    }
+
     const testCandidates = [
-      geminiModel || 'gemini-2.0-flash',
+      geminiModel,
+      ...detectedModels,
       'gemini-2.0-flash',
       'gemini-1.5-flash',
       'gemini-1.5-flash-latest',
       'gemini-2.0-flash-exp',
       'gemini-pro'
-    ];
+    ].filter(Boolean) as string[];
+
     const uniqueCandidates = Array.from(new Set(testCandidates));
 
     let connectedModel: string | null = null;
@@ -526,7 +545,7 @@ export const TJOfficeChat: React.FC = () => {
       setGeminiModel(connectedModel);
       setGeminiTestStatus({
         success: true,
-        message: `✅ ¡Conexión exitosa! El modelo ${connectedModel} está 100% operativo.`
+        message: `✅ ¡Conexión exitosa! Tu clave está activa con el modelo: ${connectedModel}`
       });
     } else {
       setGeminiTestStatus({
