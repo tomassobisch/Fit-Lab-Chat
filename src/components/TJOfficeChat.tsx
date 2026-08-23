@@ -405,7 +405,7 @@ export const TJOfficeChat: React.FC = () => {
     finally { setIsSyncing(false); }
   };
 
-  // Helper para consultar la API de Google Gemini con auto-fallback de modelos y herramientas
+  // Helper para consultar la API de Google Gemini con auto-fallback de modelos y endpoints
   const fetchGeminiResponse = async (
     apiKey: string,
     primaryModel: string,
@@ -414,37 +414,18 @@ export const TJOfficeChat: React.FC = () => {
   ): Promise<string> => {
     const modelsToTry = [
       primaryModel || 'gemini-2.0-flash',
-      'gemini-1.5-flash',
       'gemini-2.0-flash',
-      'gemini-1.5-pro'
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-latest',
+      'gemini-2.0-flash-exp',
+      'gemini-pro'
     ];
     const uniqueModels = Array.from(new Set(modelsToTry));
 
     let lastError: any = null;
 
     for (const model of uniqueModels) {
-      // 1. Intento con Google Search Grounding (Búsqueda Web en Vivo)
-      try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: promptText }] }],
-            tools: [{ googleSearch: {} }]
-          }),
-          signal
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (text) return text;
-        }
-      } catch (e) {
-        lastError = e;
-      }
-
-      // 2. Intento estándar de texto (sin tools, 100% compatible y ultra rápido)
+      // 1. Intento estándar de texto directo (100% compatible y ultra rápido)
       try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
           method: 'POST',
@@ -467,13 +448,35 @@ export const TJOfficeChat: React.FC = () => {
       } catch (e) {
         lastError = e;
       }
+
+      // 2. Intento con Google Search Grounding si aplica
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: promptText }] }],
+            tools: [{ googleSearch: {} }]
+          }),
+          signal
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) return text;
+        }
+      } catch (e) {
+        lastError = e;
+      }
     }
 
     throw lastError || new Error("No se pudo obtener respuesta de la API de Gemini.");
   };
 
   const handleTestGeminiKey = async (keyToTest: string) => {
-    if (!keyToTest.trim()) {
+    const cleanKey = keyToTest.trim();
+    if (!cleanKey) {
       setGeminiTestStatus({ success: false, message: 'Por favor ingresa una clave de API válida.' });
       return;
     }
@@ -481,37 +484,57 @@ export const TJOfficeChat: React.FC = () => {
     setIsTestingGemini(true);
     setGeminiTestStatus(null);
 
-    try {
-      const testModel = geminiModel || 'gemini-2.0-flash';
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent?key=${keyToTest.trim()}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: 'Hola, responde únicamente con "CONECTADO".' }] }]
-        })
-      });
+    const testCandidates = [
+      geminiModel || 'gemini-2.0-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-latest',
+      'gemini-2.0-flash-exp',
+      'gemini-pro'
+    ];
+    const uniqueCandidates = Array.from(new Set(testCandidates));
 
-      const data = await res.json();
-      if (res.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
-        setGeminiTestStatus({
-          success: true,
-          message: `✅ ¡Conexión exitosa! ${testModel} respondió correctamente.`
+    let connectedModel: string | null = null;
+    let lastErrorMsg = '';
+
+    for (const model of uniqueCandidates) {
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${cleanKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: 'Hola, responde únicamente con "CONECTADO".' }] }]
+          })
         });
-      } else {
-        const errDetail = data.error?.message || 'Error al autenticar la clave con Google Gemini.';
-        setGeminiTestStatus({
-          success: false,
-          message: `❌ ${errDetail}`
-        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+            connectedModel = model;
+            break;
+          }
+        } else {
+          const errDetail = await res.json().catch(() => ({}));
+          lastErrorMsg = errDetail.error?.message || `Error HTTP ${res.status}`;
+        }
+      } catch (err: any) {
+        lastErrorMsg = err.message || 'Error de conexión';
       }
-    } catch (err: any) {
+    }
+
+    if (connectedModel) {
+      setGeminiModel(connectedModel);
+      setGeminiTestStatus({
+        success: true,
+        message: `✅ ¡Conexión exitosa! El modelo ${connectedModel} está 100% operativo.`
+      });
+    } else {
       setGeminiTestStatus({
         success: false,
-        message: `❌ Error de red o conexión: ${err.message || 'No se pudo contactar a Google.'}`
+        message: `❌ ${lastErrorMsg || 'Error al autenticar la clave con Google Gemini.'}`
       });
-    } finally {
-      setIsTestingGemini(false);
     }
+    setIsTestingGemini(false);
   };
 
   const handleSaveGeminiKey = (e: React.FormEvent) => {
@@ -1567,7 +1590,8 @@ Responde al usuario: ${userText}`;
             >
               <option value="gemini-2.0-flash" className="bg-[#0A0A0A]">2.0 Flash</option>
               <option value="gemini-1.5-flash" className="bg-[#0A0A0A]">1.5 Flash</option>
-              <option value="gemini-1.5-pro" className="bg-[#0A0A0A]">1.5 Pro</option>
+              <option value="gemini-1.5-flash-latest" className="bg-[#0A0A0A]">1.5 Latest</option>
+              <option value="gemini-pro" className="bg-[#0A0A0A]">Pro</option>
             </select>
             <button onClick={fetchData} className={`p-1.5 md:p-2 ${isSyncing ? 'animate-spin text-[#CCFF00]' : 'text-white/40'}`}><RefreshCw size={12}/></button>
             <button onClick={() => setIsVoiceEnabled(!isVoiceEnabled)} className={`p-1.5 md:p-2 rounded-full border ${isVoiceEnabled ? 'border-[#CCFF00] text-[#CCFF00]' : 'border-white/10 text-white/20'}`}><Activity size={12}/></button>
@@ -2796,7 +2820,8 @@ Responde al usuario: ${userText}`;
                 >
                   <option value="gemini-2.0-flash" className="bg-[#0A0A0A]">Gemini 2.0 Flash (Recomendado & Rápido)</option>
                   <option value="gemini-1.5-flash" className="bg-[#0A0A0A]">Gemini 1.5 Flash (Alta Disponibilidad)</option>
-                  <option value="gemini-1.5-pro" className="bg-[#0A0A0A]">Gemini 1.5 Pro (Razonamiento Complejo)</option>
+                  <option value="gemini-1.5-flash-latest" className="bg-[#0A0A0A]">Gemini 1.5 Flash Latest</option>
+                  <option value="gemini-pro" className="bg-[#0A0A0A]">Gemini Pro</option>
                 </select>
               </div>
 
