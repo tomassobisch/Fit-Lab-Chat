@@ -339,7 +339,10 @@ export const TJOfficeChat: React.FC = () => {
 
   const filteredSuggestions = agentes.filter(a => 
     a.nickname.toLowerCase().includes(mentionFilter.toLowerCase()) ||
-    a.rol.toLowerCase().includes(mentionFilter.toLowerCase())
+    a.nombre.toLowerCase().includes(mentionFilter.toLowerCase()) ||
+    a.rol.toLowerCase().includes(mentionFilter.toLowerCase()) ||
+    (mentionFilter.toLowerCase().includes('couch') && a.nickname.toLowerCase() === 'coachscout') ||
+    (mentionFilter.toLowerCase().includes('scout') && a.nickname.toLowerCase() === 'coachscout')
   );
 
   const speakMessage = (text: string, nickname: string) => {
@@ -388,7 +391,32 @@ export const TJOfficeChat: React.FC = () => {
     setIsSyncing(true);
     try {
       const { data: a } = await supabase.from('tj_agentes').select('*').order('creado_en', { ascending: true });
-      if (a?.length) setAgentes(a);
+      if (a?.length) {
+        // Garantizar que agentes especializados como CoachScout, ReelArchitect e InstaAnalyst nunca se pierdan
+        const existingNicknames = new Set(a.map(ag => ag.nickname.toLowerCase()));
+        const missingInitial = INITIAL_AGENTS.filter(ag => !existingNicknames.has(ag.nickname.toLowerCase()));
+        const mergedAgentes = [...a, ...missingInitial];
+        setAgentes(mergedAgentes);
+
+        // Sincronizar agentes faltantes en Supabase si aplica
+        if (missingInitial.length > 0) {
+          try {
+            await supabase.from('tj_agentes').insert(missingInitial.map(ag => ({
+              id: ag.id,
+              nombre: ag.nombre,
+              nickname: ag.nickname,
+              rol: ag.rol,
+              skills: ag.skills,
+              avatar_url: ag.avatar_url,
+              estado_online: true
+            })));
+          } catch (e) {
+            console.warn("Agentes locales listos, sincronización en DB omitida:", e);
+          }
+        }
+      } else {
+        setAgentes(INITIAL_AGENTS);
+      }
       
       const { data: m } = await supabase.from('tj_mensajes').select('*').order('creado_en', { ascending: false }).limit(50);
       if (m) setMensajes(m.reverse());
@@ -1033,33 +1061,45 @@ El sistema de IA está offline en este momento debido a un límite de cuota o fa
       canal: '#general'
     });
 
-      // Detectar si se menciona a algún agente en particular (ej: @InstaAnalyst o @Programador)
+      // Detectar si se menciona a algún agente en particular (ej: @CoachScout, @InstaAnalyst o @Programador)
       const mentionRegex = /@([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_.]+)/i;
       const mentionMatch = userText.match(mentionRegex);
       let agentToReply = null;
       
       if (mentionMatch) {
         let nick = mentionMatch[1].toLowerCase();
+        // Mapear variaciones y errores tipográficos comunes
+        if (nick === 'couchscout' || nick === 'coach_scout' || nick === 'couch' || nick === 'scout' || nick === 'coach') {
+          nick = 'coachscout';
+        } else if (nick === 'instametrics' || nick === 'insta_analyst') {
+          nick = 'instaanalyst';
+        } else if (nick === 'reel_architect' || nick === 'reelsarchitect') {
+          nick = 'reelarchitect';
+        }
+        
         // Limpiar puntuación común del final del nickname si aplica
         if (nick.endsWith('.') && nick !== 'tecnico deportivo.') {
           nick = nick.slice(0, -1);
         }
         agentToReply = agentes.find(a => a.nickname.toLowerCase() === nick);
+        if (!agentToReply) {
+          agentToReply = INITIAL_AGENTS.find(a => a.nickname.toLowerCase() === nick);
+        }
       }
 
       // Si el mensaje habla de entrenadores, coaches, prospección, vender app, ofrecer app o cliente potencial, priorizar @CoachScout
-      if (!agentToReply && (userText.toLowerCase().includes('coach') || userText.toLowerCase().includes('entrenador') || userText.toLowerCase().includes('prospect') || userText.toLowerCase().includes('vender mi app') || userText.toLowerCase().includes('ofrecerle mi app') || userText.toLowerCase().includes('ofrecer mi app') || userText.toLowerCase().includes('cliente potencial') || userText.toLowerCase().includes('scout'))) {
-        agentToReply = agentes.find(a => a.nickname.toLowerCase() === 'coachscout');
+      if (!agentToReply && (userText.toLowerCase().includes('coach') || userText.toLowerCase().includes('couch') || userText.toLowerCase().includes('entrenador') || userText.toLowerCase().includes('prospect') || userText.toLowerCase().includes('vender mi app') || userText.toLowerCase().includes('vender la app') || userText.toLowerCase().includes('ofrecerle mi app') || userText.toLowerCase().includes('ofrecer mi app') || userText.toLowerCase().includes('cliente potencial') || userText.toLowerCase().includes('clientes potenciales') || userText.toLowerCase().includes('scout') || userText.toLowerCase().includes('alumnos'))) {
+        agentToReply = agentes.find(a => a.nickname.toLowerCase() === 'coachscout') || INITIAL_AGENTS.find(a => a.nickname.toLowerCase() === 'coachscout');
       }
 
       // Si el mensaje habla de guión, script, capcut, edición o plantillas, priorizar @ReelArchitect
       if (!agentToReply && (userText.toLowerCase().includes('guion') || userText.toLowerCase().includes('guión') || userText.toLowerCase().includes('script') || userText.toLowerCase().includes('capcut') || userText.toLowerCase().includes('plantilla') || userText.toLowerCase().includes('edit') || userText.toLowerCase().includes('gancho') || userText.toLowerCase().includes('hook'))) {
-        agentToReply = agentes.find(a => a.nickname.toLowerCase() === 'reelarchitect');
+        agentToReply = agentes.find(a => a.nickname.toLowerCase() === 'reelarchitect') || INITIAL_AGENTS.find(a => a.nickname.toLowerCase() === 'reelarchitect');
       }
 
       // Si el mensaje habla de instagram, métricas o api, y no hay mención explícita, priorizar @InstaAnalyst
       if (!agentToReply && (userText.toLowerCase().includes('instagram') || userText.toLowerCase().includes('insta') || userText.toLowerCase().includes('reels') || userText.toLowerCase().includes('engagement') || userText.toLowerCase().includes('no me siguen') || userText.toLowerCase().includes('unfollow'))) {
-        agentToReply = agentes.find(a => a.nickname.toLowerCase() === 'instaanalyst');
+        agentToReply = agentes.find(a => a.nickname.toLowerCase() === 'instaanalyst') || INITIAL_AGENTS.find(a => a.nickname.toLowerCase() === 'instaanalyst');
       }
 
       // Siempre responder al mensaje del usuario (si hay mención responde el mencionado, si no uno aleatorio)
@@ -1083,9 +1123,20 @@ El sistema de IA está offline en este momento debido a un límite de cuota o fa
               }
             }
 
+            let coachScoutContext = '';
+            if (agent.nickname.toLowerCase() === 'coachscout') {
+              coachScoutContext = `\nEres el Headhunter B2B y Cazador de Clientes (@CoachScout) de TJ FitLab.
+Tu misión principal es encontrar entrenadores personales, nutricionistas y academias que gestionen alumnos por WhatsApp/Excel para venderles el software TJ FitLab (€240/año - €480/año).
+Cuando el usuario te pida buscar clientes o prospectar:
+1. Realiza una búsqueda web exhaustiva o genera perfiles reales y específicos con nombres, @usuarios reales de Instagram/TikTok, número de alumnos estimados y dolor operativo.
+2. Redacta guiones de contacto DM y WhatsApp de 3 pasos (Apertura con elogio técnico -> Pregunta de quiebre sobre WhatsApp/Excel -> Propuesta de demo de 2 min) listos para copiar y pegar.
+3. Brinda consejos tácticos de cierre y manejo de objeciones para generar ingresos rápidos.\n`;
+            }
+
             const promptText = `Eres ${agent.nombre} (rol: ${agent.rol}, nickname: @${agent.nickname}). 
-Tienes acceso a buscar en internet en tiempo real a través de Google Search. Utilízalo siempre que te pregunten sobre datos actuales, noticias, tendencias o estadísticas del fitness en 2026.
+Tienes acceso a buscar en internet en tiempo real a través de Google Search. Utilízalo siempre que te pregunten sobre datos actuales, noticias, tendencias, perfiles de entrenadores en redes o estadísticas del fitness en 2026.
 ${instagramContext ? `\n${instagramContext}\nUsa estos datos exactos de Instagram para responder al usuario con un criterio analítico experto, citando métricas clave (ER, Guardados, Shares, Conversión a app).\n` : ''}
+${coachScoutContext}
 SIEMPRE di "¡Hola jefe!" al inicio de tu respuesta.
 
 Si encuentras una tendencia importante de fitness, noticias o estudios científicos recientes, o una oportunidad de negocio/mejora relevante para TJ FITLAB y quieres publicarla en el foro del equipo, debes añadir al final de tu respuesta EXACTAMENTE esta estructura estructurada en etiquetas de texto plano (NO uses formato JSON):
