@@ -110,9 +110,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ status: 'no_text' });
       }
 
-      // Responder a Meta de inmediato
-      res.status(200).json({ status: 'success' });
-
       // Persistir en Supabase
       await supabase.from('ig_leads').upsert(
         {
@@ -154,7 +151,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         estado_procesado: true,
       });
 
-      return;
+      return res.status(200).json({ status: 'success' });
     } catch (error) {
       console.error('[IG_WEBHOOK_ERROR]:', error);
       return res.status(500).json({ error: 'Internal Error' });
