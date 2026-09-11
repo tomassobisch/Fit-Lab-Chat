@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "scrape": "node scripts/anytime-scraper.js"
+    "scrape": "node scripts/anytime-scraper.js",
+    "webhook": "node scripts/ig-webhook-server.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
