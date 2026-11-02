@@ -11,6 +11,7 @@
     "webhook": "node scripts/ig-webhook-server.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0",
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.106.0",
     "dotenv": "^17.4.2",

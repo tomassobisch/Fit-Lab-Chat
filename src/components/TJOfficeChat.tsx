@@ -501,7 +501,8 @@ export const TJOfficeChat: React.FC = () => {
     apiKey: string,
     primaryModel: string,
     promptText: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    useGoogleSearch = false
   ): Promise<string> => {
     const modelsToTry = [
       primaryModel || 'gemini-2.0-flash',
@@ -516,6 +517,29 @@ export const TJOfficeChat: React.FC = () => {
     let lastError: any = null;
 
     for (const model of uniqueModels) {
+      // Investigaciones: Google Search Grounding primero, para que la búsqueda sea real
+      if (useGoogleSearch) {
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }], tools: [{ googleSearch: {} }] }),
+            signal
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const text = (data.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('');
+            if (text) return text;
+          } else {
+            lastError = await res.json().catch(() => ({}));
+            console.warn(`Gemini + Google Search (${model}) returned:`, lastError);
+          }
+        } catch (e) {
+          if (signal?.aborted) throw e;
+          lastError = e;
+        }
+      }
+
       // 1. Intento estándar de texto directo (100% compatible y ultra rápido)
       try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
@@ -563,6 +587,37 @@ export const TJOfficeChat: React.FC = () => {
     }
 
     throw lastError || new Error("No se pudo obtener respuesta de la API de Gemini.");
+  };
+
+  // Respuestas del chat: Claude (función /api/ai en Vercel, sin búsqueda web).
+  // Si Claude no está disponible, Gemini con la clave configurada como respaldo.
+  // Las investigaciones con búsqueda en internet van por Gemini + Google Search (executeSingleAgentResearch).
+  const fetchAgentResponse = async (
+    apiKey: string | undefined,
+    primaryModel: string,
+    promptText: string,
+    signal?: AbortSignal
+  ): Promise<string> => {
+    try {
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: promptText, webSearch: false }),
+        signal
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.text) return data.text;
+      } else {
+        const err = await res.json().catch(() => ({}));
+        console.warn('Claude (/api/ai) no disponible, usando Gemini:', res.status, err?.error);
+      }
+    } catch (e) {
+      if (signal?.aborted) throw e;
+      console.warn('Claude (/api/ai) falló, usando Gemini:', e);
+    }
+    if (!apiKey) throw new Error('No hay motor de IA disponible: configura ANTHROPIC_API_KEY en Vercel o una clave de Gemini.');
+    return fetchGeminiResponse(apiKey, primaryModel, promptText, signal);
   };
 
   const handleTestGeminiKey = async (keyToTest: string) => {
@@ -658,6 +713,7 @@ export const TJOfficeChat: React.FC = () => {
   const executeSingleAgentResearch = async (agent: Agente, customTopic?: string) => {
     const apiKey = geminiApiKey || import.meta.env.VITE_GEMINI_API_KEY;
     if (!apiKey) {
+      // Las investigaciones buscan en internet con Google Search: necesitan clave de Gemini
       setTempGeminiKey('');
       setShowGeminiConfigModal(true);
       return;
@@ -746,12 +802,12 @@ export const TJOfficeChat: React.FC = () => {
     }
 
     const promptText = `Eres ${agent.nombre} (rol: ${agent.rol}). 
-Tienes acceso a buscar en internet en tiempo real a través de Google Search. Tu objetivo es realizar una investigación exhaustiva y recopilar datos reales, estadísticas de 2026 y referencias de internet sobre: ${pregunta}.
+Tienes acceso a buscar en internet en tiempo real. Tu objetivo es realizar una investigación exhaustiva y recopilar datos reales, estadísticas de 2026 y referencias de internet sobre: ${pregunta}.
 
 Es OBLIGATORIO que redactes un informe de investigación sumamente detallado, técnico y extenso (de al menos 800 palabras). No resumas nada y desarrolla los conceptos en profundidad.
 Al inicio de tu respuesta en el chat, debes saludar diciendo únicamente "¡Hola jefe!".
 
-Luego, a continuación, debes añadir EXACTAMENTE esta estructura estructurada en etiquetas de texto plano para que el sistema publique tu investigación en el foro de discusión. Rellena cada sección con párrafos largos, datos cuantitativos reales obtenidos de tu búsqueda en Google Search, enlaces y análisis estratégico profundo. NO uses formato JSON:
+Luego, a continuación, debes añadir EXACTAMENTE esta estructura estructurada en etiquetas de texto plano para que el sistema publique tu investigación en el foro de discusión. Rellena cada sección con párrafos largos, datos cuantitativos reales obtenidos de tu búsqueda web, enlaces y análisis estratégico profundo. NO uses formato JSON:
 
 [PUBLISH_TITLE]: Título llamativo y profesional de tu investigación
 [PUBLISH_CONTENT]:
@@ -761,10 +817,10 @@ Luego, a continuación, debes añadir EXACTAMENTE esta estructura estructurada e
 (Escribe una explicación detallada de al menos 350 palabras explicando el fenómeno, por qué es tendencia este año 2026 y su contexto actual).
 
 ## 2. Estadísticas Clave e Impacto Cuantitativo
-(Proporciona al menos 3 datos estadísticos con porcentajes, cuotas de mercado o cifras financieras concretas de 2026 obtenidas de tu búsqueda en Google Search).
+(Proporciona al menos 3 datos estadísticos con porcentajes, cuotas de mercado o cifras financieras concretas de 2026 obtenidas de tu búsqueda web).
 
 ## 3. Enlaces y Fuentes de Referencia
-(Es OBLIGATORIO que incluyas enlaces web reales, completos y activos a los sitios oficiales que consultaste durante tu búsqueda en Google Search, por ejemplo: - [Nombre del Sitio](https://URL_REAL)).
+(Es OBLIGATORIO que incluyas enlaces web reales, completos y activos a los sitios oficiales que consultaste durante tu búsqueda web, por ejemplo: - [Nombre del Sitio](https://URL_REAL)).
 
 ## 4. Aplicación Estratégica en TJ FITLAB
 (Aporta al menos 2 recomendaciones operativas y de marketing detalladas para que TJ FITLAB implemente esta tendencia en sus servicios o aplicación).
@@ -775,9 +831,9 @@ Es de suma importancia empresarial que el contenido de cada sección sea complet
     let publishData: { titulo: string; contenido: string } | null = null;
 
     try {
-      aiText = await fetchGeminiResponse(apiKey, geminiModel, promptText);
+      aiText = await fetchGeminiResponse(apiKey, geminiModel, promptText, undefined, true);
     } catch (e: any) {
-      console.error("Fallo llamada Gemini en investigación:", e);
+      console.error("Fallo llamada Gemini + Google Search en investigación:", e);
       aiText = `¡Hola jefe! He intentado buscar información sobre "${nicho}" en internet, pero encontré un error al consultar el sistema de IA: ${e.message || 'Error de conexión'}`;
     }
 
@@ -1026,7 +1082,7 @@ Es de suma importancia empresarial que el contenido de cada sección sea complet
       if (postTitles.length > 0) {
         return `¡Hola jefe! He estado revisando nuestra base de datos local y el foro de discusión de TJ FITLAB. Lo último que hemos investigado en materia de fitness y tecnología es:\n\n${postTitles.join('\n')}\n\nActualmente el canal de IA está offline, pero podemos profundizar en cualquiera de estos temas con la información que ya tenemos recopilada.`;
       } else {
-        return `¡Hola jefe! He intentado consultar el foro de investigación, pero aún no hay publicaciones registradas en local. En cuanto restablezcamos la conexión con la IA de Google Search Grounding, realizaré un nuevo escaneo completo.`;
+        return `¡Hola jefe! He intentado consultar el foro de investigación, pero aún no hay publicaciones registradas en local. En cuanto restablezcamos la conexión con la IA, realizaré un nuevo escaneo completo.`;
       }
     }
 
@@ -1173,9 +1229,7 @@ El sistema de IA está offline en este momento debido a un límite de cuota o fa
         let aiText = "";
         let publishData: { titulo: string; contenido: string } | null = null;
 
-        if (!apiKey) {
-           aiText = generateLocalResponse(agent, userText);
-        } else {
+        {
             let instagramContext = '';
             if (agent.nickname.toLowerCase() === 'instaanalyst' || userText.toLowerCase().includes('instagram') || userText.toLowerCase().includes('insta') || userText.toLowerCase().includes('métrica') || userText.toLowerCase().includes('api')) {
               try {
@@ -1197,7 +1251,7 @@ Cuando el usuario te pida buscar clientes o prospectar:
             }
 
             const promptText = `Eres ${agent.nombre} (rol: ${agent.rol}, nickname: @${agent.nickname}). 
-Tienes acceso a buscar en internet en tiempo real a través de Google Search. Utilízalo siempre que te pregunten sobre datos actuales, noticias, tendencias, perfiles de entrenadores en redes o estadísticas del fitness en 2026.
+En este chat NO tienes búsqueda en internet. Si te piden datos actuales, noticias, estadísticas o fuentes que no conoces con seguridad, dilo con claridad y sugiere al jefe lanzar una "Investigación" desde el Foro (esa usa Google Search). Nunca inventes cifras ni URLs.
 ${instagramContext ? `\n${instagramContext}\nUsa estos datos exactos de Instagram para responder al usuario con un criterio analítico experto, citando métricas clave (ER, Guardados, Shares, Conversión a app).\n` : ''}
 ${coachScoutContext}
 SIEMPRE di "¡Hola jefe!" al inicio de tu respuesta.
@@ -1215,7 +1269,7 @@ Si encuentras una tendencia importante de fitness, noticias o estudios científi
 (Aporta al menos 3 estadísticas con porcentajes o números reales sobre la tendencia para 2026).
 
 ## 3. Enlaces y Fuentes de Referencia
-(Es CRÍTICO que incluyas una lista de URLs reales, completas y activas a los sitios web oficiales que consultaste en tu búsqueda, por ejemplo: - [Nombre del Sitio](https://URL_REAL)).
+(Incluye solo fuentes que conozcas con certeza, con su URL oficial completa. Si no tienes fuentes verificadas, escribe: "Pendiente de verificar con una Investigación del Foro (Google Search)". Nunca inventes URLs).
 
 ## 4. Aplicación Estratégica en TJ FITLAB
 (Escribe recomendaciones específicas de cómo TJ FITLAB puede capitalizar esta oportunidad en su app, servicios o marketing).
@@ -1224,8 +1278,8 @@ Responde al usuario: ${userText}`;
 
             try {
               const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 18000);
-              aiText = await fetchGeminiResponse(apiKey, geminiModel, promptText, controller.signal);
+              const timeoutId = setTimeout(() => controller.abort(), 90000); // la búsqueda web de Claude puede tardar
+              aiText = await fetchAgentResponse(apiKey, geminiModel, promptText, controller.signal);
               clearTimeout(timeoutId);
             } catch (e: any) {
               console.error("Gemini Fetch Exception, using local fallback:", e);
@@ -2803,7 +2857,7 @@ Responde al usuario: ${userText}`;
                   {/* Detalle visual / Micro-animación */}
                   <div className="p-3 bg-white/[0.02] border border-white/5 rounded-lg text-[9px] font-mono text-white/40 space-y-1.5 max-h-24 overflow-hidden">
                     <p className="text-white/60">⚡ Conectado a Gemini API ({geminiModel})</p>
-                    <p className="text-white/60">🔎 Google Search Grounding activo</p>
+                    <p className="text-white/60">🔎 Búsqueda web en tiempo real activa</p>
                     <p className="text-[#CCFF00]/80">&gt; Escribiendo y publicando informe en el foro...</p>
                   </div>
                 </div>
@@ -2811,7 +2865,7 @@ Responde al usuario: ${userText}`;
                 /* CONTROLES DE CONFIGURACIÓN */
                 <>
                   <p className="text-[11px] text-white/60 leading-relaxed">
-                    Los agentes colaboradores buscarán en tiempo real en internet usando <strong>Google Search Grounding</strong>. Elige si quieres consultar a todos o a un especialista específico.
+                    Los agentes colaboradores buscarán en tiempo real en internet con <strong>búsqueda web en tiempo real</strong>. Elige si quieres consultar a todos o a un especialista específico.
                   </p>
                   <div>
                     <label className="text-[8px] text-white/30 font-bold block mb-1.5 uppercase tracking-widest">Agente Investigador</label>
