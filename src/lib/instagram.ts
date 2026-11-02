@@ -383,7 +383,8 @@ export const fetchInstagramMetrics = async (): Promise<InstagramAnalyticsData> =
         let videoViews = 0;
 
         try {
-          const insightMetric = item.media_type === 'VIDEO' ? 'reach,saved,shares,video_views' : 'reach,saved,shares,impressions';
+          // 'impressions' y 'video_views' fueron retirados por Meta en 2025; 'views' los reemplaza
+          const insightMetric = 'reach,saved,shares,views';
           const insightRes = await fetch(
             `https://graph.facebook.com/${config.graphVersion}/${item.id}/insights?metric=${insightMetric}&access_token=${config.accessToken}`
           );
@@ -394,6 +395,7 @@ export const fetchInstagramMetrics = async (): Promise<InstagramAnalyticsData> =
               if (m.name === 'impressions') impressions = m.values?.[0]?.value || 0;
               if (m.name === 'saved') saved = m.values?.[0]?.value || 0;
               if (m.name === 'shares') shares = m.values?.[0]?.value || 0;
+              if (m.name === 'views') { impressions = m.values?.[0]?.value || 0; if (item.media_type === 'VIDEO') videoViews = impressions; }
               if (m.name === 'video_views' || m.name === 'plays') videoViews = m.values?.[0]?.value || 0;
             });
           }
