@@ -147,7 +147,39 @@ export const TJOfficeChat: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // VISTA ACTIVA: CHAT, FORO DE TENDENCIAS O CRM INSTAGRAM
-  const [activeView, setActiveView] = useState<'chat' | 'forum' | 'crm'>('chat');
+  const [activeView, setActiveView] = useState<'chat' | 'forum' | 'crm' | 'planner'>('chat');
+
+  // --- PLANIFICADOR DE TAREAS E INTEGRACIONES (persistido en localStorage) ---
+  const loadLS = <T,>(key: string, fallback: T): T => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as T) : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+  type ChecklistItem = { id: string; texto: string; completado: boolean };
+  type PlannerTask = { id: string; titulo: string; agenteId: string; fechaLimite: string; completada: boolean; checklist: ChecklistItem[] };
+  type ScheduledMsg = { id: string; texto: string; agenteId: string; fechaEnvio: string; enviado: boolean };
+  const [tasks, setTasks] = useState<PlannerTask[]>(() => loadLS('tj_planner_tasks', []));
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskAgent, setTaskAgent] = useState('all');
+  const [taskDueDate, setTaskDueDate] = useState('');
+  const [taskChecklistText, setTaskChecklistText] = useState('');
+  const [taskChecklistItems, setTaskChecklistItems] = useState<ChecklistItem[]>([]);
+  const [scheduledMsgs, setScheduledMsgs] = useState<ScheduledMsg[]>(() => loadLS('tj_planner_scheduled_msgs', []));
+  const [schedText, setSchedText] = useState('');
+  const [schedAgent, setSchedAgent] = useState('all');
+  const [schedDate, setSchedDate] = useState('');
+  const [googleConnected, setGoogleConnected] = useState<boolean>(() => loadLS('tj_google_connected', false));
+  const [n8nGmailWebhook, setN8nGmailWebhook] = useState<string>(() => localStorage.getItem('tj_n8n_gmail_webhook') || '');
+  const [n8nCalendarWebhook, setN8nCalendarWebhook] = useState<string>(() => localStorage.getItem('tj_n8n_calendar_webhook') || '');
+
+  useEffect(() => { localStorage.setItem('tj_planner_tasks', JSON.stringify(tasks)); }, [tasks]);
+  useEffect(() => { localStorage.setItem('tj_planner_scheduled_msgs', JSON.stringify(scheduledMsgs)); }, [scheduledMsgs]);
+  useEffect(() => { localStorage.setItem('tj_google_connected', JSON.stringify(googleConnected)); }, [googleConnected]);
+  useEffect(() => { localStorage.setItem('tj_n8n_gmail_webhook', n8nGmailWebhook); }, [n8nGmailWebhook]);
+  useEffect(() => { localStorage.setItem('tj_n8n_calendar_webhook', n8nCalendarWebhook); }, [n8nCalendarWebhook]);
   const [forumActiveTab, setForumActiveTab] = useState<'trends' | 'proposal' | 'discussion'>('trends');
   const [reportMarkdown, setReportMarkdown] = useState<string>('');
   const [reportSearch, setReportSearch] = useState<string>('');
@@ -381,11 +413,42 @@ export const TJOfficeChat: React.FC = () => {
       remitente_id: msg.remitente_id,
       texto: msg.texto,
       canal: msg.canal,
+      estado_procesado: false,
       creado_en: new Date().toISOString()
     };
     setMensajes(prev => [...prev, localMsg]);
     return localMsg;
   };
+
+  // Despachar mensajes programados del planificador cuando llega su hora
+  useEffect(() => {
+    const dispatchDue = () => {
+      const now = Date.now();
+      const due = scheduledMsgs.filter(m => !m.enviado && new Date(m.fechaEnvio).getTime() <= now);
+      if (due.length === 0) return;
+      setScheduledMsgs(prev => prev.map(m => due.some(d => d.id === m.id) ? { ...m, enviado: true } : m));
+      due.forEach(m => {
+        const agentObj = agentes.find(a => a.id === m.agenteId);
+        const target = agentObj ? `@${agentObj.nickname} ` : '';
+        insertAndAddMessage({
+          remitente_tipo: 'usuario',
+          remitente_id: 'scheduler',
+          texto: `⏰ ${target}${m.texto}`,
+          canal: '#general'
+        });
+        if (googleConnected && n8nGmailWebhook) {
+          fetch(n8nGmailWebhook, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agente: agentObj?.nombre || 'Todos', mensaje: m.texto, fechaEnvio: m.fechaEnvio })
+          }).catch(e => console.warn('Error enviando alerta Gmail vía n8n', e));
+        }
+      });
+    };
+    dispatchDue();
+    const id = setInterval(dispatchDue, 30000);
+    return () => clearInterval(id);
+  }, [scheduledMsgs, agentes, googleConnected, n8nGmailWebhook]);
 
   const fetchData = async () => {
     setIsSyncing(true);
@@ -1404,7 +1467,7 @@ Responde al usuario: ${userText}`;
       const term = reportSearch.trim();
       const regex = new RegExp(`(${term.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
       
-      const walk = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false);
+      const walk = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
       const textNodes = [];
       let nextNode = walk.nextNode();
       while (nextNode) {
@@ -1619,6 +1682,17 @@ Responde al usuario: ${userText}`;
             >
               <span>🎯 CRM</span>
               <span className="hidden sm:inline">INSTAGRAM</span>
+            </button>
+
+            <button 
+              onClick={() => setActiveView('planner')} 
+              className={`px-2.5 py-1.5 md:px-3.5 md:py-1.5 rounded-lg text-[8.5px] md:text-[9.5px] font-black tracking-widest uppercase transition-all flex items-center gap-1.5 ${
+                activeView === 'planner' 
+                  ? 'bg-[#CCFF00] text-black shadow-[0_0_12px_#CCFF0044]' 
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <span>📋 TAREAS</span>
             </button>
 
             <button 
@@ -2309,7 +2383,7 @@ Responde al usuario: ${userText}`;
                         const agentObj = agentes.find(a => a.id === taskAgent);
                         const agentName = agentObj ? `@${agentObj.nickname}` : 'Todos';
                         await insertAndAddMessage({
-                          remitente_tipo: 'sistema',
+                          remitente_tipo: 'usuario',
                           remitente_id: 'scheduler',
                           texto: `📋 **[NUEVA TAREA]** asignada a **${agentName}**: "${taskTitle.trim()}". Límite: ${new Date(taskDueDate).toLocaleString()}`,
                           canal: '#general'

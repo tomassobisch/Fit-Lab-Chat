@@ -62,7 +62,8 @@ import {
   Dumbbell,
   Activity,
   TrendingDown,
-  Info
+  Info,
+  Mail
 } from 'lucide-react';
 import { 
   InstagramAnalyticsData, 
@@ -131,7 +132,7 @@ export interface InstagramLead {
   instagram_user: string;
   telefono?: string;
   estado: 'nuevo' | 'conversacion' | 'agendado' | 'cliente' | 'frio';
-  origen: 'Reel' | 'Story' | 'Bio Link' | 'DM Directo' | 'Anuncio Meta';
+  origen: 'Reel' | 'Story' | 'Bio Link' | 'DM Directo' | 'Anuncio Meta' | 'TikTok' | 'WhatsApp Directo';
   interes: string; // ej: "Asesoría Hipertrofia", "TJ App Anual", "Plan Longevidad"
   valor_estimado: number; // en €
   notas: string;
