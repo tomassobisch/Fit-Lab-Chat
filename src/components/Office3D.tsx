@@ -23,6 +23,47 @@ const NEON = 0xccff00;
 const LOGO_URL = '/logo-tjfitlab.png';
 const MODERATOR = 'strategist';
 const ISO_PITCH = Math.atan(1 / Math.SQRT2) * 0.95; // ~34°, vista isométrica clásica
+const CHAR_SCALE = 1.28; // personajes más grandes y legibles
+
+// Filtro pixel art: contorno oscuro por profundidad + paleta limitada con tramado Bayer 4x4
+const PIXEL_ART_SHADER = {
+  uniforms: {
+    tColor: { value: null as THREE.Texture | null },
+    tDepth: { value: null as THREE.Texture | null },
+    resolution: { value: new THREE.Vector2(1, 1) },
+    depthRange: { value: 400 },
+    levels: { value: 20 }
+  },
+  vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tColor; uniform sampler2D tDepth; uniform vec2 resolution; uniform float depthRange; uniform float levels;
+    varying vec2 vUv;
+    float depthAt(vec2 uv) { return texture2D(tDepth, uv).x * depthRange; }
+    float bayer4(vec2 p) {
+      int x = int(mod(p.x, 4.0)); int y = int(mod(p.y, 4.0)); int i = x + y * 4;
+      float m[16];
+      m[0]=0.0; m[1]=8.0; m[2]=2.0; m[3]=10.0; m[4]=12.0; m[5]=4.0; m[6]=14.0; m[7]=6.0;
+      m[8]=3.0; m[9]=11.0; m[10]=1.0; m[11]=9.0; m[12]=15.0; m[13]=7.0; m[14]=13.0; m[15]=5.0;
+      for (int k = 0; k < 16; k++) { if (k == i) return m[k] / 16.0; }
+      return 0.0;
+    }
+    void main() {
+      vec2 px = 1.0 / resolution;
+      vec4 base = texture2D(tColor, vUv);
+      float dc = depthAt(vUv);
+      // Píxel de contorno si un vecino está claramente más lejos (borde del objeto que está delante)
+      float edge = 0.0;
+      float dn = max(max(depthAt(vUv + vec2(px.x, 0.0)), depthAt(vUv - vec2(px.x, 0.0))), max(depthAt(vUv + vec2(0.0, px.y)), depthAt(vUv - vec2(0.0, px.y))));
+      if (dn - dc > 0.35) edge = 1.0;
+      vec3 col = base.rgb;
+      if (edge > 0.5) col = col * 0.32 + vec3(0.02, 0.02, 0.06);
+      vec4 outCol = linearToOutputTexel(vec4(col, 1.0));
+      // Paleta limitada con tramado ordenado
+      float b = bayer4(gl_FragCoord.xy) - 0.5;
+      outCol.rgb = floor(outCol.rgb * levels + 0.5 + b * 0.55) / levels;
+      gl_FragColor = vec4(clamp(outCol.rgb, 0.0, 1.0), 1.0);
+    }`
+};
 
 // --- Paleta luminosa (inspirada en oficinas pixel art isométricas) ---
 const C = {
@@ -206,7 +247,8 @@ function buildCharacter(key: string, role: string, shirtColor: number, isBoss = 
   return { group, body, head, armL, armR, legL, legR, faceMat, faces };
 }
 
-type BotState = 'work' | 'walk' | 'idle' | 'meeting';
+type BotState = 'work' | 'walk' | 'idle' | 'meeting' | 'break';
+type Activity = { kind: 'water' | 'copier' | 'chat' | 'sofa'; spot: THREE.Vector3; face: THREE.Vector3; partner?: Bot };
 interface Bot extends CharParts {
   agent: Agente;
   floor: number; at: number;
@@ -216,6 +258,8 @@ interface Bot extends CharParts {
   path: THREE.Vector3[]; side: number; phase: number; blinkAt: number;
   seat?: { pos: THREE.Vector3; face: THREE.Vector3 };
   sitting: boolean;
+  activity?: Activity;
+  chattedBy?: Bot;
 }
 type Nearby = { kind: 'agent'; agent: Agente } | { kind: 'elevator' } | { kind: 'meeting' } | null;
 
@@ -266,6 +310,15 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(C.bg);
     const camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 400);
+    // Render a textura de baja resolución (con profundidad) y filtro pixel art a pantalla
+    const rt = new THREE.WebGLRenderTarget(2, 2, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthTexture: new THREE.DepthTexture(2, 2) });
+    const postMat = new THREE.ShaderMaterial({ ...PIXEL_ART_SHADER, uniforms: THREE.UniformsUtils.clone(PIXEL_ART_SHADER.uniforms), depthTest: false, depthWrite: false });
+    postMat.uniforms.tColor.value = rt.texture;
+    postMat.uniforms.tDepth.value = rt.depthTexture;
+    postMat.uniforms.depthRange.value = camera.far - camera.near;
+    const postScene = new THREE.Scene();
+    postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMat));
+    const postCam = new THREE.Camera();
     const loader = new THREE.TextureLoader();
     const logoTex = loader.load(LOGO_URL, t => { t.colorSpace = THREE.SRGBColorSpace; });
     const winTex = windowTexture();
@@ -572,6 +625,23 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
       }
     }
 
+    // Puntos de interés para las rutinas de los agentes
+    const poiFor = (f: number) => {
+      const lastPodX = Math.max(...deptAgents[f].map((_, i) => podX(f, i)), 1.5) + 3.1;
+      if (f === 0) return {
+        water: { spot: new THREE.Vector3(-1, 0, -8.1), face: new THREE.Vector3(-1, 0, -8.9) },
+        copier: null,
+        sofa: { spot: new THREE.Vector3(-8.6, 0, -6.2), face: new THREE.Vector3(-8.6, 0, -6.6) },
+        detourX: 0
+      };
+      return {
+        water: { spot: new THREE.Vector3(7.2, 0, halfD - 1.4), face: new THREE.Vector3(7.2, 0, halfD - 0.6) },
+        copier: { spot: new THREE.Vector3(halfW - 2.1, 0, -3.5), face: new THREE.Vector3(halfW - 0.9, 0, -3.5) },
+        sofa: { spot: new THREE.Vector3(-8.0, 0, -5.4), face: new THREE.Vector3(-8.0, 0, -6.4) },
+        detourX: lastPodX
+      };
+    };
+
     // --- Agentes ---
     agentes.forEach(agent => {
       const f = deptIndexFor(agent);
@@ -589,6 +659,7 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
         bounds = { minX: px - 2, maxX: px + 2, minZ: -2.5, maxZ: 2.2 };
       }
       ch.group.position.copy(home);
+      ch.group.scale.setScalar(CHAR_SCALE);
       ch.group.traverse(o => { o.userData.agentId = agent.id; });
       floors[f].content.add(ch.group);
       bots.push({
@@ -601,6 +672,7 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
 
     // --- Jefe (jugador) ---
     const player = buildCharacter('jefe-tj', 'jefe', 0xffffff, true);
+    player.group.scale.setScalar(CHAR_SCALE);
     const playerRing = new THREE.Mesh(new THREE.RingGeometry(0.36, 0.46, 20), new THREE.MeshBasicMaterial({ color: NEON, side: THREE.DoubleSide }));
     playerRing.rotation.x = -Math.PI / 2; playerRing.position.y = 0.02;
     player.group.add(playerRing);
@@ -615,7 +687,7 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
     applyFloorVisibility();
 
     // --- Etiquetas DOM ---
-    const labels = new Map<string, { root: HTMLDivElement; bubble: HTMLDivElement }>();
+    const labels = new Map<string, { root: HTMLDivElement; bubble: HTMLDivElement; emote: HTMLDivElement }>();
     labelsLayer.innerHTML = '';
     for (const b of bots) {
       const color = '#' + new THREE.Color(DEPTS[b.floor].color).getHexString();
@@ -626,9 +698,11 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
       const name = document.createElement('div');
       name.style.cssText = `display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:4px;background:${color};color:#fff;font:800 9px ui-monospace,monospace;letter-spacing:.03em;box-shadow:2px 2px 0 rgba(0,0,0,.18);`;
       name.textContent = `@${b.agent.nickname}`;
-      root.append(bubble, name);
+      const emote = document.createElement('div');
+      emote.style.cssText = 'display:none;width:22px;height:22px;margin:0 auto 3px;border-radius:5px;background:#fff;border:2px solid #1f2937;box-shadow:2px 2px 0 rgba(31,41,55,.25);font:13px/18px sans-serif;text-align:center;';
+      root.append(bubble, emote, name);
       labelsLayer.appendChild(root);
-      labels.set(b.agent.id, { root, bubble });
+      labels.set(b.agent.id, { root, bubble, emote });
     }
 
     // --- Rutas, pisos y reuniones ---
@@ -651,8 +725,14 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
         if (behind(dest) !== behind(g)) pts.push(new THREE.Vector3(-4.5 + b.side * 2.3, 0, 5.6));
         pts.push(dest.clone());
       } else {
-        const behind = (v: THREE.Vector3) => v.z > b.pod.z - 0.1;
-        if (behind(dest) !== behind(g)) pts.push(new THREE.Vector3(b.pod.x + b.side * 1.35, 0, b.pod.z - 1.4), new THREE.Vector3(b.pod.x + b.side * 1.35, 0, b.pod.z + 0.4));
+        const behind = (v: THREE.Vector3) => v.z > b.pod.z - 0.1 && v.z < POD_Z + 1.4;
+        const pastPartitions = (v: THREE.Vector3) => v.z >= POD_Z + 1.4;
+        const detourX = poiFor(b.floor).detourX;
+        const front = new THREE.Vector3(b.pod.x + b.side * 1.35, 0, b.pod.z - 1.4);
+        if (behind(g)) pts.push(new THREE.Vector3(b.pod.x + b.side * 1.35, 0, b.pod.z + 0.4), front);
+        if (pastPartitions(g)) pts.push(new THREE.Vector3(detourX, 0, g.z), new THREE.Vector3(detourX, 0, POD_Z - 1.6));
+        if (pastPartitions(dest)) pts.push(new THREE.Vector3(detourX, 0, POD_Z - 1.6), new THREE.Vector3(detourX, 0, dest.z));
+        if (behind(dest)) pts.push(new THREE.Vector3(b.pod.x + b.side * 1.35, 0, b.pod.z - 1.4), new THREE.Vector3(b.pod.x + b.side * 1.35, 0, b.pod.z + 0.4));
         pts.push(dest.clone());
       }
       b.path = pts;
@@ -660,6 +740,7 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
     };
     setMeetingRef.current = (on: boolean) => {
       for (const b of bots) {
+        b.activity = undefined; b.chattedBy = undefined;
         if (on && b.seat) {
           b.state = 'meeting';
           if (b.at !== 0) moveBotToFloor(b, 0, elevatorFront.clone().add(new THREE.Vector3(Math.random() * 1.2 - 0.6, 0, -Math.random() * 0.8)));
@@ -759,7 +840,10 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
     let aspect = 1;
     const resize = () => {
       const w = mount.clientWidth || 1, h = mount.clientHeight || 1;
-      renderer.setSize(Math.ceil(w / PIXEL_SCALE), Math.ceil(h / PIXEL_SCALE), false);
+      const rw = Math.ceil(w / PIXEL_SCALE), rh = Math.ceil(h / PIXEL_SCALE);
+      renderer.setSize(rw, rh, false);
+      rt.setSize(rw, rh);
+      postMat.uniforms.resolution.value.set(rw, rh);
       aspect = w / h;
     };
     resize();
@@ -856,7 +940,22 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
             if (b.state !== 'work') { b.state = 'work'; planTo(b, b.home); }
           } else if (b.timer <= 0 && !isTalking) {
             const r = Math.random();
-            if (r < 0.55) { b.state = 'work'; planTo(b, b.home); b.timer = 9 + Math.random() * 10; }
+            if (b.activity?.partner && b.activity.partner.chattedBy === b) b.activity.partner.chattedBy = undefined;
+            const poi = poiFor(b.floor);
+            const mates = bots.filter(o => o !== b && o.at === b.at && o.floor === b.floor && o.state === 'work' && o.sitting && !o.chattedBy);
+            b.activity = undefined;
+            if (b.chattedBy) { b.timer = 2; }
+            else if (r < 0.42) { b.state = 'work'; planTo(b, b.home); b.timer = 10 + Math.random() * 10; }
+            else if (r < 0.54) { b.state = 'break'; b.activity = { kind: 'water', ...poi.water }; planTo(b, poi.water.spot); b.timer = 9 + Math.random() * 4; }
+            else if (r < 0.63 && poi.copier) { b.state = 'break'; b.activity = { kind: 'copier', ...poi.copier }; planTo(b, poi.copier.spot); b.timer = 8 + Math.random() * 4; }
+            else if (r < 0.74 && mates.length) {
+              const partner = mates[Math.floor(Math.random() * mates.length)];
+              const spot = new THREE.Vector3(partner.pod.x + 0.6, 0, partner.pod.z - 1.6);
+              b.state = 'break'; b.activity = { kind: 'chat', spot, face: partner.group.position.clone(), partner };
+              partner.chattedBy = b;
+              planTo(b, spot); b.timer = 10 + Math.random() * 4;
+            }
+            else if (r < 0.8) { b.state = 'break'; b.activity = { kind: 'sofa', ...poi.sofa }; planTo(b, poi.sofa.spot); b.timer = 10 + Math.random() * 6; }
             else if (r < 0.88) {
               b.state = 'walk';
               planTo(b, new THREE.Vector3(THREE.MathUtils.lerp(b.bounds.minX, b.bounds.maxX, Math.random()), 0, THREE.MathUtils.lerp(b.bounds.minZ, b.bounds.maxZ, Math.random())));
@@ -879,13 +978,24 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
           }
           if (!b.path.length && (b.state === 'work' || b.state === 'meeting')) b.sitting = true;
         } else if (b.sitting && b.state === 'work' && !(pd < 2 && !isTyping)) {
-          faceTo(g, b.homeFace.x, b.homeFace.z, 0.2);
+          const visitor = b.chattedBy && !b.chattedBy.path.length && b.chattedBy.activity?.partner === b ? b.chattedBy : null;
+          faceTo(g, visitor ? visitor.group.position.x : b.homeFace.x, visitor ? visitor.group.position.z : b.homeFace.z, 0.2);
           sitPose(b, t + b.phase, isTyping);
+          if (visitor) { b.armL.rotation.x = -0.6; b.armR.rotation.x = -0.4 + Math.sin(t * 4) * 0.3; }
         } else if (b.sitting && b.state === 'meeting' && b.seat) {
           faceTo(g, b.seat.face.x, b.seat.face.z, 0.2);
           sitPose(b, t + b.phase, false);
           b.armL.rotation.x = b.armR.rotation.x = -0.95;
           b.head.rotation.y = Math.sin(t * 0.7 + b.phase) * 0.35;
+        } else if (b.state === 'break' && b.activity && !b.path.length && !isTalking) {
+          faceTo(g, b.activity.face.x, b.activity.face.z, 0.15);
+          if (b.activity.kind === 'sofa') { sitPose(b, t + b.phase, false); b.armL.rotation.x = b.armR.rotation.x = -0.3; b.body.position.y = -0.3; }
+          else {
+            standPose(b, t + b.phase);
+            if (b.activity.kind === 'water') b.armR.rotation.x = Math.sin(t * 0.8 + b.phase) > 0.6 ? -2.1 : -0.4; // bebe agua
+            if (b.activity.kind === 'copier') b.armR.rotation.x = -0.9 + Math.sin(t * 3) * 0.1;
+            if (b.activity.kind === 'chat') { b.armR.rotation.x = -0.5 + Math.sin(t * 4 + b.phase) * 0.35; b.head.rotation.y = Math.sin(t * 1.5) * 0.15; }
+          }
         } else {
           standPose(b, t + b.phase);
           if (pd < 3.2 || isTalking) {
@@ -922,7 +1032,7 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
       for (const b of bots) {
         const lab = labels.get(b.agent.id)!;
         if (b.at !== playerFloor) { lab.root.style.display = 'none'; continue; }
-        b.group.getWorldPosition(wp); wp.y += b.sitting ? 2.0 : 2.2;
+        b.group.getWorldPosition(wp); wp.y += b.sitting ? 2.45 : 2.75;
         tmp.copy(wp).project(camera);
         const visible = Math.abs(tmp.x) < 1.1 && Math.abs(tmp.y) < 1.1;
         let bubble = '';
@@ -937,9 +1047,23 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
         lab.root.style.transform = `translate(${(tmp.x * 0.5 + 0.5) * rect.width}px, ${(-tmp.y * 0.5 + 0.5) * rect.height}px) translate(-50%, -100%)`;
         if (lab.bubble.textContent !== bubble) lab.bubble.textContent = bubble;
         lab.bubble.style.display = bubble ? 'block' : 'none';
+        // Icono de actividad
+        let icon = '';
+        const arrived = !b.path.length;
+        if (typingRef.current === b.agent.nickname) icon = '💡';
+        else if (b.state === 'break' && b.activity && arrived) icon = { water: '☕', copier: '📄', chat: '💬', sofa: '🛋️' }[b.activity.kind];
+        else if (b.chattedBy && !b.chattedBy.path.length) icon = '💬';
+        else if (b.state === 'meeting' && arrived) icon = '';
+        else if (b.state === 'work' && b.sitting && Math.sin(t * 0.21 + b.phase * 3) > 0.93) icon = '📞';
+        if (bubble) icon = '';
+        if (lab.emote.textContent !== icon) lab.emote.textContent = icon;
+        lab.emote.style.display = icon ? 'block' : 'none';
       }
 
+      renderer.setRenderTarget(rt);
       renderer.render(scene, camera);
+      renderer.setRenderTarget(null);
+      renderer.render(postScene, postCam);
     };
     tick();
 
@@ -958,6 +1082,7 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
         const mats = Array.isArray(m.material) ? m.material : m.material ? [m.material] : [];
         mats.forEach((mm: any) => { mm.map?.dispose?.(); mm.dispose?.(); });
       });
+      rt.dispose(); postMat.dispose();
       renderer.dispose();
       canvas.remove();
       labelsLayer.innerHTML = '';
