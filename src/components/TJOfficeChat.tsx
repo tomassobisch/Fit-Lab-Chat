@@ -437,6 +437,7 @@ export const TJOfficeChat: React.FC = () => {
           texto: `⏰ ${target}${m.texto}`,
           canal: '#general'
         });
+        notifyTelegram('recordatorio', `${target}${m.texto}`);
         if (googleConnected && n8nGmailWebhook) {
           fetch(n8nGmailWebhook, {
             method: 'POST',
@@ -612,6 +613,15 @@ export const TJOfficeChat: React.FC = () => {
     }
   };
 
+  // Aviso del @Secretario por Telegram (función /api/notify; si no está configurado, no pasa nada)
+  const notifyTelegram = (tipo: 'accion' | 'recordatorio' | 'lead', texto: string, agente?: string) => {
+    fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tipo, texto, agente })
+    }).catch(() => {});
+  };
+
   const executeAgentActions = (actions: AgentAction[]): string[] => {
     const done: string[] = [];
     for (const { name, input } of actions) {
@@ -702,7 +712,8 @@ export const TJOfficeChat: React.FC = () => {
     primaryModel: string,
     promptText: string,
     signal?: AbortSignal,
-    geminiGoogleSearch = false
+    geminiGoogleSearch = false,
+    agentNickname?: string
   ): Promise<string> => {
     try {
       const res = await fetch('/api/ai', {
@@ -728,7 +739,10 @@ export const TJOfficeChat: React.FC = () => {
 
         const confirmations = executeAgentActions(actions.filter(a => a.name !== 'publicar_en_foro'));
         if (publish) confirmations.push(`📈 Publicado en el foro: "${publish.input.titulo}"`);
-        if (confirmations.length) text = `${text}\n\n${confirmations.join('\n')}`.trim();
+        if (confirmations.length) {
+          text = `${text}\n\n${confirmations.join('\n')}`.trim();
+          notifyTelegram('accion', confirmations.join('\n'), agentNickname);
+        }
 
         // Las publicaciones del foro reutilizan el flujo existente de etiquetas [PUBLISH_*]
         if (publish) {
@@ -958,7 +972,7 @@ Es de suma importancia empresarial que el contenido de cada sección sea complet
     let publishData: { titulo: string; contenido: string } | null = null;
 
     try {
-      aiText = await fetchAgentResponse(apiKey, geminiModel, promptText, undefined, true);
+      aiText = await fetchAgentResponse(apiKey, geminiModel, promptText, undefined, true, agent.nickname);
     } catch (e: any) {
       console.error("Fallo llamada IA en investigación:", e);
       if (!apiKey) {
@@ -1415,7 +1429,7 @@ Responde al usuario: ${userText}`;
             try {
               const controller = new AbortController();
               const timeoutId = setTimeout(() => controller.abort(), 130000); // búsqueda + acciones pueden tardar (límite de la función: 120 s)
-              aiText = await fetchAgentResponse(apiKey, geminiModel, promptText, controller.signal);
+              aiText = await fetchAgentResponse(apiKey, geminiModel, promptText, controller.signal, false, agent.nickname);
               clearTimeout(timeoutId);
             } catch (e: any) {
               console.error("Gemini Fetch Exception, using local fallback:", e);

@@ -11,6 +11,22 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SU
 const supabase = createClient(supabaseUrl!, supabaseKey!);
 const AGENT_INSTA_UUID = '9b51f99f-4408-46d0-a0ed-bd70803b7fab'; // @InstaAnalyst
 
+// Aviso por Telegram al jefe (opcional: solo si TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID existen)
+async function avisarTelegram(texto: string) {
+  const token = process.env.TELEGRAM_BOT_TOKEN, chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return;
+  const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: `🗂 <b>Secretario TJ FitLab</b>\n<b>📥 Instagram</b>\n\n${esc(texto)}`.slice(0, 3900), parse_mode: 'HTML' })
+    });
+  } catch (err) {
+    console.error('[TELEGRAM_NOTIFY_ERROR]:', err);
+  }
+}
+
 function resolverRespuesta(texto: string) {
   const t = texto.toLowerCase();
 
@@ -110,6 +126,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ status: 'no_text' });
       }
 
+      // ¿Es un lead nuevo?
+      const { data: existente } = await supabase.from('ig_leads').select('instagram_id').eq('instagram_id', senderId).maybeSingle();
+
       // Persistir en Supabase
       await supabase.from('ig_leads').upsert(
         {
@@ -128,6 +147,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
 
       const { respuesta, modalidad, status } = resolverRespuesta(messageText);
+
+      if (!existente) await avisarTelegram(`Nuevo lead por DM (id ${senderId}):\n"${messageText.slice(0, 300)}"`);
+      else if (status === 'enlace_enviado') await avisarTelegram(`Un lead quiere agendar una llamada (id ${senderId}):\n"${messageText.slice(0, 300)}"\nSe le envió el enlace de Cal.com.`);
 
       const leadUpdate: Record<string, string> = { updated_at: new Date().toISOString() };
       if (modalidad) leadUpdate.modalidad_interes = modalidad;
