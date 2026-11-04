@@ -1,13 +1,18 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-// Motor de los agentes de TJ FitLab: Claude con búsqueda web y herramientas de acción.
-// - La búsqueda web la ejecuta Anthropic en el servidor (web_search).
-// - Las acciones (foro, tareas, CRM...) se devuelven a la app, que es quien las aplica.
-// La clave ANTHROPIC_API_KEY vive solo en Vercel, nunca en el navegador.
+// Motor de los agentes de TJ FitLab: búsqueda en internet + herramientas de acción.
+// Motor por defecto: GEMINI (gratis en su nivel free):
+//   1) Gemini + Google Search investiga y redacta la respuesta.
+//   2) Gemini con function calling decide y registra las acciones.
+// Motor opcional: CLAUDE (web_search + herramientas), solo si AI_ENGINE=claude.
+// Las acciones (foro, tareas, CRM...) se devuelven a la app, que es quien las aplica.
+// Las claves (GEMINI_API_KEY / ANTHROPIC_API_KEY) viven en Vercel, no en el navegador.
 
-const client = new Anthropic(); // lee ANTHROPIC_API_KEY del entorno
+// El cliente de Claude se crea solo si se usa ese motor (lee ANTHROPIC_API_KEY)
 
 const MODEL = 'claude-opus-5-5';
+const GEMINI_MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const MAX_ITERATIONS = 6;
 
 // Tiempo máximo de la función en Vercel (60 s es el límite seguro del plan Hobby)
@@ -120,14 +125,115 @@ function isValidAction(name: string, input: any): boolean {
   return required.every(k => input[k] !== undefined && input[k] !== null);
 }
 
+
+// ---------------------------------------------------------------------------
+// GEMINI: búsqueda con Google Search + acciones con function calling
+// ---------------------------------------------------------------------------
+
+// Convierte el JSON Schema de las herramientas al formato de esquema de Gemini
+function toGeminiSchema(schema: any): any {
+  if (!schema || typeof schema !== 'object') return schema;
+  const out: any = {};
+  for (const [k, v] of Object.entries(schema)) {
+    if (k === 'additionalProperties') continue;
+    if (k === 'type' && typeof v === 'string') out.type = v.toUpperCase();
+    else if (k === 'properties') out.properties = Object.fromEntries(Object.entries(v as any).map(([pk, pv]) => [pk, toGeminiSchema(pv)]));
+    else if (k === 'items') out.items = toGeminiSchema(v);
+    else out[k] = v;
+  }
+  return out;
+}
+
+const GEMINI_FUNCTIONS = ACTION_TOOLS.map(t => ({
+  name: t.name,
+  description: t.description,
+  parameters: toGeminiSchema(t.input_schema)
+}));
+
+class GeminiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+// Llama a generateContent probando modelos en orden si alguno no existe (404)
+async function geminiGenerate(apiKey: string, body: any): Promise<any> {
+  let last: GeminiError | null = null;
+  for (const model of GEMINI_MODELS) {
+    const r = await fetch(`${GEMINI_BASE}/${model}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data: any = await r.json().catch(() => ({}));
+    if (r.ok) return data;
+    last = new GeminiError(r.status, data?.error?.message || `Gemini respondió ${r.status}`);
+    if (r.status !== 404) break; // clave inválida, cuota, etc.: no seguir probando modelos
+  }
+  throw last || new GeminiError(500, 'Gemini no respondió');
+}
+
+const partsText = (data: any) =>
+  (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('').trim();
+
+async function runGemini(apiKey: string, prompt: string, system: string, webSearch: boolean, allowActions: boolean) {
+  const sources: { title: string; url: string }[] = [];
+
+  // Paso 1: investigar con Google Search y redactar la respuesta
+  const research = await geminiGenerate(apiKey, {
+    systemInstruction: { parts: [{ text: `${system}\nUsa Google Search siempre que necesites datos actuales, perfiles reales, estudios o estadísticas, y cita las fuentes. Nunca inventes cifras ni URLs.` }] },
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    ...(webSearch ? { tools: [{ googleSearch: {} }] } : {})
+  });
+  const researchText = partsText(research);
+  for (const chunk of research?.candidates?.[0]?.groundingMetadata?.groundingChunks || []) {
+    const web = chunk?.web;
+    if (web?.uri && !sources.some(s => s.url === web.uri)) sources.push({ title: web.title || web.uri, url: web.uri });
+  }
+
+  if (!allowActions) return { text: researchText, actions: [], sources };
+
+  // Paso 2: decidir y registrar acciones a partir de la investigación
+  const actions: { name: string; input: any }[] = [];
+  const contents: any[] = [
+    { role: 'user', parts: [{ text: `PETICIÓN DEL JEFE:\n${prompt}\n\nINVESTIGACIÓN Y BORRADOR DE RESPUESTA (con datos de Google Search):\n${researchText}\n\nFUENTES:\n${sources.map(s => `- ${s.title}: ${s.url}`).join('\n') || '(ninguna)'}\n\nSi el jefe pidió HACER algo (publicar, crear tareas, programar mensajes, añadir leads o prospectos), llama ahora a las funciones necesarias usando los datos de la investigación. Si solo era una pregunta, no llames a ninguna función. Después escribe la respuesta final para el jefe.` }] }
+  ];
+  let finalText = '';
+
+  for (let i = 0; i < 3; i++) {
+    const step = await geminiGenerate(apiKey, {
+      systemInstruction: { parts: [{ text: system }] },
+      contents,
+      tools: [{ functionDeclarations: GEMINI_FUNCTIONS }],
+      toolConfig: { functionCallingConfig: { mode: 'AUTO' } }
+    });
+    const parts = step?.candidates?.[0]?.content?.parts || [];
+    const calls = parts.filter((p: any) => p.functionCall);
+    const text = parts.map((p: any) => p.text || '').join('').trim();
+    if (text) finalText = text;
+    if (!calls.length) break;
+
+    contents.push({ role: 'model', parts });
+    contents.push({
+      role: 'user',
+      parts: calls.map((p: any) => {
+        const { name, args } = p.functionCall;
+        const ok = ACTION_NAMES.has(name) && isValidAction(name, args);
+        if (ok) actions.push({ name, input: args });
+        return { functionResponse: { name, response: { resultado: ok ? 'Hecho: acción registrada en la app.' : 'Error: faltan campos obligatorios o la función no existe.' } } };
+      })
+    });
+  }
+
+  return { text: finalText || researchText, actions, sources };
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método no permitido' });
   }
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(503).json({ error: 'ANTHROPIC_API_KEY no configurada' });
-  }
-
   const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
   const prompt: string = (body.prompt || '').toString();
   const webSearch: boolean = body.webSearch !== false;
@@ -135,6 +241,28 @@ export default async function handler(req: any, res: any) {
   const agentes: { nickname: string; nombre: string; rol: string }[] = Array.isArray(body.agentes) ? body.agentes.slice(0, 30) : [];
   if (!prompt.trim()) {
     return res.status(400).json({ error: 'Falta el prompt' });
+  }
+
+  // Elegir motor: Gemini por defecto (gratis); Claude solo si AI_ENGINE=claude
+  const geminiKey: string = process.env.GEMINI_API_KEY || (typeof body.geminiKey === 'string' ? body.geminiKey.trim() : '');
+  const engine = (process.env.AI_ENGINE || 'gemini').toLowerCase();
+  const useClaude = engine === 'claude' && !!process.env.ANTHROPIC_API_KEY;
+  if (!useClaude && !geminiKey) {
+    return res.status(503).json({ error: 'Falta la clave de Gemini: configura GEMINI_API_KEY en Vercel o en "Configurar IA".' });
+  }
+
+  const equipoGemini = agentes.length
+    ? `\n\nEquipo disponible para asignar tareas: ${agentes.map(a => `@${a.nickname} (${a.nombre}, ${a.rol})`).join(', ')}.`
+    : '';
+  if (!useClaude) {
+    const systemGemini = `${SYSTEM.replace(/web_search/g, 'Google Search')}${equipoGemini}\nFecha y hora actual: ${new Date().toISOString()}.`;
+    try {
+      const out = await runGemini(geminiKey, prompt, systemGemini, webSearch, allowActions);
+      return res.status(200).json({ ...out, model: 'gemini' });
+    } catch (error: any) {
+      const status = error instanceof GeminiError ? error.status : 500;
+      return res.status(status === 400 || status === 403 ? 401 : status === 429 ? 429 : 502).json({ error: `Gemini: ${error?.message || 'error desconocido'}` });
+    }
   }
 
   const tools: Anthropic.Beta.BetaToolUnion[] = [
@@ -153,6 +281,7 @@ export default async function handler(req: any, res: any) {
   const sources: { title: string; url: string }[] = [];
 
   try {
+    const client = new Anthropic();
     let response: Anthropic.Beta.BetaMessage | null = null;
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {

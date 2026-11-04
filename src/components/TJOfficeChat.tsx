@@ -694,8 +694,8 @@ export const TJOfficeChat: React.FC = () => {
     return done;
   };
 
-  // Motor de los agentes: Claude (función /api/ai en Vercel) con búsqueda web y herramientas
-  // de acción. Si Claude no está disponible, Gemini (con Google Search en investigaciones) como respaldo.
+  // Motor de los agentes: función /api/ai en Vercel (Gemini + Google Search + acciones por defecto).
+  // Si la función no está disponible (p. ej. en local), Gemini directo desde el navegador, solo texto.
   const fetchAgentResponse = async (
     apiKey: string | undefined,
     primaryModel: string,
@@ -711,7 +711,9 @@ export const TJOfficeChat: React.FC = () => {
           prompt: promptText,
           webSearch: true,
           actions: true,
-          agentes: agentes.map(a => ({ nickname: a.nickname, nombre: a.nombre, rol: a.rol }))
+          agentes: agentes.map(a => ({ nickname: a.nickname, nombre: a.nombre, rol: a.rol })),
+          // Clave de "Configurar IA": el servidor la usa si GEMINI_API_KEY no está en Vercel
+          geminiKey: apiKey || undefined
         }),
         signal
       });
@@ -740,13 +742,13 @@ export const TJOfficeChat: React.FC = () => {
         if (text) return text;
       } else {
         const err = await res.json().catch(() => ({}));
-        console.warn('Claude (/api/ai) no disponible, usando Gemini:', res.status, err?.error);
+        console.warn('/api/ai no disponible, usando Gemini directo:', res.status, err?.error);
       }
     } catch (e) {
       if (signal?.aborted) throw e;
-      console.warn('Claude (/api/ai) falló, usando Gemini:', e);
+      console.warn('/api/ai falló, usando Gemini directo:', e);
     }
-    if (!apiKey) throw new Error('No hay motor de IA disponible: configura ANTHROPIC_API_KEY en Vercel o una clave de Gemini.');
+    if (!apiKey) throw new Error('No hay motor de IA disponible: configura una clave de Gemini en "Configurar IA" o GEMINI_API_KEY en Vercel.');
     return fetchGeminiResponse(apiKey, primaryModel, promptText, signal, geminiGoogleSearch);
   };
 
