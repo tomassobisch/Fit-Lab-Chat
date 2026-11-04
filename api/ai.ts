@@ -11,12 +11,13 @@ import Anthropic from '@anthropic-ai/sdk';
 // El cliente de Claude se crea solo si se usa ese motor (lee ANTHROPIC_API_KEY)
 
 const MODEL = 'claude-opus-5-5';
-const GEMINI_MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+// Modelos actuales (2.0/2.5 ya no están disponibles para cuentas nuevas). Se prueban en orden.
+const GEMINI_MODELS = ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-flash-lite-latest', 'gemini-3.1-flash-lite'];
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const MAX_ITERATIONS = 6;
 
-// Tiempo máximo de la función en Vercel (60 s es el límite seguro del plan Hobby)
-export const config = { maxDuration: 60 };
+// Tiempo máximo de la función en Vercel (Gemini puede encadenar varios modelos si hay saturación)
+export const config = { maxDuration: 120 };
 
 const SYSTEM = `Eres un agente del equipo de TJ FitLab (ecosistema de entrenamiento híbrido: fuerza + running, app para coaches y alumnos).
 Trabajas para "el jefe" (Tomás). Respondes siempre en español.
@@ -170,7 +171,9 @@ async function geminiGenerate(apiKey: string, body: any): Promise<any> {
     const data: any = await r.json().catch(() => ({}));
     if (r.ok) return data;
     last = new GeminiError(r.status, data?.error?.message || `Gemini respondió ${r.status}`);
-    if (r.status !== 404) break; // clave inválida, cuota, etc.: no seguir probando modelos
+    // 404 modelo no disponible, 429 cuota agotada, 5xx saturado: probar el siguiente modelo.
+    // 400/401/403 (clave inválida o petición incorrecta): no tiene sentido seguir.
+    if (![404, 429, 500, 503].includes(r.status)) break;
   }
   throw last || new GeminiError(500, 'Gemini no respondió');
 }
@@ -181,19 +184,35 @@ const partsText = (data: any) =>
 async function runGemini(apiKey: string, prompt: string, system: string, webSearch: boolean, allowActions: boolean) {
   const sources: { title: string; url: string }[] = [];
 
-  // Paso 1: investigar con Google Search y redactar la respuesta
-  const research = await geminiGenerate(apiKey, {
-    systemInstruction: { parts: [{ text: `${system}\nUsa Google Search siempre que necesites datos actuales, perfiles reales, estudios o estadísticas, y cita las fuentes. Nunca inventes cifras ni URLs.` }] },
+  // Paso 1: investigar con Google Search y redactar la respuesta.
+  // Si Google Search no tiene cuota (429), se responde sin búsqueda y se avisa.
+  const researchBody = (withSearch: boolean) => ({
+    systemInstruction: { parts: [{ text: withSearch
+      ? `${system}\nUsa Google Search siempre que necesites datos actuales, perfiles reales, estudios o estadísticas, y cita las fuentes. Nunca inventes cifras ni URLs.`
+      : `${system}\nAhora NO tienes acceso a internet: no inventes datos actuales, cifras, perfiles ni URLs; si hacen falta, dilo claramente.` }] },
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    ...(webSearch ? { tools: [{ googleSearch: {} }] } : {})
+    ...(withSearch ? { tools: [{ googleSearch: {} }] } : {})
   });
+  let searchUnavailable = false;
+  let research: any;
+  try {
+    research = await geminiGenerate(apiKey, researchBody(webSearch));
+  } catch (e) {
+    if (!(webSearch && e instanceof GeminiError && e.status === 429)) throw e;
+    searchUnavailable = true;
+    research = await geminiGenerate(apiKey, researchBody(false));
+  }
   const researchText = partsText(research);
   for (const chunk of research?.candidates?.[0]?.groundingMetadata?.groundingChunks || []) {
     const web = chunk?.web;
     if (web?.uri && !sources.some(s => s.url === web.uri)) sources.push({ title: web.title || web.uri, url: web.uri });
   }
 
-  if (!allowActions) return { text: researchText, actions: [], sources };
+  const searchNote = searchUnavailable
+    ? '\n\n⚠️ No pude buscar en internet: la cuota de Google Search de Gemini está agotada o no activada (requiere facturación en Google AI Studio).'
+    : '';
+
+  if (!allowActions) return { text: researchText + searchNote, actions: [], sources, searchUnavailable };
 
   // Paso 2: decidir y registrar acciones a partir de la investigación
   const actions: { name: string; input: any }[] = [];
@@ -227,7 +246,7 @@ async function runGemini(apiKey: string, prompt: string, system: string, webSear
     });
   }
 
-  return { text: finalText || researchText, actions, sources };
+  return { text: (finalText || researchText) + searchNote, actions, sources, searchUnavailable };
 }
 
 export default async function handler(req: any, res: any) {

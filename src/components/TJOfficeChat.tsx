@@ -210,7 +210,7 @@ export const TJOfficeChat: React.FC = () => {
   const [mentionFilter, setMentionFilter] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(window.innerWidth < 1024);
-  const [geminiModel, setGeminiModel] = useState<string>('gemini-2.0-flash');
+  const [geminiModel, setGeminiModel] = useState<string>('gemini-flash-latest');
   const [geminiApiKey, setGeminiApiKey] = useState<string>(() => {
     return localStorage.getItem('tj_gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY || '';
   });
@@ -505,12 +505,12 @@ export const TJOfficeChat: React.FC = () => {
     useGoogleSearch = false
   ): Promise<string> => {
     const modelsToTry = [
-      primaryModel || 'gemini-2.0-flash',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-      'gemini-1.5-flash-latest',
-      'gemini-2.0-flash-exp',
-      'gemini-pro'
+      primaryModel || 'gemini-flash-latest',
+      'gemini-flash-latest',
+      'gemini-3.8-flash',
+      'gemini-3.5-flash',
+      'gemini-flash-lite-latest',
+      'gemini-3.1-flash-lite'
     ];
     const uniqueModels = Array.from(new Set(modelsToTry));
 
@@ -782,11 +782,11 @@ export const TJOfficeChat: React.FC = () => {
     const testCandidates = [
       geminiModel,
       ...detectedModels,
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-      'gemini-1.5-flash-latest',
-      'gemini-2.0-flash-exp',
-      'gemini-pro'
+      'gemini-flash-latest',
+      'gemini-3.8-flash',
+      'gemini-3.5-flash',
+      'gemini-flash-lite-latest',
+      'gemini-3.1-flash-lite'
     ].filter(Boolean) as string[];
 
     const uniqueCandidates = Array.from(new Set(testCandidates));
@@ -1408,7 +1408,7 @@ Responde al usuario: ${userText}`;
 
             try {
               const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 90000); // la búsqueda web de Claude puede tardar
+              const timeoutId = setTimeout(() => controller.abort(), 130000); // búsqueda + acciones pueden tardar (límite de la función: 120 s)
               aiText = await fetchAgentResponse(apiKey, geminiModel, promptText, controller.signal);
               clearTimeout(timeoutId);
             } catch (e: any) {
@@ -1914,10 +1914,10 @@ Responde al usuario: ${userText}`;
               className="bg-white/5 border border-white/10 rounded px-1.5 py-1 md:px-2.5 md:py-1.5 text-[7.5px] md:text-[9px] font-bold text-white/70 hover:text-white outline-none focus:border-[#CCFF00]/40 tracking-wider cursor-pointer uppercase font-mono transition-all max-w-[80px] md:max-w-none"
               title="Seleccionar Modelo Gemini"
             >
-              <option value="gemini-2.0-flash" className="bg-[#0A0A0A]">2.0 Flash</option>
-              <option value="gemini-1.5-flash" className="bg-[#0A0A0A]">1.5 Flash</option>
-              <option value="gemini-1.5-flash-latest" className="bg-[#0A0A0A]">1.5 Latest</option>
-              <option value="gemini-pro" className="bg-[#0A0A0A]">Pro</option>
+              <option value="gemini-flash-latest" className="bg-[#0A0A0A]">Flash Latest</option>
+              <option value="gemini-3.8-flash" className="bg-[#0A0A0A]">3.8 Flash</option>
+              <option value="gemini-3.5-flash" className="bg-[#0A0A0A]">3.5 Flash</option>
+              <option value="gemini-flash-lite-latest" className="bg-[#0A0A0A]">Flash Lite</option>
             </select>
             <button onClick={fetchData} className={`p-1.5 md:p-2 ${isSyncing ? 'animate-spin text-[#CCFF00]' : 'text-white/40'}`}><RefreshCw size={12}/></button>
             <button onClick={() => setIsVoiceEnabled(!isVoiceEnabled)} className={`p-1.5 md:p-2 rounded-full border ${isVoiceEnabled ? 'border-[#CCFF00] text-[#CCFF00]' : 'border-white/10 text-white/20'}`}><Activity size={12}/></button>
@@ -3156,10 +3156,10 @@ Responde al usuario: ${userText}`;
                   onChange={(e) => setGeminiModel(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-[#CCFF00] font-mono uppercase"
                 >
-                  <option value="gemini-2.0-flash" className="bg-[#0A0A0A]">Gemini 2.0 Flash (Recomendado & Rápido)</option>
-                  <option value="gemini-1.5-flash" className="bg-[#0A0A0A]">Gemini 1.5 Flash (Alta Disponibilidad)</option>
-                  <option value="gemini-1.5-flash-latest" className="bg-[#0A0A0A]">Gemini 1.5 Flash Latest</option>
-                  <option value="gemini-pro" className="bg-[#0A0A0A]">Gemini Pro</option>
+                  <option value="gemini-flash-latest" className="bg-[#0A0A0A]">Gemini Flash Latest (Recomendado)</option>
+                  <option value="gemini-3.8-flash" className="bg-[#0A0A0A]">Gemini 3.8 Flash</option>
+                  <option value="gemini-3.5-flash" className="bg-[#0A0A0A]">Gemini 3.5 Flash</option>
+                  <option value="gemini-flash-lite-latest" className="bg-[#0A0A0A]">Gemini Flash Lite (más cuota gratis)</option>
                 </select>
               </div>
 
