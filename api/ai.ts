@@ -159,18 +159,37 @@ class GeminiError extends Error {
   }
 }
 
-// Llama a generateContent probando modelos en orden si alguno no existe (404)
-async function geminiGenerate(apiKey: string, body: any): Promise<any> {
+async function fetchWithTimeout(url: string, init: RequestInit = {}, ms = 8000) {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  try { return await fetch(url, { ...init, signal: ctrl.signal }); } finally { clearTimeout(id); }
+}
+
+// Último modelo que respondió bien: se prueba primero en las siguientes llamadas
+let preferredModel = '';
+
+// Llama a generateContent probando modelos en orden si alguno no existe, está saturado o sin cuota.
+// stopOn429: para Google Search la cuota es de la cuenta, así que no tiene sentido probar otros modelos.
+async function geminiGenerate(apiKey: string, body: any, opts: { stopOn429?: boolean } = {}): Promise<any> {
   let last: GeminiError | null = null;
-  for (const model of GEMINI_MODELS) {
-    const r = await fetch(`${GEMINI_BASE}/${model}:generateContent?key=${encodeURIComponent(apiKey)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
+  const order = preferredModel ? [preferredModel, ...GEMINI_MODELS.filter(m => m !== preferredModel)] : GEMINI_MODELS;
+  for (const model of order) {
+    let r: Response;
+    try {
+      r = await fetchWithTimeout(`${GEMINI_BASE}/${model}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }, 25000);
+    } catch {
+      last = new GeminiError(504, `Gemini (${model}) no respondió a tiempo`);
+      continue;
+    }
     const data: any = await r.json().catch(() => ({}));
-    if (r.ok) return data;
+    if (r.ok) { preferredModel = model; return data; }
     last = new GeminiError(r.status, data?.error?.message || `Gemini respondió ${r.status}`);
+    if (r.status === 429 && opts.stopOn429) break;
+    if (model === preferredModel) preferredModel = '';
     // 404 modelo no disponible, 429 cuota agotada, 5xx saturado: probar el siguiente modelo.
     // 400/401/403 (clave inválida o petición incorrecta): no tiene sentido seguir.
     if (![404, 429, 500, 503].includes(r.status)) break;
@@ -181,72 +200,189 @@ async function geminiGenerate(apiKey: string, body: any): Promise<any> {
 const partsText = (data: any) =>
   (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('').trim();
 
-async function runGemini(apiKey: string, prompt: string, system: string, webSearch: boolean, allowActions: boolean) {
-  const sources: { title: string; url: string }[] = [];
+// ---------------------------------------------------------------------------
+// BÚSQUEDA GRATUITA PROPIA (sin clave): Bing, con DuckDuckGo de respaldo,
+// y lectura del texto de páginas. Gemini la usa cuando no sabe algo.
+// ---------------------------------------------------------------------------
 
-  // Paso 1: investigar con Google Search y redactar la respuesta.
-  // Si Google Search no tiene cuota (429), se responde sin búsqueda y se avisa.
-  const researchBody = (withSearch: boolean) => ({
-    systemInstruction: { parts: [{ text: withSearch
-      ? `${system}\nUsa Google Search siempre que necesites datos actuales, perfiles reales, estudios o estadísticas, y cita las fuentes. Nunca inventes cifras ni URLs.`
-      : `${system}\nAhora NO tienes acceso a internet: no inventes datos actuales, cifras, perfiles ni URLs; si hacen falta, dilo claramente.` }] },
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    ...(withSearch ? { tools: [{ googleSearch: {} }] } : {})
+const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36';
+type SearchResult = { title: string; url: string; snippet: string };
+
+const decodeHtml = (t: string) => t
+  .replace(/<[^>]+>/g, '')
+  .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+  .replace(/\s+/g, ' ').trim();
+
+
+async function searchDuckDuckGo(query: string): Promise<SearchResult[]> {
+  const r = await fetchWithTimeout('https://html.duckduckgo.com/html/', {
+    method: 'POST',
+    headers: { 'User-Agent': UA, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `q=${encodeURIComponent(query)}&kl=es-es`
   });
-  let searchUnavailable = false;
-  let research: any;
+  if (r.status !== 200) return []; // 202 = desafío anti-bots
+  const html = await r.text();
+  const results: SearchResult[] = [];
+  const blocks = html.split('result__body').slice(1);
+  for (const b of blocks) {
+    const a = b.match(/class="result__a" href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/);
+    if (!a) continue;
+    let url = a[1];
+    const uddg = url.match(/[?&]uddg=([^&]+)/);
+    if (uddg) url = decodeURIComponent(uddg[1]);
+    if (url.startsWith('//')) url = 'https:' + url;
+    if (!/^https?:\/\//.test(url) || url.includes('duckduckgo.com/y.js')) continue; // anuncios
+    const sn = b.match(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/);
+    results.push({ title: decodeHtml(a[2]), url, snippet: sn ? decodeHtml(sn[1]) : '' });
+    if (results.length >= 6) break;
+  }
+  return results;
+}
+
+async function searchBing(query: string): Promise<SearchResult[]> {
+  const r = await fetchWithTimeout(`https://www.bing.com/search?setlang=es&cc=ES&q=${encodeURIComponent(query)}`, { headers: { 'User-Agent': UA } });
+  const html = await r.text();
+  const results: SearchResult[] = [];
+  for (const b of html.split('<li class="b_algo"').slice(1)) {
+    const a = b.match(/<h2[^>]*>\s*<a[^>]+href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/);
+    if (!a) continue;
+    const sn = b.match(/<p[^>]*>([\s\S]*?)<\/p>/);
+    results.push({ title: decodeHtml(a[2]), url: a[1].replace(/&amp;/g, '&'), snippet: sn ? decodeHtml(sn[1]) : '' });
+    if (results.length >= 6) break;
+  }
+  return results;
+}
+
+// Bing primero (estable desde servidores); DuckDuckGo de respaldo (bloquea con 202 "anomaly" si hay muchas consultas)
+async function searchWeb(query: string): Promise<SearchResult[]> {
   try {
-    research = await geminiGenerate(apiKey, researchBody(webSearch));
-  } catch (e) {
-    if (!(webSearch && e instanceof GeminiError && e.status === 429)) throw e;
-    searchUnavailable = true;
-    research = await geminiGenerate(apiKey, researchBody(false));
+    const bing = await searchBing(query);
+    if (bing.length) return bing;
+  } catch { /* probar DuckDuckGo */ }
+  try { return await searchDuckDuckGo(query); } catch { return []; }
+}
+
+// Lee el texto principal de una página pública (bloquea direcciones internas)
+async function readPage(url: string): Promise<string> {
+  let u: URL;
+  try { u = new URL(url); } catch { throw new Error('URL inválida'); }
+  if (!/^https?:$/.test(u.protocol)) throw new Error('Solo se permiten URLs http(s)');
+  if (/^(localhost|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.|\[)/i.test(u.hostname) || !u.hostname.includes('.')) {
+    throw new Error('Dirección no permitida');
   }
-  const researchText = partsText(research);
-  for (const chunk of research?.candidates?.[0]?.groundingMetadata?.groundingChunks || []) {
-    const web = chunk?.web;
-    if (web?.uri && !sources.some(s => s.url === web.uri)) sources.push({ title: web.title || web.uri, url: web.uri });
+  const r = await fetchWithTimeout(u.toString(), { headers: { 'User-Agent': UA, 'Accept-Language': 'es-ES,es;q=0.9' } }, 9000);
+  if (!r.ok) throw new Error(`La página respondió ${r.status}`);
+  const html = (await r.text()).slice(0, 600000);
+  const text = decodeHtml(html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<(nav|footer|header|svg|noscript)[\s\S]*?<\/\1>/gi, ' '));
+  return text.slice(0, 7000);
+}
+
+const RESEARCH_FUNCTIONS = [
+  {
+    name: 'buscar_en_internet',
+    description: 'Busca en internet (gratis) y devuelve títulos, URLs y extractos. Úsala cuando no sepas algo con certeza o necesites datos actuales, fechas, perfiles reales, precios, estudios o estadísticas.',
+    parameters: { type: 'OBJECT', properties: { consulta: { type: 'STRING', description: 'Consulta de búsqueda concreta, en español o inglés' } }, required: ['consulta'] }
+  },
+  {
+    name: 'leer_pagina',
+    description: 'Lee el texto de una página web de los resultados de búsqueda para obtener los datos concretos. Úsala en los 1-3 resultados más relevantes antes de responder.',
+    parameters: { type: 'OBJECT', properties: { url: { type: 'STRING' } }, required: ['url'] }
+  }
+];
+
+// Si Google Search (grounding) no tiene cuota, no reintentarlo durante 1 hora
+let groundingBlockedUntil = 0;
+
+async function runGemini(apiKey: string, prompt: string, system: string, webSearch: boolean, allowActions: boolean) {
+  const started = Date.now();
+  const DEADLINE_MS = 100000; // margen bajo el límite de 120 s de la función
+  const sources: { title: string; url: string }[] = [];
+  const addSource = (title: string, url: string) => { if (url && !sources.some(s => s.url === url)) sources.push({ title: title || url, url }); };
+
+  // Paso 1 (opcional): Google Search integrado de Gemini, si la cuenta tiene cuota
+  let researchText = '';
+  if (webSearch && Date.now() > groundingBlockedUntil) {
+    try {
+      const research = await geminiGenerate(apiKey, {
+        systemInstruction: { parts: [{ text: `${system}\nUsa Google Search siempre que necesites datos actuales, perfiles reales, estudios o estadísticas, y cita las fuentes. Nunca inventes cifras ni URLs.` }] },
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        tools: [{ googleSearch: {} }]
+      }, { stopOn429: true });
+      researchText = partsText(research);
+      for (const chunk of research?.candidates?.[0]?.groundingMetadata?.groundingChunks || []) {
+        if (chunk?.web?.uri) addSource(chunk.web.title, chunk.web.uri);
+      }
+    } catch (e) {
+      if (!(e instanceof GeminiError && e.status === 429)) throw e;
+      groundingBlockedUntil = Date.now() + 3600000; // sin cuota: usar la búsqueda propia
+    }
   }
 
-  const searchNote = searchUnavailable
-    ? '\n\n⚠️ No pude buscar en internet: la cuota de Google Search de Gemini está agotada o no activada (requiere facturación en Google AI Studio).'
-    : '';
-
-  if (!allowActions) return { text: researchText + searchNote, actions: [], sources, searchUnavailable };
-
-  // Paso 2: decidir y registrar acciones a partir de la investigación
-  const actions: { name: string; input: any }[] = [];
-  const contents: any[] = [
-    { role: 'user', parts: [{ text: `PETICIÓN DEL JEFE:\n${prompt}\n\nINVESTIGACIÓN Y BORRADOR DE RESPUESTA (con datos de Google Search):\n${researchText}\n\nFUENTES:\n${sources.map(s => `- ${s.title}: ${s.url}`).join('\n') || '(ninguna)'}\n\nSi el jefe pidió HACER algo (publicar, crear tareas, programar mensajes, añadir leads o prospectos), llama ahora a las funciones necesarias usando los datos de la investigación. Si solo era una pregunta, no llames a ninguna función. Después escribe la respuesta final para el jefe.` }] }
+  // Paso 2: agente con herramientas. Si no hubo Google Search, investiga con la búsqueda propia.
+  const functions = [
+    ...(webSearch ? RESEARCH_FUNCTIONS : []),
+    ...(allowActions ? GEMINI_FUNCTIONS : [])
   ];
+  const instructions = researchText
+    ? `INVESTIGACIÓN PREVIA (Google Search):\n${researchText}\n\nFUENTES:\n${sources.map(s => `- ${s.title}: ${s.url}`).join('\n') || '(ninguna)'}\n\n`
+    : '';
+  const userTurn = `PETICIÓN DEL JEFE:\n${prompt}\n\n${instructions}CÓMO TRABAJAR:
+1. Si te falta información o no estás seguro (datos actuales, fechas, perfiles, cifras, estudios), usa buscar_en_internet y después leer_pagina en los 1-3 resultados más relevantes. Basa tu respuesta SOLO en lo que encuentres y cita las URLs.
+2. Si el jefe pidió HACER algo (publicar, crear tareas, programar mensajes, añadir leads o prospectos), llama a esas funciones con los datos encontrados.
+3. Si solo era una pregunta que sabes responder con certeza, responde directamente sin funciones.
+4. Termina con la respuesta final para el jefe. Nunca inventes cifras ni URLs.`;
+
+  const actions: { name: string; input: any }[] = [];
+  const contents: any[] = [{ role: 'user', parts: [{ text: userTurn }] }];
   let finalText = '';
 
-  for (let i = 0; i < 3; i++) {
+  if (!functions.length) {
+    const only = await geminiGenerate(apiKey, { systemInstruction: { parts: [{ text: system }] }, contents });
+    return { text: partsText(only), actions, sources };
+  }
+
+  for (let i = 0; i < 10; i++) {
+    const outOfTime = Date.now() - started > DEADLINE_MS;
     const step = await geminiGenerate(apiKey, {
-      systemInstruction: { parts: [{ text: system }] },
+      systemInstruction: { parts: [{ text: system + (outOfTime ? '\nSe acabó el tiempo: responde YA con lo que tengas, sin llamar a más funciones.' : '') }] },
       contents,
-      tools: [{ functionDeclarations: GEMINI_FUNCTIONS }],
-      toolConfig: { functionCallingConfig: { mode: 'AUTO' } }
+      ...(outOfTime ? {} : { tools: [{ functionDeclarations: functions }], toolConfig: { functionCallingConfig: { mode: 'AUTO' } } })
     });
     const parts = step?.candidates?.[0]?.content?.parts || [];
     const calls = parts.filter((p: any) => p.functionCall);
     const text = parts.map((p: any) => p.text || '').join('').trim();
     if (text) finalText = text;
-    if (!calls.length) break;
+    if (!calls.length || outOfTime) break;
 
     contents.push({ role: 'model', parts });
-    contents.push({
-      role: 'user',
-      parts: calls.map((p: any) => {
-        const { name, args } = p.functionCall;
+    const responses = await Promise.all(calls.map(async (p: any) => {
+      const { name, args } = p.functionCall;
+      let response: any;
+      if (name === 'buscar_en_internet') {
+        const results = await searchWeb(String(args?.consulta || ''));
+        results.forEach(r => addSource(r.title, r.url));
+        response = results.length ? { resultados: results } : { error: 'Sin resultados; prueba otra consulta.' };
+      } else if (name === 'leer_pagina') {
+        try {
+          const texto = await readPage(String(args?.url || ''));
+          response = { url: args.url, texto };
+        } catch (e: any) {
+          response = { error: `No se pudo leer la página: ${e.message}` };
+        }
+      } else {
         const ok = ACTION_NAMES.has(name) && isValidAction(name, args);
         if (ok) actions.push({ name, input: args });
-        return { functionResponse: { name, response: { resultado: ok ? 'Hecho: acción registrada en la app.' : 'Error: faltan campos obligatorios o la función no existe.' } } };
-      })
-    });
+        response = { resultado: ok ? 'Hecho: acción registrada en la app.' : 'Error: faltan campos obligatorios o la función no existe.' };
+      }
+      return { functionResponse: { name, response } };
+    }));
+    contents.push({ role: 'user', parts: responses });
   }
 
-  return { text: (finalText || researchText) + searchNote, actions, sources, searchUnavailable };
+  return { text: finalText || researchText, actions, sources };
 }
 
 export default async function handler(req: any, res: any) {
