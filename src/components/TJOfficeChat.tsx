@@ -23,6 +23,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { Agente, Mensaje, ReporteGym } from '../types';
 import { InstagramAnalyticsModal } from './InstagramAnalyticsModal';
+import { Office3D } from './Office3D';
 import { InstagramCRMView, INITIAL_LEADS, INITIAL_COACH_PROSPECTS, InstagramLead, CoachProspect } from './InstagramCRMView';
 import { fetchInstagramMetrics, buildInstagramAiContext } from '../lib/instagram';
 
@@ -147,7 +148,7 @@ export const TJOfficeChat: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // VISTA ACTIVA: CHAT, FORO DE TENDENCIAS O CRM INSTAGRAM
-  const [activeView, setActiveView] = useState<'chat' | 'forum' | 'crm' | 'planner'>('chat');
+  const [activeView, setActiveView] = useState<'chat' | 'forum' | 'crm' | 'planner' | 'office'>('chat');
 
   // --- PLANIFICADOR DE TAREAS E INTEGRACIONES (persistido en localStorage) ---
   const loadLS = <T,>(key: string, fallback: T): T => {
@@ -1295,9 +1296,14 @@ El sistema de IA está offline en este momento debido a un límite de cuota o fa
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() || isSending) return;
-
     const userText = inputText;
     setInputText('');
+    await sendChatText(userText);
+  };
+
+  // Envía un mensaje del jefe y obtiene la respuesta del agente (usado por el chat y la Oficina 3D)
+  const sendChatText = async (userText: string) => {
+    if (!userText.trim() || isSending) return;
     setIsSending(true);
 
     setTimeout(() => setIsSending(false), 5000);
@@ -1869,6 +1875,18 @@ Responde al usuario: ${userText}`;
             </button>
 
             <button 
+              onClick={() => setActiveView('office')} 
+              className={`px-2.5 py-1.5 md:px-3.5 md:py-1.5 rounded-lg text-[8.5px] md:text-[9.5px] font-black tracking-widest uppercase transition-all flex items-center gap-1.5 ${
+                activeView === 'office' 
+                  ? 'bg-[#CCFF00] text-black shadow-[0_0_12px_#CCFF0044]' 
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <span>🏢 OFICINA</span>
+              <span className="hidden lg:inline text-[7.5px] opacity-70">3D</span>
+            </button>
+
+            <button 
               onClick={() => setActiveView('planner')} 
               className={`px-2.5 py-1.5 md:px-3.5 md:py-1.5 rounded-lg text-[8.5px] md:text-[9.5px] font-black tracking-widest uppercase transition-all flex items-center gap-1.5 ${
                 activeView === 'planner' 
@@ -2052,7 +2070,15 @@ Responde al usuario: ${userText}`;
         )}
  
         {/* CONTENIDO INTERNO EN BASE A LA VISTA */}
-        {activeView === 'crm' ? (
+        {activeView === 'office' ? (
+          <Office3D
+            agentes={agentes}
+            mensajes={mensajes}
+            typingNickname={isTyping}
+            isSending={isSending}
+            onSend={(agent, text) => sendChatText(`@${agent.nickname} ${text}`)}
+          />
+        ) : activeView === 'crm' ? (
           <InstagramCRMView 
             onAskBot={(question) => {
               setInputText(question);
