@@ -23,7 +23,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { Agente, Mensaje, ReporteGym } from '../types';
 import { InstagramAnalyticsModal } from './InstagramAnalyticsModal';
-import { InstagramCRMView } from './InstagramCRMView';
+import { InstagramCRMView, INITIAL_LEADS, INITIAL_COACH_PROSPECTS, InstagramLead, CoachProspect } from './InstagramCRMView';
 import { fetchInstagramMetrics, buildInstagramAiContext } from '../lib/instagram';
 
 interface ForumPost {
@@ -589,25 +589,155 @@ export const TJOfficeChat: React.FC = () => {
     throw lastError || new Error("No se pudo obtener respuesta de la API de Gemini.");
   };
 
-  // Respuestas del chat: Claude (función /api/ai en Vercel, sin búsqueda web).
-  // Si Claude no está disponible, Gemini con la clave configurada como respaldo.
-  // Las investigaciones con búsqueda en internet van por Gemini + Google Search (executeSingleAgentResearch).
+  // Ejecuta en la app las acciones que Claude decidió hacer (tareas, mensajes, CRM).
+  // Devuelve líneas de confirmación para mostrarlas en la respuesta del agente.
+  type AgentAction = { name: string; input: any };
+  const resolveAgentId = (nickname?: string) => {
+    if (!nickname || nickname.toLowerCase() === 'all') return 'all';
+    const clean = nickname.replace('@', '').toLowerCase();
+    return agentes.find(a => a.nickname.toLowerCase() === clean)?.id || 'all';
+  };
+  const safeIsoDate = (value: string, fallbackHours: number) => {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? new Date(Date.now() + fallbackHours * 3600000).toISOString() : d.toISOString();
+  };
+  const loadList = <T,>(key: string, seed: T[]): T[] => {
+    try {
+      const raw = localStorage.getItem(key);
+      const parsed = raw ? JSON.parse(raw) : null;
+      return Array.isArray(parsed) ? parsed : seed;
+    } catch {
+      return seed;
+    }
+  };
+
+  const executeAgentActions = (actions: AgentAction[]): string[] => {
+    const done: string[] = [];
+    for (const { name, input } of actions) {
+      try {
+        if (name === 'crear_tarea') {
+          const checklist = (Array.isArray(input.checklist) ? input.checklist : []).map((t: string, i: number) => ({
+            id: `item-${Date.now()}-${i}`, texto: String(t), completado: false
+          }));
+          const fechaLimite = safeIsoDate(input.fecha_limite, 24);
+          setTasks(prev => [{
+            id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            titulo: String(input.titulo),
+            agenteId: resolveAgentId(input.agente_nickname),
+            fechaLimite,
+            completada: false,
+            checklist
+          }, ...prev]);
+          done.push(`📋 Tarea creada: "${input.titulo}" (límite ${new Date(fechaLimite).toLocaleString()})`);
+        } else if (name === 'programar_mensaje') {
+          const fechaEnvio = safeIsoDate(input.fecha_envio, 1);
+          setScheduledMsgs(prev => [{
+            id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            texto: String(input.texto),
+            agenteId: resolveAgentId(input.agente_nickname),
+            fechaEnvio,
+            enviado: false
+          }, ...prev]);
+          done.push(`⏰ Mensaje programado para ${new Date(fechaEnvio).toLocaleString()}`);
+        } else if (name === 'agregar_lead_crm') {
+          const now = new Date().toISOString();
+          const lead: InstagramLead = {
+            id: `lead-ai-${Date.now()}`,
+            nombre: String(input.nombre),
+            instagram_user: String(input.instagram_user).replace('@', ''),
+            estado: 'nuevo',
+            origen: input.origen,
+            interes: String(input.interes),
+            valor_estimado: Number(input.valor_estimado) || 0,
+            notas: String(input.notas || ''),
+            ultimo_contacto: now,
+            creado_en: now
+          };
+          const leads = loadList<InstagramLead>('tj_instagram_leads', INITIAL_LEADS);
+          localStorage.setItem('tj_instagram_leads', JSON.stringify([lead, ...leads]));
+          done.push(`🎯 Lead añadido al CRM: ${lead.nombre} (@${lead.instagram_user})`);
+        } else if (name === 'agregar_prospecto_coach') {
+          const prospect: CoachProspect = {
+            id: `coach-ai-${Date.now()}`,
+            nombre: String(input.nombre),
+            username: String(input.username).replace('@', ''),
+            avatarUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=200&auto=format&fit=crop&q=80',
+            canal: input.canal,
+            alumnosEstimados: 0,
+            especialidad: String(input.especialidad),
+            seguidores: Number(input.seguidores) || 0,
+            seguidos: 0,
+            ubicacion: String(input.ubicacion),
+            engagementRate: 0,
+            temperatura: 'tibio',
+            painPoint: String(input.pain_point),
+            pitchPropuesto: String(input.pitch),
+            dmSugerido: String(input.dm_sugerido),
+            whatsappSugerido: '',
+            emailSugerido: { asunto: '', cuerpo: '' },
+            estadoContactado: 'no_contactado',
+            valorEstimadoAnual: 240
+          };
+          const list = loadList<CoachProspect>('tj_coach_prospects', INITIAL_COACH_PROSPECTS);
+          if (!list.some(p => p.username.toLowerCase() === prospect.username.toLowerCase())) {
+            localStorage.setItem('tj_coach_prospects', JSON.stringify([prospect, ...list]));
+            done.push(`🧲 Prospecto coach añadido al Cazador B2B: ${prospect.nombre} (@${prospect.username}) — ${input.fuente_url}`);
+          } else {
+            done.push(`ℹ️ @${prospect.username} ya estaba en el Cazador B2B`);
+          }
+        }
+      } catch (e) {
+        console.warn('No se pudo ejecutar la acción del agente', name, e);
+        done.push(`⚠️ No se pudo ejecutar la acción "${name}"`);
+      }
+    }
+    return done;
+  };
+
+  // Motor de los agentes: Claude (función /api/ai en Vercel) con búsqueda web y herramientas
+  // de acción. Si Claude no está disponible, Gemini (con Google Search en investigaciones) como respaldo.
   const fetchAgentResponse = async (
     apiKey: string | undefined,
     primaryModel: string,
     promptText: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    geminiGoogleSearch = false
   ): Promise<string> => {
     try {
       const res = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: promptText, webSearch: false }),
+        body: JSON.stringify({
+          prompt: promptText,
+          webSearch: true,
+          actions: true,
+          agentes: agentes.map(a => ({ nickname: a.nickname, nombre: a.nombre, rol: a.rol }))
+        }),
         signal
       });
       if (res.ok) {
         const data = await res.json();
-        if (data?.text) return data.text;
+        const actions: AgentAction[] = Array.isArray(data?.actions) ? data.actions : [];
+        const sources: { title: string; url: string }[] = Array.isArray(data?.sources) ? data.sources : [];
+        const publish = actions.find(a => a.name === 'publicar_en_foro');
+        let text: string = data?.text || '';
+        if (publish) text = text.replace(/\*{0,2}\[PUBLISH_(TITLE|POST)\][\s\S]*$/i, '').trim();
+
+        const confirmations = executeAgentActions(actions.filter(a => a.name !== 'publicar_en_foro'));
+        if (publish) confirmations.push(`📈 Publicado en el foro: "${publish.input.titulo}"`);
+        if (confirmations.length) text = `${text}\n\n${confirmations.join('\n')}`.trim();
+
+        // Las publicaciones del foro reutilizan el flujo existente de etiquetas [PUBLISH_*]
+        if (publish) {
+          let contenido = String(publish.input.contenido || '');
+          const missing = sources.filter(src => !contenido.includes(src.url)).slice(0, 8);
+          if (missing.length) {
+            contenido += `\n\n## Fuentes consultadas\n${missing.map(src => `- [${src.title}](${src.url})`).join('\n')}`;
+          }
+          const titulo = String(publish.input.titulo || 'Investigación').replace(/\s+/g, ' ').trim();
+          text = `${text}\n\n[PUBLISH_TITLE]: ${titulo}\n[PUBLISH_CONTENT]:\n${contenido}`;
+        }
+        if (text) return text;
       } else {
         const err = await res.json().catch(() => ({}));
         console.warn('Claude (/api/ai) no disponible, usando Gemini:', res.status, err?.error);
@@ -617,7 +747,7 @@ export const TJOfficeChat: React.FC = () => {
       console.warn('Claude (/api/ai) falló, usando Gemini:', e);
     }
     if (!apiKey) throw new Error('No hay motor de IA disponible: configura ANTHROPIC_API_KEY en Vercel o una clave de Gemini.');
-    return fetchGeminiResponse(apiKey, primaryModel, promptText, signal);
+    return fetchGeminiResponse(apiKey, primaryModel, promptText, signal, geminiGoogleSearch);
   };
 
   const handleTestGeminiKey = async (keyToTest: string) => {
@@ -712,12 +842,6 @@ export const TJOfficeChat: React.FC = () => {
 
   const executeSingleAgentResearch = async (agent: Agente, customTopic?: string) => {
     const apiKey = geminiApiKey || import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      // Las investigaciones buscan en internet con Google Search: necesitan clave de Gemini
-      setTempGeminiKey('');
-      setShowGeminiConfigModal(true);
-      return;
-    }
 
     setIsTyping(agent.nickname);
     
@@ -831,9 +955,13 @@ Es de suma importancia empresarial que el contenido de cada sección sea complet
     let publishData: { titulo: string; contenido: string } | null = null;
 
     try {
-      aiText = await fetchGeminiResponse(apiKey, geminiModel, promptText, undefined, true);
+      aiText = await fetchAgentResponse(apiKey, geminiModel, promptText, undefined, true);
     } catch (e: any) {
-      console.error("Fallo llamada Gemini + Google Search en investigación:", e);
+      console.error("Fallo llamada IA en investigación:", e);
+      if (!apiKey) {
+        setTempGeminiKey('');
+        setShowGeminiConfigModal(true);
+      }
       aiText = `¡Hola jefe! He intentado buscar información sobre "${nicho}" en internet, pero encontré un error al consultar el sistema de IA: ${e.message || 'Error de conexión'}`;
     }
 
@@ -1251,7 +1379,7 @@ Cuando el usuario te pida buscar clientes o prospectar:
             }
 
             const promptText = `Eres ${agent.nombre} (rol: ${agent.rol}, nickname: @${agent.nickname}). 
-En este chat NO tienes búsqueda en internet. Si te piden datos actuales, noticias, estadísticas o fuentes que no conoces con seguridad, dilo con claridad y sugiere al jefe lanzar una "Investigación" desde el Foro (esa usa Google Search). Nunca inventes cifras ni URLs.
+Tienes búsqueda en internet en tiempo real y herramientas para actuar (publicar en el foro, crear tareas, programar mensajes, añadir leads y prospectos al CRM). Si el jefe te pide hacer algo, HAZLO con tus herramientas en vez de solo describirlo. Busca en internet cuando te pregunten por datos actuales, noticias, tendencias, perfiles de entrenadores o estadísticas. Nunca inventes cifras ni URLs.
 ${instagramContext ? `\n${instagramContext}\nUsa estos datos exactos de Instagram para responder al usuario con un criterio analítico experto, citando métricas clave (ER, Guardados, Shares, Conversión a app).\n` : ''}
 ${coachScoutContext}
 SIEMPRE di "¡Hola jefe!" al inicio de tu respuesta.
@@ -1269,7 +1397,7 @@ Si encuentras una tendencia importante de fitness, noticias o estudios científi
 (Aporta al menos 3 estadísticas con porcentajes o números reales sobre la tendencia para 2026).
 
 ## 3. Enlaces y Fuentes de Referencia
-(Incluye solo fuentes que conozcas con certeza, con su URL oficial completa. Si no tienes fuentes verificadas, escribe: "Pendiente de verificar con una Investigación del Foro (Google Search)". Nunca inventes URLs).
+(Incluye las URLs reales y completas de las fuentes que consultaste en tu búsqueda, por ejemplo: - [Nombre del Sitio](https://URL_REAL). Nunca inventes URLs).
 
 ## 4. Aplicación Estratégica en TJ FITLAB
 (Escribe recomendaciones específicas de cómo TJ FITLAB puede capitalizar esta oportunidad en su app, servicios o marketing).

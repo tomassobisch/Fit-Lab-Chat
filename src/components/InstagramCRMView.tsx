@@ -177,7 +177,7 @@ export interface CoachProspect {
   valorEstimadoAnual: number;
 }
 
-const INITIAL_COACH_PROSPECTS: CoachProspect[] = [
+export const INITIAL_COACH_PROSPECTS: CoachProspect[] = [
   {
     id: 'coach-1',
     nombre: 'Enrique Muñoz',
@@ -493,7 +493,7 @@ const INITIAL_NON_FOLLOWERS: NonFollowerAccount[] = [
   }
 ];
 
-const INITIAL_LEADS: InstagramLead[] = [
+export const INITIAL_LEADS: InstagramLead[] = [
   {
     id: 'lead-1',
     nombre: 'Marcos Benítez',
