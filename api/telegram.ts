@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
+import { waitUntil } from '@vercel/functions';
 
 // El @Secretario responde en Telegram (webhook del bot).
 // - "novedades", "resumen" o /resumen -> envía el resumen de las últimas 24 h
@@ -59,7 +60,7 @@ async function publishToInstagram(formato: string, urls: string[], caption: stri
   try { return (await igCall(published.id, { fields: 'permalink' }, 'GET')).permalink || ''; } catch { return ''; }
 }
 
-export default async function handler(req: any, res: any) {
+async function processUpdate(req: any, res: any) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const ownerChat = process.env.TELEGRAM_CHAT_ID;
   if (req.method !== 'POST') return res.status(200).json({ ok: true, configured: !!(token && ownerChat) });
@@ -191,5 +192,17 @@ MENSAJE DEL JEFE: ${text}`;
     const { data: sec } = await supabase.from('tj_agentes').select('id').ilike('nickname', 'secretario').maybeSingle();
     if (sec?.id) await supabase.from('tj_mensajes').insert({ canal: '#telegram', remitente_tipo: 'agente', remitente_id: sec.id, texto: answer, estado_procesado: true });
   } catch { /* no crítico */ }
+  return res.status(200).json({ ok: true });
+}
+
+// Responde a Telegram al instante y procesa en segundo plano (la IA puede tardar ~1 min;
+// si Telegram espera demasiado, reintenta y se duplicarían las respuestas).
+export default async function handler(req: any, res: any) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (req.method !== 'POST') return processUpdate(req, res);
+  if (!token || !process.env.TELEGRAM_CHAT_ID) return res.status(503).json({ error: 'Telegram no configurado' });
+  if (req.headers['x-telegram-bot-api-secret-token'] !== webhookSecret(token)) return res.status(401).json({ error: 'No autorizado' });
+  const sink = { status() { return this; }, json() { return this; }, send() { return this; } };
+  waitUntil(processUpdate(req, sink).catch(e => console.error('[TELEGRAM_UPDATE_ERROR]', e)));
   return res.status(200).json({ ok: true });
 }

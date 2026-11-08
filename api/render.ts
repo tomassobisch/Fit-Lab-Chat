@@ -130,7 +130,7 @@ function slideSvg(spec: PostSpec, i: number) {
 
   // Pie: llamada a la acción y usuario
   const footY = H - pad;
-  const cta = spec.f === 'carrusel' ? (isLast ? 'GUARDA Y COMPARTE' : 'DESLIZA →') : spec.f === 'story' ? 'RESPONDE A ESTA HISTORIA' : 'GUÁRDALO PARA TU PRÓXIMO ENTRENO';
+  const cta = spec.f === 'carrusel' ? (isLast ? 'GUARDA Y COMPARTE' : 'DESLIZA →') : spec.f === 'story' ? 'RESPONDE A ESTA HISTORIA' : 'GUÁRDALO Y COMPÁRTELO';
   parts.push(`<rect x="0" y="${footY - 70}" width="${W}" height="2" fill="#262626"/>`);
   parts.push(`<text x="${pad}" y="${footY}" font-family="Poppins" font-weight="700" font-size="30" fill="${NEON}" letter-spacing="2">${esc(cta)}</text>`);
   parts.push(`<text x="${W - pad}" y="${footY}" text-anchor="end" font-family="Poppins" font-weight="500" font-size="28" fill="#9ca3af">${HANDLE}</text>`);
