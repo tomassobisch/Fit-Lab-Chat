@@ -156,6 +156,71 @@ function windowTexture() {
   });
 }
 
+// Moqueta con motas (tinte del departamento)
+function carpetTexture(hex: number, w: number, d: number) {
+  const base = new THREE.Color(hex).lerp(new THREE.Color(0x3b4170), 0.55);
+  const t = canvasTexture(16, 16, g => {
+    g.fillStyle = '#' + base.getHexString(); g.fillRect(0, 0, 16, 16);
+    const light = '#' + base.clone().offsetHSL(0, 0, 0.06).getHexString();
+    const dark = '#' + base.clone().offsetHSL(0, 0, -0.06).getHexString();
+    for (let i = 0; i < 26; i++) { g.fillStyle = i % 2 ? light : dark; g.fillRect((i * 7) % 16, (i * 11) % 16, 1, 1); }
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(w, d);
+  return t;
+}
+// Parqué de madera
+function woodTexture(w: number, d: number) {
+  const t = canvasTexture(32, 32, g => {
+    const tones = ['#b07a4f', '#a46f45', '#ba855a', '#9c6a42'];
+    for (let r = 0; r < 4; r++) {
+      const off = r % 2 ? 12 : 0;
+      for (let c = -1; c < 3; c++) { g.fillStyle = tones[(r + c + 4) % 4]; g.fillRect(c * 16 + off, r * 8, 16, 8); }
+      g.fillStyle = '#7a5233'; g.fillRect(0, r * 8 + 7, 32, 1);
+      for (let c = -1; c < 3; c++) g.fillRect(c * 16 + off, r * 8, 1, 8);
+    }
+    g.fillStyle = 'rgba(255,255,255,0.08)'; for (let i = 0; i < 12; i++) g.fillRect((i * 9) % 32, (i * 5) % 32, 3, 1);
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(w / 2, d / 2);
+  return t;
+}
+function nightWindowTexture() {
+  return canvasTexture(24, 16, g => {
+    const grd = g.createLinearGradient(0, 0, 0, 16);
+    grd.addColorStop(0, '#0b1230'); grd.addColorStop(1, '#25306b');
+    g.fillStyle = grd; g.fillRect(0, 0, 24, 16);
+    g.fillStyle = '#fff7d6'; [[3, 3], [9, 6], [15, 2], [20, 8], [6, 11], [17, 12]].forEach(([x, y]) => g.fillRect(x, y, 1, 1));
+    g.fillStyle = '#fde68a'; g.fillRect(18, 3, 3, 3); g.fillStyle = '#25306b'; g.fillRect(19, 3, 2, 2);
+  });
+}
+function duskWindowTexture() {
+  return canvasTexture(24, 16, g => {
+    const grd = g.createLinearGradient(0, 0, 0, 16);
+    grd.addColorStop(0, '#6d5bd0'); grd.addColorStop(0.55, '#f472b6'); grd.addColorStop(1, '#fdba74');
+    g.fillStyle = grd; g.fillRect(0, 0, 24, 16);
+    g.fillStyle = '#fde68a'; g.fillRect(9, 11, 6, 3);
+  });
+}
+// Pósters pixel art de fitness
+function posterTexture(kind: 'dumbbell' | 'run' | 'hybrid' | 'kettle', accent: string) {
+  return canvasTexture(20, 26, g => {
+    g.fillStyle = '#111827'; g.fillRect(0, 0, 20, 26);
+    g.fillStyle = accent;
+    if (kind === 'dumbbell') { g.fillRect(4, 10, 12, 2); g.fillRect(2, 7, 3, 8); g.fillRect(15, 7, 3, 8); g.fillRect(1, 8, 1, 6); g.fillRect(18, 8, 1, 6); }
+    if (kind === 'kettle') { g.fillRect(6, 8, 8, 9); g.fillRect(5, 10, 10, 6); g.fillStyle = '#111827'; g.fillRect(8, 9, 4, 2); g.fillStyle = accent; g.fillRect(7, 5, 6, 1); g.fillRect(6, 6, 1, 3); g.fillRect(13, 6, 1, 3); }
+    if (kind === 'run') { g.fillRect(9, 4, 3, 3); g.fillRect(8, 8, 4, 6); g.fillRect(5, 9, 3, 2); g.fillRect(12, 10, 3, 2); g.fillRect(7, 14, 2, 5); g.fillRect(11, 14, 2, 3); g.fillRect(12, 16, 3, 2); }
+    if (kind === 'hybrid') { g.fillRect(3, 6, 14, 2); g.fillRect(3, 6, 2, 8); g.fillRect(15, 6, 2, 8); g.fillRect(3, 12, 14, 2); g.fillStyle = '#fff'; g.fillRect(8, 9, 4, 2); }
+    g.fillStyle = '#ffffff'; g.fillRect(3, 21, 14, 1); g.fillRect(5, 23, 10, 1);
+  });
+}
+// Círculo de luz cálida (lámparas)
+function glowTexture() {
+  return canvasTexture(64, 64, g => {
+    const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grd.addColorStop(0, 'rgba(255,214,140,0.85)'); grd.addColorStop(0.5, 'rgba(255,190,110,0.3)'); grd.addColorStop(1, 'rgba(255,180,100,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, 64, 64);
+  }, false);
+}
+
 // --- Caras pixel art (12x12) con parpadeo ---
 function faceTextures(skin: string, hair: string, seed: number, female: boolean) {
   const draw = (blink: boolean) => canvasTexture(12, 12, g => {
@@ -324,7 +389,12 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
     const winTex = windowTexture();
 
     // --- Luces de día ---
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xb8bde6, 1.35));
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xb8bde6, 1.35);
+    scene.add(hemi);
+    const glowTex = glowTexture();
+    const lampPools: THREE.Mesh[] = [];
+    const nightTex = nightWindowTexture(), duskTex = duskWindowTexture();
+    const windowMats: THREE.MeshBasicMaterial[] = [];
     const sun = new THREE.DirectionalLight(0xffffff, 1.05);
     sun.position.set(-14, 26, -10);
     sun.castShadow = true;
@@ -378,6 +448,20 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
       monitorAt(f, x - 0.15, z - 0.1, accent);
       addTo(f, box(0.5, 0.03, 0.16, mat(0xf3f4f6), x - 0.15, 0.915, z + 0.25), box(0.1, 0.03, 0.14, mat(0xf3f4f6), x + 0.3, 0.915, z + 0.28));
       addTo(f, box(0.28, 0.02, 0.36, mat(C.paper), x + 0.62, 0.91, z + 0.05), box(0.1, 0.12, 0.1, mat(accent), x + 0.62, 0.96, z - 0.3));
+      // Detalles: pila de papeles, taza con asa, foto, cactus y cable
+      [0, 1, 2].forEach(k => addTo(f, box(0.26, 0.02, 0.34, mat(k % 2 ? 0xf3f4f6 : C.paper), x + 0.62 + k * 0.01, 0.93 + k * 0.022, z + 0.05, false)));
+      addTo(f, box(0.04, 0.06, 0.02, mat(accent), x + 0.69, 0.97, z - 0.3, false));
+      addTo(f, box(0.16, 0.14, 0.03, mat(0x92400e), x - 0.72, 0.98, z - 0.25), box(0.12, 0.1, 0.01, flat(0x7dd3fc), x - 0.72, 0.985, z - 0.233, false));
+      addTo(f, box(0.1, 0.08, 0.1, mat(C.pot), x - 0.75, 0.94, z + 0.25), box(0.05, 0.14, 0.05, mat(0x15803d), x - 0.75, 1.05, z + 0.25), box(0.04, 0.05, 0.04, mat(0x15803d), x - 0.71, 1.06, z + 0.25));
+      addTo(f, box(0.02, 0.5, 0.02, mat(0x1f2937), x - 0.15, 0.62, z + 0.12, false));
+      // Lámpara de escritorio con círculo de luz
+      addTo(f, box(0.16, 0.03, 0.16, mat(0x1f2937), x - 0.72, 0.915, z + 0.02), box(0.03, 0.34, 0.03, mat(0x1f2937), x - 0.72, 1.08, z + 0.02), box(0.22, 0.08, 0.14, mat(accent), x - 0.62, 1.24, z + 0.02), box(0.16, 0.02, 0.1, flat(0xfff3c4), x - 0.62, 1.2, z + 0.02, false));
+      const pool = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.2 }));
+      pool.rotation.x = -Math.PI / 2; pool.position.set(x - 0.5, 0.925, z + 0.05);
+      addTo(f, pool); lampPools.push(pool);
+      const floorPool = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 3.2), new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.2 }));
+      floorPool.rotation.x = -Math.PI / 2; floorPool.position.set(x - 0.4, 0.02, z + 0.6);
+      addTo(f, floorPool); lampPools.push(floorPool);
     };
     const partitionAt = (f: number, x: number, z: number, w: number, d: number) => {
       const p = box(w, 1.25, d, mat(C.partition), x, 0.625, z);
@@ -456,7 +540,9 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
           const off = -normal.length() * 0.16;
           const wx = vertical ? normal.x * off : t, wz = vertical ? t : normal.z * off;
           const frame = box(vertical ? 0.06 : 1.7, 1.35, vertical ? 1.7 : 0.06, mat(C.windowFrame), wx, 1.75, wz, false);
-          const pane = new THREE.Mesh(new THREE.PlaneGeometry(1.55, 1.2), new THREE.MeshBasicMaterial({ map: winTex }));
+          const paneMat = new THREE.MeshBasicMaterial({ map: winTex });
+          windowMats.push(paneMat);
+          const pane = new THREE.Mesh(new THREE.PlaneGeometry(1.55, 1.2), paneMat);
           pane.position.set(vertical ? wx - normal.x * 0.035 : wx, 1.75, vertical ? wz : wz - normal.z * 0.035);
           pane.rotation.y = Math.atan2(-normal.x, -normal.z);
           const sill = box(vertical ? 0.2 : 1.8, 0.06, vertical ? 1.8 : 0.2, mat(0xffffff), wx - normal.x * 0.08, 1.05, wz - normal.z * 0.08, false);
@@ -522,7 +608,12 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
     const mrSign = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.36), new THREE.MeshBasicMaterial({ map: labelTexture('SALA DE REUNIONES', '', '#1f2937', '#a3e635', 256, 52) }));
     mrSign.position.set((doorX0 + doorX1) / 2, 1.9, MR.z0 - 0.08); mrSign.rotation.y = Math.PI;
     addTo(F0, mrSign, box(doorX1 - doorX0 + 0.2, 0.1, 0.14, mat(0x9aa3c7), (doorX0 + doorX1) / 2, 1.62, MR.z0, false));
-    rugAt(F0, mrMid.x, mrMid.z, 8, 4.6, 0x334155);
+    const wood = new THREE.Mesh(new THREE.PlaneGeometry(MR.x1 - MR.x0, MR.z1 - MR.z0), new THREE.MeshLambertMaterial({ map: woodTexture(MR.x1 - MR.x0, MR.z1 - MR.z0) }));
+    wood.rotation.x = -Math.PI / 2; wood.position.set((MR.x0 + MR.x1) / 2, 0.011, (MR.z0 + MR.z1) / 2); wood.receiveShadow = true;
+    addTo(F0, wood);
+    rugAt(F0, mrMid.x, mrMid.z, 7.6, 3.8, 0x334155);
+    posterAt(F0, -halfW + 0.16, 1.9, 3, Math.PI / 2, posterTexture('run', '#84cc16'), 0.9, 1.15);
+    posterAt(F0, -halfW + 0.16, 1.9, 5, Math.PI / 2, posterTexture('hybrid', '#84cc16'), 0.9, 1.15);
     collide(F0, box(6.2, 0.1, 1.7, mat(0xf3f4f6), mrMid.x, 0.86, mrMid.z));
     addTo(F0, box(6.0, 0.06, 1.5, mat(0xd1d5db), mrMid.x, 0.8, mrMid.z), box(0.5, 0.78, 0.5, mat(0x6b7280), mrMid.x - 2.2, 0.4, mrMid.z), box(0.5, 0.78, 0.5, mat(0x6b7280), mrMid.x + 2.2, 0.4, mrMid.z));
     [-2.3, -0.8, 0.8, 2.3].forEach(dx => addTo(F0, box(0.3, 0.02, 0.4, mat(C.paper), mrMid.x + dx, 0.92, mrMid.z - 0.4, false), box(0.3, 0.02, 0.4, mat(C.paper), mrMid.x + dx, 0.92, mrMid.z + 0.4, false)));
@@ -561,6 +652,16 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
     for (let f = 1; f < DEPTS.length; f++) {
       const accent = DEPTS[f].color;
       const n = deptAgents[f].length;
+      if (n) {
+        const x0 = podX(f, 0) - 3, x1 = podX(f, n - 1) + 3, z0 = POD_Z - 2.9, z1 = POD_Z + 1.6;
+        const carpet = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0), new THREE.MeshLambertMaterial({ map: carpetTexture(accent, x1 - x0, z1 - z0) }));
+        carpet.rotation.x = -Math.PI / 2; carpet.position.set((x0 + x1) / 2, 0.011, (z0 + z1) / 2); carpet.receiveShadow = true;
+        addTo(f, carpet, box(x1 - x0 + 0.06, 0.025, 0.06, mat(accent), (x0 + x1) / 2, 0.012, z0, false));
+      }
+      const accHex = '#' + new THREE.Color(accent).getHexString();
+      posterAt(f, -6.2, 1.9, halfD - 0.16, Math.PI, posterTexture(f === 3 ? 'kettle' : 'dumbbell', accHex), 0.9, 1.15);
+      posterAt(f, -4.8, 1.9, halfD - 0.16, Math.PI, posterTexture(f === 1 ? 'run' : 'hybrid', accHex), 0.9, 1.15);
+      posterAt(f, halfW - 0.16, 1.9, -6, -Math.PI / 2, logoTex, 1.1, 1.1);
       deptAgents[f].forEach((_, i) => {
         const px = podX(f, i);
         // Cubículo: mampara trasera + laterales, escritorio, silla y papelera
@@ -694,9 +795,9 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
       const root = document.createElement('div');
       root.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;text-align:center;white-space:nowrap;display:none;';
       const bubble = document.createElement('div');
-      bubble.style.cssText = `display:none;max-width:220px;white-space:normal;margin:0 auto 5px;padding:6px 8px;border-radius:8px;background:#ffffff;border:2px solid ${color};color:#1f2937;font:700 10px/1.35 ui-monospace,monospace;box-shadow:3px 3px 0 ${color}55;text-align:left;`;
+      bubble.style.cssText = `display:none;max-width:220px;white-space:normal;margin:0 auto 5px;padding:6px 8px;border-radius:8px;background:#ffffff;border:2px solid ${color};color:#1f2937;font:400 16px/1.05 'VT323',ui-monospace,monospace;box-shadow:3px 3px 0 ${color}55;text-align:left;image-rendering:pixelated;`;
       const name = document.createElement('div');
-      name.style.cssText = `display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:4px;background:${color};color:#fff;font:800 9px ui-monospace,monospace;letter-spacing:.03em;box-shadow:2px 2px 0 rgba(0,0,0,.18);`;
+      name.style.cssText = `display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:4px;background:${color};color:#fff;font:400 9px 'Silkscreen',ui-monospace,monospace;letter-spacing:.02em;box-shadow:2px 2px 0 rgba(0,0,0,.25);border:1px solid rgba(0,0,0,.25);`;
       name.textContent = `@${b.agent.nickname}`;
       const emote = document.createElement('div');
       emote.style.cssText = 'display:none;width:22px;height:22px;margin:0 auto 3px;border-radius:5px;background:#fff;border:2px solid #1f2937;box-shadow:2px 2px 0 rgba(31,41,55,.25);font:13px/18px sans-serif;text-align:center;';
@@ -770,10 +871,12 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
     let yaw = Math.PI / 4, yawTarget = yaw, zoom = 1;
     rotateRef.current = (dir: number) => { yawTarget += dir * Math.PI / 2; };
 
+    let applyTimeOfDayRef = () => {};
     if (import.meta.env.DEV) {
       (window as any).__tjOffice = {
         teleport: (x: number, z: number) => { player.group.position.set(x, 0, z); moveTarget = null; },
         rotate: (d: number) => { yawTarget += d * Math.PI / 2; },
+        phase: (p: '' | 'day' | 'dusk' | 'night') => { forcedPhase = p; applyTimeOfDayRef(); },
         bots: () => bots.map(b => ({ nick: b.agent.nickname, floor: b.floor, at: b.at, state: b.state, sitting: b.sitting }))
       };
     }
@@ -892,11 +995,35 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
     const tmp = new THREE.Vector3(), wp = new THREE.Vector3(), camDir = new THREE.Vector3();
     let raf = 0;
 
+    let lastPhase = '';
+    let forcedPhase: '' | 'day' | 'dusk' | 'night' = '';
+    const applyTimeOfDay = () => {
+      const h = new Date().getHours();
+      const phase = forcedPhase || (h >= 21 || h < 6 ? 'night' : (h >= 18 || h < 8) ? 'dusk' : 'day');
+      if (phase === lastPhase) return;
+      lastPhase = phase;
+      const cfg = {
+        day: { bg: C.bg, sky: 0xffffff, ground: 0xb8bde6, hemi: 1.35, sun: 0xffffff, sunI: 1.05, win: winTex, pool: 0.12 },
+        dusk: { bg: 0xf3dfe4, sky: 0xffe2c8, ground: 0xa99bd8, hemi: 1.1, sun: 0xffb27a, sunI: 0.85, win: duskTex, pool: 0.55 },
+        night: { bg: 0x101634, sky: 0x9aaaff, ground: 0x34396b, hemi: 0.78, sun: 0x9fb4ff, sunI: 0.3, win: nightTex, pool: 1.0 }
+      }[phase];
+      (scene.background as THREE.Color).set(cfg.bg);
+      hemi.color.set(cfg.sky); hemi.groundColor.set(cfg.ground); hemi.intensity = cfg.hemi;
+      sun.color.set(cfg.sun); sun.intensity = cfg.sunI;
+      windowMats.forEach(m => { m.map = cfg.win; m.needsUpdate = true; });
+      lampPools.forEach(p => { (p.material as THREE.MeshBasicMaterial).opacity = cfg.pool; });
+      if (mount) mount.style.background = '#' + new THREE.Color(cfg.bg).getHexString();
+    };
+    applyTimeOfDay();
+    applyTimeOfDayRef = applyTimeOfDay;
+    let todTimer = 0;
+
     const tick = () => {
       raf = requestAnimationFrame(tick);
       const dt = Math.min(clock.getDelta(), 0.05);
       const t = clock.elapsedTime;
       yaw += (yawTarget - yaw) * Math.min(1, dt * 8);
+      todTimer += dt; if (todTimer > 30) { todTimer = 0; applyTimeOfDay(); }
 
       // Movimiento relativo a la cámara (arriba en pantalla = hacia el fondo)
       const fwd = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
@@ -1139,7 +1266,7 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
         <div className="flex items-center gap-2 px-1 pb-1.5 border-b-2 border-[#1f2937]/10">
           <img src={LOGO_URL} alt="TJ FitLab" className="w-7 h-7 rounded" />
           <div className="leading-tight">
-            <p className="text-[10px] font-black text-[#1f2937] tracking-widest">TJ FITLAB HQ</p>
+            <p className="text-[11px] text-[#1f2937]" style={{ fontFamily: "'Silkscreen', monospace", fontWeight: 700 }}>TJ FITLAB HQ</p>
             <p className="text-[8px] text-[#6b7280] uppercase tracking-wider">Oficinas</p>
           </div>
         </div>
@@ -1148,7 +1275,7 @@ export const Office3D: React.FC<Props> = ({ agentes, mensajes, typingNickname, i
             className={`w-full text-left px-2 py-1.5 rounded transition-all flex items-center gap-2 ${floor === fi.index ? 'bg-[#eef0fb]' : 'hover:bg-[#f3f4f6]'}`}>
             <span className="w-5 h-5 rounded-sm text-[9px] font-black flex items-center justify-center shrink-0 text-white" style={{ background: hex(fi.color), opacity: floor === fi.index ? 1 : 0.55 }}>{fi.index}</span>
             <span className="min-w-0">
-              <span className="block text-[9.5px] font-bold text-[#1f2937] truncate">{fi.short}</span>
+              <span className="block text-[10px] text-[#1f2937] truncate" style={{ fontFamily: "'Silkscreen', monospace" }}>{fi.short}</span>
               <span className="block text-[8px] text-[#6b7280] truncate">{fi.index === 0 ? 'Recepción · Reuniones' : fi.agents.map(a => '@' + a.nickname).join(' ')}</span>
             </span>
           </button>
