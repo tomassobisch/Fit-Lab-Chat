@@ -667,6 +667,11 @@ export const TJOfficeChat: React.FC = () => {
           const leads = loadList<InstagramLead>('tj_instagram_leads', INITIAL_LEADS);
           localStorage.setItem('tj_instagram_leads', JSON.stringify([lead, ...leads]));
           done.push(`🎯 Lead añadido al CRM: ${lead.nombre} (@${lead.instagram_user})`);
+        } else if (name === 'crear_post_instagram') {
+          const previews: string[] = Array.isArray(input._preview) ? input._preview : [];
+          const label = input.formato === 'carrusel' ? `carrusel de ${previews.length} diapositivas` : input.formato === 'story' ? 'story' : 'post';
+          done.push(`🖼 Borrador de ${label} listo${input._telegram ? ' y enviado a tu Telegram para aprobar (✅ Publicar / 🗑 Descartar)' : ' (Telegram no configurado: no se puede aprobar todavía)'}`);
+          previews.forEach((u, i) => done.push(`   🔗 Diapositiva ${i + 1}: ${u}`));
         } else if (name === 'agregar_prospecto_coach') {
           const prospect: CoachProspect = {
             id: `coach-ai-${Date.now()}`,
@@ -724,6 +729,7 @@ export const TJOfficeChat: React.FC = () => {
           webSearch: true,
           actions: true,
           agentes: agentes.map(a => ({ nickname: a.nickname, nombre: a.nombre, rol: a.rol })),
+          agente: agentNickname,
           // Clave de "Configurar IA": el servidor la usa si GEMINI_API_KEY no está en Vercel
           geminiKey: apiKey || undefined
         }),
@@ -741,7 +747,8 @@ export const TJOfficeChat: React.FC = () => {
         if (publish) confirmations.push(`📈 Publicado en el foro: "${publish.input.titulo}"`);
         if (confirmations.length) {
           text = `${text}\n\n${confirmations.join('\n')}`.trim();
-          notifyTelegram('accion', confirmations.join('\n'), agentNickname);
+          const toNotify = confirmations.filter(c => !c.startsWith('🖼') && !c.startsWith('   🔗'));
+          if (toNotify.length) notifyTelegram('accion', toNotify.join('\n'), agentNickname);
         }
 
         // Las publicaciones del foro reutilizan el flujo existente de etiquetas [PUBLISH_*]

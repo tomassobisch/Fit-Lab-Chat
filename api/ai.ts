@@ -29,6 +29,7 @@ Cuando el jefe te pida HACER algo, hazlo con tus herramientas en lugar de descri
 - Recordatorios o mensajes a una hora concreta -> programar_mensaje.
 - Un posible cliente para TJ FitLab -> agregar_lead_crm.
 - Coaches/entrenadores reales encontrados en la web como prospectos B2B -> agregar_prospecto_coach (solo perfiles que hayas verificado con web_search).
+- Contenido para Instagram (post de imagen, carrusel o story) -> crear_post_instagram. Se diseña con la marca TJ FitLab y se envía al jefe para que lo apruebe antes de publicarse. Títulos cortos y potentes (máx. 8 palabras), textos de 1-2 frases, caption con gancho y llamada a la acción.
 No uses las etiquetas [PUBLISH_TITLE]/[PUBLISH_CONTENT]: usa la herramienta publicar_en_foro.
 Si una petición es solo una pregunta, responde sin usar herramientas de acción.
 Al terminar, resume en pocas líneas qué hiciste.`;
@@ -113,8 +114,66 @@ const ACTION_TOOLS: Anthropic.Beta.BetaTool[] = [
       required: ['nombre', 'username', 'canal', 'especialidad', 'ubicacion', 'seguidores', 'fuente_url', 'pain_point', 'pitch', 'dm_sugerido'],
       additionalProperties: false
     }
+  },
+  {
+    name: 'crear_post_instagram',
+    description: 'Prepara un post de Instagram para @tomassobisch.coach con el diseño de marca TJ FitLab (negro + verde neón + logo). NO se publica directamente: se envía al jefe por Telegram para que lo apruebe. Formatos: post (1 imagen 4:5), carrusel (3-8 diapositivas: portada, contenido y cierre) o story (1 imagen 9:16).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        formato: { type: 'string', enum: ['post', 'carrusel', 'story'] },
+        etiqueta: { type: 'string', description: 'Etiqueta corta de la portada, p. ej. "TIP DEL DÍA" o "HYROX 2027" (máx. 24 caracteres)' },
+        diapositivas: {
+          type: 'array',
+          description: 'Diapositivas en orden. Post y story: 1. Carrusel: 3-8 (la primera es la portada y la última el cierre con llamada a la acción).',
+          items: {
+            type: 'object',
+            properties: {
+              titulo: { type: 'string', description: 'Título corto y potente (máx. 8 palabras)' },
+              texto: { type: 'string', description: 'Texto de apoyo de 1-2 frases (máx. 200 caracteres)' }
+            },
+            required: ['titulo', 'texto']
+          }
+        },
+        caption: { type: 'string', description: 'Texto del post con gancho, valor y llamada a la acción (máx. 1500 caracteres)' },
+        hashtags: { type: 'array', items: { type: 'string' }, description: '5-12 hashtags relevantes sin #' }
+      },
+      required: ['formato', 'etiqueta', 'diapositivas', 'caption', 'hashtags'],
+      additionalProperties: false
+    }
   }
 ];
+
+// --- Borradores de Instagram: diseño (vía /api/render) y envío a Telegram para aprobar ---
+const escHtml = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+function draftFromInput(input: any) {
+  const formato = ['post', 'carrusel', 'story'].includes(input?.formato) ? input.formato : 'post';
+  let slides = (Array.isArray(input?.diapositivas) ? input.diapositivas : []).map((d: any) => ({ t: String(d?.titulo || '').slice(0, 90), x: String(d?.texto || '').slice(0, 300) })).filter((d: any) => d.t);
+  if (!slides.length) slides = [{ t: 'TJ FitLab', x: '' }];
+  slides = formato === 'carrusel' ? slides.slice(0, 8) : slides.slice(0, 1);
+  const spec = { f: formato, k: String(input?.etiqueta || '').slice(0, 24) || undefined, s: slides };
+  const tags = (Array.isArray(input?.hashtags) ? input.hashtags : []).map((h: any) => '#' + String(h).replace(/^#/, '').replace(/\s+/g, '')).filter((h: string) => h.length > 1).slice(0, 15);
+  const caption = `${String(input?.caption || '').trim().slice(0, 1800)}${tags.length ? '\n\n' + tags.join(' ') : ''}`;
+  return { formato, spec, caption, d: Buffer.from(JSON.stringify(spec), 'utf8').toString('base64url'), count: slides.length };
+}
+async function sendDraftToTelegram(base: string, input: any, agente?: string) {
+  const token = process.env.TELEGRAM_BOT_TOKEN, chatId = process.env.TELEGRAM_CHAT_ID;
+  const draft = draftFromInput(input);
+  const urls = Array.from({ length: draft.count }, (_, i) => `${base}/api/render?d=${draft.d}&i=${i}`);
+  if (!token || !chatId) return { ...draft, urls, sent: false };
+  const tg = (method: string, payload: any) => fetch(`https://api.telegram.org/bot${token}/${method}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json()).catch(() => ({}));
+  if (urls.length > 1) await tg('sendMediaGroup', { chat_id: chatId, media: urls.map(u => ({ type: 'photo', media: u })) });
+  else await tg('sendPhoto', { chat_id: chatId, photo: urls[0] });
+  const label = draft.formato === 'carrusel' ? `carrusel de ${draft.count} diapositivas` : draft.formato === 'story' ? 'story' : 'post de imagen';
+  const sent: any = await tg('sendMessage', {
+    chat_id: chatId,
+    parse_mode: 'HTML',
+    disable_web_page_preview: true,
+    text: `🖼 <b>Borrador de ${label}</b>${agente ? ` · @${escHtml(agente)}` : ''}\n\n${escHtml(draft.caption).slice(0, 3200)}\n\n<a href="${urls[0]}">🔗 Diseño</a>`,
+    reply_markup: { inline_keyboard: [[{ text: '✅ Publicar en Instagram', callback_data: 'pub' }, { text: '🗑 Descartar', callback_data: 'del' }]] }
+  });
+  return { ...draft, urls, sent: !!sent?.ok };
+}
 
 const ACTION_NAMES = new Set(ACTION_TOOLS.map(t => t.name));
 
@@ -296,7 +355,7 @@ const RESEARCH_FUNCTIONS = [
 // Si Google Search (grounding) no tiene cuota, no reintentarlo durante 1 hora
 let groundingBlockedUntil = 0;
 
-async function runGemini(apiKey: string, prompt: string, system: string, webSearch: boolean, allowActions: boolean) {
+async function runGemini(apiKey: string, prompt: string, system: string, webSearch: boolean, allowActions: boolean, onlyPosts = false) {
   const started = Date.now();
   const DEADLINE_MS = 100000; // margen bajo el límite de 120 s de la función
   const sources: { title: string; url: string }[] = [];
@@ -324,7 +383,7 @@ async function runGemini(apiKey: string, prompt: string, system: string, webSear
   // Paso 2: agente con herramientas. Si no hubo Google Search, investiga con la búsqueda propia.
   const functions = [
     ...(webSearch ? RESEARCH_FUNCTIONS : []),
-    ...(allowActions ? GEMINI_FUNCTIONS : [])
+    ...(allowActions ? GEMINI_FUNCTIONS.filter(f => !onlyPosts || f.name === 'crear_post_instagram') : [])
   ];
   const instructions = researchText
     ? `INVESTIGACIÓN PREVIA (Google Search):\n${researchText}\n\nFUENTES:\n${sources.map(s => `- ${s.title}: ${s.url}`).join('\n') || '(ninguna)'}\n\n`
@@ -393,6 +452,18 @@ export default async function handler(req: any, res: any) {
   const prompt: string = (body.prompt || '').toString();
   const webSearch: boolean = body.webSearch !== false;
   const allowActions: boolean = body.actions !== false;
+  const onlyPosts: boolean = body.actions === 'posts';
+  const base = `https://${req.headers?.['x-forwarded-host'] || req.headers?.host || 'fitlabchat.vercel.app'}`;
+  const agenteNick: string | undefined = typeof body.agente === 'string' ? body.agente.slice(0, 40) : undefined;
+  // Tras obtener la respuesta: diseñar y enviar a Telegram los borradores de Instagram
+  const withDrafts = async (actions: { name: string; input: any }[]) => {
+    for (const a of actions) {
+      if (a.name !== 'crear_post_instagram') continue;
+      const r = await sendDraftToTelegram(base, a.input, agenteNick);
+      a.input = { ...a.input, _preview: r.urls, _telegram: r.sent };
+    }
+    return actions;
+  };
   const agentes: { nickname: string; nombre: string; rol: string }[] = Array.isArray(body.agentes) ? body.agentes.slice(0, 30) : [];
   if (!prompt.trim()) {
     return res.status(400).json({ error: 'Falta el prompt' });
@@ -412,7 +483,8 @@ export default async function handler(req: any, res: any) {
   if (!useClaude) {
     const systemGemini = `${SYSTEM.replace(/web_search/g, 'Google Search')}${equipoGemini}\nFecha y hora actual: ${new Date().toISOString()}.`;
     try {
-      const out = await runGemini(geminiKey, prompt, systemGemini, webSearch, allowActions);
+      const out = await runGemini(geminiKey, prompt, systemGemini, webSearch, allowActions, onlyPosts);
+      out.actions = await withDrafts(out.actions);
       return res.status(200).json({ ...out, model: 'gemini' });
     } catch (error: any) {
       const status = error instanceof GeminiError ? error.status : 500;
@@ -422,7 +494,7 @@ export default async function handler(req: any, res: any) {
 
   const tools: Anthropic.Beta.BetaToolUnion[] = [
     ...(webSearch ? [{ type: 'web_search_20260209' as const, name: 'web_search' as const, max_uses: 5 }] : []),
-    ...(allowActions ? ACTION_TOOLS : [])
+    ...(allowActions ? ACTION_TOOLS.filter(t => !onlyPosts || t.name === 'crear_post_instagram') : [])
   ];
 
   const equipo = agentes.length
@@ -500,7 +572,7 @@ export default async function handler(req: any, res: any) {
       .join('')
       .trim();
     const text = finalText || texts.join('\n\n');
-    return res.status(200).json({ text, actions, sources, model: response.model });
+    return res.status(200).json({ text, actions: await withDrafts(actions), sources, model: response.model });
   } catch (error: any) {
     if (error instanceof Anthropic.AuthenticationError) {
       return res.status(401).json({ error: 'ANTHROPIC_API_KEY inválida' });
