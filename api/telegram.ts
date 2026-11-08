@@ -68,8 +68,8 @@ export default async function handler(req: any, res: any) {
   let contexto = '';
   try {
     const supabase = createClient(
-      (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL)!,
-      (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY)!
+      (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL)!,
+      (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)!
     );
     const since = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
     const [agentsR, msgsR, postsR] = await Promise.all([
@@ -115,7 +115,7 @@ MENSAJE DEL JEFE: ${text}`;
 
   await reply(chatId, `🗂 <b>Secretario</b>\n\n${esc(answer)}`);
   try {
-    const supabase = createClient((process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL)!, (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY)!);
+    const supabase = createClient((process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL)!, (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)!);
     const { data: sec } = await supabase.from('tj_agentes').select('id').ilike('nickname', 'secretario').maybeSingle();
     if (sec?.id) await supabase.from('tj_mensajes').insert({ canal: '#telegram', remitente_tipo: 'agente', remitente_id: sec.id, texto: answer, estado_procesado: true });
   } catch { /* no crítico */ }

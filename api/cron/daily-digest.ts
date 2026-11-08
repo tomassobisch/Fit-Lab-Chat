@@ -42,8 +42,8 @@ export default async function handler(req: any, res: any) {
   if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHAT_ID) return res.status(503).json({ error: 'Telegram no configurado' });
 
   const supabase = createClient(
-    (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL)!,
-    (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY)!
+    (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL)!,
+    (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)!
   );
   const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
 
